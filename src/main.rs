@@ -1,7 +1,13 @@
+#![feature(step_trait)]
+
 #[macro_use]
 extern crate clap;
 
 use clap::ArgMatches;
+
+pub mod histogram;
+
+use histogram::Histogram;
 use bio_file_reader::plink_bed::PlinkBed;
 
 fn extract_filename_arg(matches: &ArgMatches, arg_name: &str) -> String {
@@ -28,17 +34,8 @@ impl SparsityStats {
         SparsityStats { sparsity_vec }
     }
 
-    fn histogram(&self, num_intervals: usize) -> Vec<f32> {
-        let mut histogram = vec![0; num_intervals + 1];
-        for s in self.sparsity_vec.iter() {
-            let index = (*s * num_intervals as f32) as usize;
-            histogram[index] += 1;
-        }
-        let mut ratio_distribution = vec![0f32; num_intervals + 1];
-        for i in 0..num_intervals + 1 {
-            ratio_distribution[i] = histogram[i] as f32 / self.sparsity_vec.len() as f32;
-        }
-        ratio_distribution
+    fn histogram(&self, num_intervals: usize) -> Result<Histogram<f32>, String> {
+        Histogram::new(&self.sparsity_vec, num_intervals, 0., 1.)
     }
 
     fn avg_sparsity(&self) -> f32 {
@@ -92,12 +89,9 @@ fn main() {
 
     let stats = SparsityStats::new(&genotype_matrix);
     println!("avg sparsity: {}", stats.avg_sparsity());
-    let num_intervals = 20usize;
-    let histogram = stats.histogram(num_intervals);
-    let mut cum = 0f32;
-    let delta = 1f32 / num_intervals as f32;
-    for i in (0..num_intervals).rev() {
-        cum += histogram[i];
-        println!("[{:<3.2}, {:>3.2}): {:>6.2} {:>6.2}", i as f32 * delta, (i + 1) as f32 * delta, histogram[i], cum);
-    }
+
+    match stats.histogram(20usize) {
+        Err(why) => eprintln!("failed to construct the histogram: {}", why),
+        Ok(histogram) => println!("{}", histogram)
+    };
 }
