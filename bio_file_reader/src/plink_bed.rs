@@ -55,7 +55,7 @@ impl PlinkBed {
         let num_people = PlinkBed::get_line_count(fam_filename)?;
         let num_snps = PlinkBed::get_line_count(bim_filename)?;
         let num_bytes_per_snp = num_people / 4 + (num_people % 4 != 0) as usize;
-        println!("num_samples: {}\nnum_blocks: {}\nnum_bytes_per_block: {}", num_people, num_snps, num_bytes_per_snp);
+        println!("num_people: {}\nnum_snps: {}\nnum_bytes_per_block: {}", num_people, num_snps, num_bytes_per_snp);
 
         Ok(PlinkBed { bed_buf, num_people, num_snps, num_bytes_per_snp })
     }
