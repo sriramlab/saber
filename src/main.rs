@@ -1,14 +1,13 @@
-#![feature(step_trait)]
-
 #[macro_use]
 extern crate clap;
 
 use clap::ArgMatches;
 
-pub mod histogram;
-
-use histogram::Histogram;
 use bio_file_reader::plink_bed::PlinkBed;
+use sparsity_stats::SparsityStats;
+
+pub mod histogram;
+mod sparsity_stats;
 
 fn extract_filename_arg(matches: &ArgMatches, arg_name: &str) -> String {
     match matches.value_of(arg_name) {
@@ -17,39 +16,6 @@ fn extract_filename_arg(matches: &ArgMatches, arg_name: &str) -> String {
             eprintln!("the argument {} is required", arg_name);
             std::process::exit(1);
         }
-    }
-}
-
-struct SparsityStats {
-    sparsity_vec: Vec<f32>,
-}
-
-impl SparsityStats {
-    fn new(matrix: &Vec<Vec<u8>>) -> SparsityStats {
-        let mut sparsity_vec = Vec::new();
-        for snp_variants in matrix.iter() {
-            let num_zeros = snp_variants.iter().fold(0, |acc, &a| acc + (a == 0u8) as usize);
-            sparsity_vec.push(num_zeros as f32 / snp_variants.len() as f32);
-        }
-        SparsityStats { sparsity_vec }
-    }
-
-    fn histogram(&self, num_intervals: usize) -> Result<Histogram<f32>, String> {
-        Histogram::new(&self.sparsity_vec, num_intervals, 0., 1.)
-    }
-
-    fn avg_sparsity(&self) -> f32 {
-        let mut iter = self.sparsity_vec.iter();
-        let mut current_mean = match iter.next() {
-            None => return 0f32,
-            Some(a) => *a
-        };
-
-        for (i, a) in iter.enumerate() {
-            let ratio = i as f32 / (i + 1) as f32;
-            current_mean = current_mean * ratio + a / (i + 1) as f32
-        }
-        current_mean
     }
 }
 
