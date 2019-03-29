@@ -1,4 +1,5 @@
 use crate::histogram::Histogram;
+use bio_file_reader::plink_bed::MatrixIR;
 
 pub struct SparsityStats {
     // the percentage of 0's for each row of the matrix
@@ -6,11 +7,12 @@ pub struct SparsityStats {
 }
 
 impl SparsityStats {
-    pub fn new(matrix: &Vec<Vec<u8>>) -> SparsityStats {
+    pub fn new(matrix: &MatrixIR<u8>) -> SparsityStats {
         let mut row_sparsity_vec = Vec::new();
-        for snp_variants in matrix.iter() {
+        for i in 0..matrix.num_rows {
+            let snp_variants = &matrix.data[i * matrix.num_columns..(i + 1) * matrix.num_columns];
             let num_zeros = snp_variants.iter().fold(0, |acc, &a| acc + (a == 0u8) as usize);
-            row_sparsity_vec.push(num_zeros as f32 / snp_variants.len() as f32);
+            row_sparsity_vec.push(num_zeros as f32 / matrix.num_columns as f32);
         }
         SparsityStats { row_sparsity_vec }
     }
@@ -19,17 +21,7 @@ impl SparsityStats {
         Histogram::new(&self.row_sparsity_vec, num_intervals, 0., 1.)
     }
 
-    pub fn avg_sparsity(&self) -> f32 {
-        let mut iter = self.row_sparsity_vec.iter();
-        let mut current_mean = match iter.next() {
-            None => return 0f32,
-            Some(a) => *a
-        };
-
-        for (i, a) in iter.enumerate() {
-            let ratio = i as f32 / (i + 1) as f32;
-            current_mean = current_mean * ratio + a / (i + 1) as f32
-        }
-        current_mean
+    pub fn avg_sparsity(&self) -> f64 {
+        self.row_sparsity_vec.iter().sum::<f32>() as f64 / self.row_sparsity_vec.len() as f64
     }
 }
