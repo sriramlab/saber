@@ -2,6 +2,12 @@ use std::{fmt, io};
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
 
+pub struct MatrixIR<T> {
+    pub data: Vec<T>,
+    pub num_rows: usize,
+    pub num_columns: usize,
+}
+
 pub enum Error {
     IO { why: String, io_error: io::Error },
     BadFormat(String),
@@ -55,7 +61,7 @@ impl PlinkBed {
         let num_people = PlinkBed::get_line_count(fam_filename)?;
         let num_snps = PlinkBed::get_line_count(bim_filename)?;
         let num_bytes_per_snp = num_people / 4 + (num_people % 4 != 0) as usize;
-        println!("num_people: {}\nnum_snps: {}\nnum_bytes_per_block: {}", num_people, num_snps, num_bytes_per_snp);
+        println!("num_snps: {}\nnum_people: {}\nnum_bytes_per_block: {}", num_snps, num_people, num_bytes_per_snp);
 
         Ok(PlinkBed { bed_buf, num_people, num_snps, num_bytes_per_snp })
     }
@@ -66,7 +72,7 @@ impl PlinkBed {
         Ok(())
     }
 
-    pub fn get_genotype_matrix(&mut self) -> Result<Vec<Vec<u8>>, io::Error> {
+    pub fn get_genotype_matrix(&mut self) -> Result<MatrixIR<u8>, io::Error> {
         fn lowest_two_bits_to_geno(byte: u8) -> u8 {
             // 00 -> 2 homozygous for the first allele in the .bim file (usually the minor allele)
             // 01 -> 0 missing genotype
@@ -84,21 +90,26 @@ impl PlinkBed {
             x => x
         };
 
-        let mut genotype_matrix = vec![vec![0u8; self.num_people]; self.num_snps];
+        // row major, num_snps x num_people
+        let mut data = vec![0u8; self.num_snps * self.num_people];
         let mut snp_bytes = vec![0u8; self.num_bytes_per_snp];
         for i in 0..self.num_snps {
+            let i_offset = i * self.num_people;
             self.bed_buf.read_exact(&mut snp_bytes)?;
-            for j in 0..self.num_bytes_per_snp - 1 {
-                genotype_matrix[i][j * 4] = lowest_two_bits_to_geno(snp_bytes[j] & 0b11);
-                genotype_matrix[i][j * 4 + 1] = lowest_two_bits_to_geno((snp_bytes[j] >> 2) & 0b11);
-                genotype_matrix[i][j * 4 + 2] = lowest_two_bits_to_geno((snp_bytes[j] >> 4) & 0b11);
-                genotype_matrix[i][j * 4 + 3] = lowest_two_bits_to_geno((snp_bytes[j] >> 6) & 0b11);
+            for j in 0..last_byte_index {
+                // 4 peopel per byte, so we use j << 2 to get j * 4
+                let offset = i_offset + (j << 2);
+                data[offset] = lowest_two_bits_to_geno(snp_bytes[j] & 0b11);
+                data[offset + 1] = lowest_two_bits_to_geno((snp_bytes[j] >> 2) & 0b11);
+                data[offset + 2] = lowest_two_bits_to_geno((snp_bytes[j] >> 4) & 0b11);
+                data[offset + 3] = lowest_two_bits_to_geno((snp_bytes[j] >> 6) & 0b11);
             }
             // last byte
             for k in 0..num_people_last_byte {
-                genotype_matrix[i][last_byte_index * 4 + k] = lowest_two_bits_to_geno((snp_bytes[last_byte_index] >> (k * 2)) & 0b11);
+                // two bites per person, so we use k << 1 to get k * 2
+                data[i_offset + last_byte_index * 4 + k] = lowest_two_bits_to_geno((snp_bytes[last_byte_index] >> (k << 1)) & 0b11);
             }
         }
-        Ok(genotype_matrix)
+        Ok(MatrixIR { data, num_rows: self.num_snps.clone(), num_columns: self.num_people.clone() })
     }
 }
