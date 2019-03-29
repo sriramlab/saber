@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate clap;
 extern crate colored;
+#[macro_use]
 extern crate ndarray;
 extern crate ndarray_linalg;
 extern crate ndarray_rand;
@@ -14,9 +15,10 @@ use clap::ArgMatches;
 use colored::Colorize;
 use ndarray::{Array, Array2, ArrayView, Ix, ShapeError};
 use ndarray::prelude::*;
+use ndarray_linalg::Solve;
 use ndarray_rand::RandomExt;
 use num_traits::{NumAssign, NumOps};
-use rand::distributions::Bernoulli;
+use rand::distributions::{Bernoulli, StandardNormal};
 
 use bio_file_reader::plink_bed::{MatrixIR, PlinkBed};
 use sparsity_stats::SparsityStats;
@@ -126,6 +128,47 @@ fn estimate_trace(genotype_matrix_ir: MatrixIR<u8>, num_random_vecs: usize) -> R
     let trace_est = sum / (num_rows * num_rows * num_random_vecs) as f64;
     println!("trace_est: {}", trace_est);
     timer.print();
+
+    println!("\n=> calculating Xy");
+    let a = array![[trace_est, num_cols as f64],[num_cols as f64, num_cols as f64]];
+    let pheno_vec = Array::random((num_cols, 1), StandardNormal).mapv(|e| e as f32);
+    let xy = geno_arr.dot(&pheno_vec);
+    timer.print();
+
+    // yky
+    sum = 0f64;
+    lower_bits = 0f64;
+    for a in xy.iter() {
+        let y = (*a as f64) * (*a as f64) - lower_bits;
+        let new_sum = sum + y;
+        lower_bits = (new_sum - sum) - y;
+        sum = new_sum;
+    }
+    let yky = sum / num_rows as f64;
+    timer.print();
+
+    // yy
+    sum = 0f64;
+    lower_bits = 0f64;
+    for a in pheno_vec.iter() {
+        let y = (*a as f64) * (*a as f64) - lower_bits;
+        let new_sum = sum + y;
+        lower_bits = (new_sum - sum) - y;
+        sum = new_sum;
+    }
+    let yy = sum;
+    timer.print();
+
+    let b = array![yky, yy];
+    println!("solving {:?} {:?}", a, b);
+    let sig_sq = a.solve_into(b).unwrap();
+
+    println!("{:?}", sig_sq);
+    let s_y_sq = yy / (num_cols - 1) as f64;
+    let heritability = sig_sq[0] as f64 / s_y_sq;
+    println!("heritability: {}  s_y^2: {}", heritability, s_y_sq);
+    timer.print();
+
     Ok(trace_est)
 }
 
