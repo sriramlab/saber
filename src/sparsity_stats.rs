@@ -1,5 +1,7 @@
-use crate::histogram::Histogram;
 use bio_file_reader::plink_bed::MatrixIR;
+
+use crate::histogram::Histogram;
+use crate::stats_util::mean;
 
 pub struct SparsityStats {
     // the percentage of 0's for each row of the matrix
@@ -22,6 +24,6 @@ impl SparsityStats {
     }
 
     pub fn avg_sparsity(&self) -> f64 {
-        self.row_sparsity_vec.iter().sum::<f32>() as f64 / self.row_sparsity_vec.len() as f64
+        mean(self.row_sparsity_vec.iter())
     }
 }

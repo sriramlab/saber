@@ -1,3 +1,4 @@
+#![feature(unboxed_closures)]
 #[macro_use]
 extern crate clap;
 extern crate colored;
@@ -6,61 +7,21 @@ extern crate ndarray;
 extern crate ndarray_linalg;
 extern crate ndarray_rand;
 extern crate rand;
-extern crate time;
-//extern crate cblas_sys;
-
-use time::{Duration, PreciseTime, precise_time_ns};
 
 use clap::ArgMatches;
-use colored::Colorize;
-use ndarray::{Array, Array2, ArrayView, Ix, ShapeError};
-use ndarray::prelude::*;
+use ndarray::{Array, Array2, ShapeError};
 use ndarray_linalg::Solve;
 use ndarray_rand::RandomExt;
-use num_traits::{NumAssign, NumOps};
 use rand::distributions::{Bernoulli, StandardNormal};
 
 use bio_file_reader::plink_bed::{MatrixIR, PlinkBed};
-use sparsity_stats::SparsityStats;
+use stats_util::sum_of_squares;
+use timer::Timer;
 
 pub mod histogram;
-mod stats_util;
-mod sparsity_stats;
-
-fn extract_filename_arg(matches: &ArgMatches, arg_name: &str) -> String {
-    match matches.value_of(arg_name) {
-        Some(filename) => filename.to_string(),
-        None => {
-            eprintln!("the argument {} is required", arg_name);
-            std::process::exit(1);
-        }
-    }
-}
-
-fn bold_print(msg: &String) {
-    println!("{}", msg.bold());
-}
-
-struct Timer {
-    start_time: PreciseTime,
-    last_print_time: PreciseTime,
-}
-
-impl Timer {
-    fn new() -> Timer {
-        let now = PreciseTime::now();
-        Timer { start_time: now, last_print_time: now }
-    }
-    fn print(&mut self) {
-        let now = PreciseTime::now();
-        let elapsed = self.last_print_time.to(now);
-        let total_elapsed = self.start_time.to(now);
-        bold_print(&format!("Timer since last print: {:.3} sec; since creation: {:.3} sec",
-                            elapsed.num_milliseconds() as f64 * 1e-3,
-                            total_elapsed.num_milliseconds() as f64 * 1e-3));
-        self.last_print_time = now;
-    }
-}
+pub mod stats_util;
+pub mod sparsity_stats;
+pub mod timer;
 
 fn estimate_heritability(genotype_matrix_ir: MatrixIR<u8>, num_random_vecs: usize) -> Result<f64, ShapeError> {
     println!("\n=> creating the genotype ndarray");
@@ -116,16 +77,7 @@ fn estimate_heritability(genotype_matrix_ir: MatrixIR<u8>, num_random_vecs: usiz
     timer.print();
 
     println!("\n=> calculating trace estimate through L2 squared");
-    // Kahan summation algorithm
-    let mut sum = 0f64;
-    let mut lower_bits = 0f64;
-    for a in xxz.iter() {
-        let y = (*a as f64) * (*a as f64) - lower_bits;
-        let new_sum = sum + y;
-        lower_bits = (new_sum - sum) - y;
-        sum = new_sum;
-    }
-    let trace_est = sum / (num_rows * num_rows * num_random_vecs) as f64;
+    let trace_est = sum_of_squares(xxz.iter()) / (num_rows * num_rows * num_random_vecs) as f64;
     println!("trace_est: {}", trace_est);
     timer.print();
 
@@ -137,28 +89,12 @@ fn estimate_heritability(genotype_matrix_ir: MatrixIR<u8>, num_random_vecs: usiz
 
     // yky
     println!("\n=> calculating yky");
-    sum = 0f64;
-    lower_bits = 0f64;
-    for a in xy.iter() {
-        let y = (*a as f64) * (*a as f64) - lower_bits;
-        let new_sum = sum + y;
-        lower_bits = (new_sum - sum) - y;
-        sum = new_sum;
-    }
-    let yky = sum / num_rows as f64;
+    let yky = sum_of_squares(xy.iter()) / num_rows as f64;
     timer.print();
 
     // yy
     println!("\n=> calculating yy");
-    sum = 0f64;
-    lower_bits = 0f64;
-    for a in pheno_vec.iter() {
-        let y = (*a as f64) * (*a as f64) - lower_bits;
-        let new_sum = sum + y;
-        lower_bits = (new_sum - sum) - y;
-        sum = new_sum;
-    }
-    let yy = sum;
+    let yy = sum_of_squares(pheno_vec.iter());
     timer.print();
 
     println!("\n=> solving for heritability");
@@ -173,6 +109,16 @@ fn estimate_heritability(genotype_matrix_ir: MatrixIR<u8>, num_random_vecs: usiz
     timer.print();
 
     Ok(heritability)
+}
+
+fn extract_filename_arg(matches: &ArgMatches, arg_name: &str) -> String {
+    match matches.value_of(arg_name) {
+        Some(filename) => filename.to_string(),
+        None => {
+            eprintln!("the argument {} is required", arg_name);
+            std::process::exit(1);
+        }
+    }
 }
 
 fn main() {
@@ -209,15 +155,7 @@ fn main() {
     };
     println!("genotype_matrix.shape: ({}, {})", genotype_matrix.num_rows, genotype_matrix.num_columns);
 
-//    let stats = SparsityStats::new(&genotype_matrix);
-//    println!("avg sparsity: {}", stats.avg_sparsity());
-//
-//    match stats.histogram(20usize) {
-//        Err(why) => eprintln!("failed to construct the histogram: {}", why),
-//        Ok(histogram) => println!("{}", histogram)
-//    };
-
-    let mat = match estimate_heritability(genotype_matrix, 100) {
+    match estimate_heritability(genotype_matrix, 100) {
         Ok(mat) => mat,
         Err(why) => {
             eprintln!("{}", why);
