@@ -1,27 +1,29 @@
 #[macro_use]
 extern crate clap;
-extern crate rand;
+extern crate colored;
 extern crate ndarray;
 extern crate ndarray_linalg;
 extern crate ndarray_rand;
-extern crate colored;
+extern crate rand;
+extern crate time;
 //extern crate cblas_sys;
 
+use time::{Duration, PreciseTime, precise_time_ns};
+
 use clap::ArgMatches;
-use bio_file_reader::plink_bed::{PlinkBed, MatrixIR};
-use sparsity_stats::SparsityStats;
-use ndarray::{Array, Array2, ShapeError, ArrayView, Ix};
-use ndarray::prelude::*;
-use rand::distributions::Bernoulli;
-use ndarray_rand::RandomExt;
-use std::time::SystemTime;
 use colored::Colorize;
+use ndarray::{Array, Array2, ArrayView, Ix, ShapeError};
+use ndarray::prelude::*;
+use ndarray_rand::RandomExt;
+use num_traits::{NumAssign, NumOps};
+use rand::distributions::Bernoulli;
+
+use bio_file_reader::plink_bed::{MatrixIR, PlinkBed};
+use sparsity_stats::SparsityStats;
 
 pub mod histogram;
 mod stats_util;
 mod sparsity_stats;
-
-use num_traits::{NumOps, NumAssign};
 
 fn extract_filename_arg(matches: &ArgMatches, arg_name: &str) -> String {
     match matches.value_of(arg_name) {
@@ -38,35 +40,38 @@ fn bold_print(msg: &String) {
 }
 
 struct Timer {
-    start_time: SystemTime,
-    last_print_time: SystemTime,
+    start_time: PreciseTime,
+    last_print_time: PreciseTime,
 }
 
 impl Timer {
     fn new() -> Timer {
-        Timer { start_time: SystemTime::now(), last_print_time: SystemTime::now() }
+        let now = PreciseTime::now();
+        Timer { start_time: now, last_print_time: now }
     }
     fn print(&mut self) {
-        let elapsed = self.last_print_time.elapsed().unwrap();
-        let total_elapsed = self.start_time.elapsed().unwrap();
-
+        let now = PreciseTime::now();
+        let elapsed = self.last_print_time.to(now);
+        let total_elapsed = self.start_time.to(now);
         bold_print(&format!("Timer since last print: {:.3} sec; since creation: {:.3} sec",
-                            elapsed.as_secs() as f64 + elapsed.as_millis() as f64 * 1e-3,
-                            total_elapsed.as_secs() as f64 + total_elapsed.as_millis() as f64 * 1e-3));
-        self.last_print_time = SystemTime::now();
+                            elapsed.num_milliseconds() as f64 * 1e-3,
+                            total_elapsed.num_milliseconds() as f64 * 1e-3));
+        self.last_print_time = now;
     }
 }
 
 fn estimate_trace(genotype_matrix_ir: MatrixIR<u8>, num_random_vecs: usize) -> Result<f64, ShapeError> {
+    println!("\n=> creating the genotype ndarray");
+    let mut timer = Timer::new();
     // geno_arr is num_snps x num_people
     let mut geno_arr = Array2::from_shape_vec(
         (genotype_matrix_ir.num_rows, genotype_matrix_ir.num_columns),
         genotype_matrix_ir.data)?.mapv(|e| e as f32);
     let num_cols = genotype_matrix_ir.num_columns;
     let num_rows = genotype_matrix_ir.num_rows;
-
-    let mut timer = Timer::new();
+    println!("\n=> geno_arr dim: {:?}", geno_arr.dim());
     timer.print();
+
     println!("\n=> calculating the mean vector");
     let ones_vec = Array::from_shape_vec(
         (num_cols, 1), vec![1f32; num_cols]).unwrap();
@@ -88,7 +93,7 @@ fn estimate_trace(genotype_matrix_ir: MatrixIR<u8>, num_random_vecs: usize) -> R
     timer.print();
     println!("\n=> dividing by the standard deviation");
     let std_arr = Array::from_shape_vec((num_rows, 1), std_vec).unwrap();
-    println!("std_arr.dim: {:?}", std_arr.dim());
+    println!("std_arr dim: {:?}", std_arr.dim());
     geno_arr /= &std_arr;
     timer.print();
 
@@ -98,21 +103,29 @@ fn estimate_trace(genotype_matrix_ir: MatrixIR<u8>, num_random_vecs: usize) -> R
         Bernoulli::new(0.5)).mapv(|e| e as i32 as f32);
     timer.print();
 
-    println!("\n=> MatMul");
+    println!("\n=> MatMul geno_arr{:?} with rand_mat{:?}", geno_arr.dim(), rand_mat.dim());
     let intermediate_arr = geno_arr.dot(&rand_mat);
     println!("intermediate_arr: {:?}", intermediate_arr.dim());
     timer.print();
 
+    println!("\n=> MatMul geno_arr{:?}.T with intermediate_arr{:?}", geno_arr.dim(), intermediate_arr.dim());
     let xxz = geno_arr.t().dot(&intermediate_arr);
     println!("xxz dim: {:?}", xxz.dim());
     timer.print();
 
-    let l2_sq: f64 = xxz.iter().fold(0f64, |acc, &x| (x as f64).mul_add(x as f64, acc));
-    println!("L2 squared: {}", l2_sq);
-    timer.print();
-
-    let trace_est = l2_sq / (num_rows * num_rows * num_random_vecs) as f64;
+    println!("\n=> calculating trace estimate through L2 squared");
+    // Kahan summation algorithm
+    let mut sum = 0f64;
+    let mut lower_bits = 0f64;
+    for a in xxz.iter() {
+        let y = (*a as f64) * (*a as f64) - lower_bits;
+        let new_sum = sum + y;
+        lower_bits = (new_sum - sum) - y;
+        sum = new_sum;
+    }
+    let trace_est = sum / (num_rows * num_rows * num_random_vecs) as f64;
     println!("trace_est: {}", trace_est);
+    timer.print();
     Ok(trace_est)
 }
 
