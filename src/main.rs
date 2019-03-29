@@ -62,7 +62,7 @@ impl Timer {
     }
 }
 
-fn estimate_trace(genotype_matrix_ir: MatrixIR<u8>, num_random_vecs: usize) -> Result<f64, ShapeError> {
+fn estimate_heritability(genotype_matrix_ir: MatrixIR<u8>, num_random_vecs: usize) -> Result<f64, ShapeError> {
     println!("\n=> creating the genotype ndarray");
     let mut timer = Timer::new();
     // geno_arr is num_snps x num_people
@@ -136,6 +136,7 @@ fn estimate_trace(genotype_matrix_ir: MatrixIR<u8>, num_random_vecs: usize) -> R
     timer.print();
 
     // yky
+    println!("\n=> calculating yky");
     sum = 0f64;
     lower_bits = 0f64;
     for a in xy.iter() {
@@ -148,6 +149,7 @@ fn estimate_trace(genotype_matrix_ir: MatrixIR<u8>, num_random_vecs: usize) -> R
     timer.print();
 
     // yy
+    println!("\n=> calculating yy");
     sum = 0f64;
     lower_bits = 0f64;
     for a in pheno_vec.iter() {
@@ -159,6 +161,7 @@ fn estimate_trace(genotype_matrix_ir: MatrixIR<u8>, num_random_vecs: usize) -> R
     let yy = sum;
     timer.print();
 
+    println!("\n=> solving for heritability");
     let b = array![yky, yy];
     println!("solving {:?} {:?}", a, b);
     let sig_sq = a.solve_into(b).unwrap();
@@ -169,7 +172,7 @@ fn estimate_trace(genotype_matrix_ir: MatrixIR<u8>, num_random_vecs: usize) -> R
     println!("heritability: {}  s_y^2: {}", heritability, s_y_sq);
     timer.print();
 
-    Ok(trace_est)
+    Ok(heritability)
 }
 
 fn main() {
@@ -214,7 +217,7 @@ fn main() {
 //        Ok(histogram) => println!("{}", histogram)
 //    };
 
-    let mat = match estimate_trace(genotype_matrix, 100) {
+    let mat = match estimate_heritability(genotype_matrix, 100) {
         Ok(mat) => mat,
         Err(why) => {
             eprintln!("{}", why);
