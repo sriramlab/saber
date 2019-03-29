@@ -8,8 +8,11 @@ extern crate ndarray_linalg;
 extern crate ndarray_rand;
 extern crate rand;
 
+use std::fs::OpenOptions;
+use std::io::{BufRead, BufReader};
+
 use clap::ArgMatches;
-use ndarray::{Array, Array2, ShapeError};
+use ndarray::{Array, Array2, Ix1, ShapeError};
 use ndarray_linalg::Solve;
 use ndarray_rand::RandomExt;
 use rand::distributions::{Bernoulli, StandardNormal};
@@ -23,7 +26,12 @@ pub mod stats_util;
 pub mod sparsity_stats;
 pub mod timer;
 
-fn estimate_heritability(genotype_matrix_ir: MatrixIR<u8>, num_random_vecs: usize) -> Result<f64, ShapeError> {
+#[allow(dead_code)]
+fn generate_random_pheno_vec(num_cols: usize) -> Array<f32, Ix1> {
+    Array::random(num_cols, StandardNormal).mapv(|e| e as f32)
+}
+
+fn estimate_heritability(genotype_matrix_ir: MatrixIR<u8>, pheno_arr: Array<f32, Ix1>, num_random_vecs: usize) -> Result<f64, ShapeError> {
     println!("\n=> creating the genotype ndarray");
     let mut timer = Timer::new();
     // geno_arr is num_snps x num_people
@@ -83,8 +91,7 @@ fn estimate_heritability(genotype_matrix_ir: MatrixIR<u8>, num_random_vecs: usiz
 
     println!("\n=> calculating Xy");
     let a = array![[trace_est, num_cols as f64],[num_cols as f64, num_cols as f64]];
-    let pheno_vec = Array::random((num_cols, 1), StandardNormal).mapv(|e| e as f32);
-    let xy = geno_arr.dot(&pheno_vec);
+    let xy = geno_arr.dot(&pheno_arr);
     timer.print();
 
     // yky
@@ -94,19 +101,18 @@ fn estimate_heritability(genotype_matrix_ir: MatrixIR<u8>, num_random_vecs: usiz
 
     // yy
     println!("\n=> calculating yy");
-    let yy = sum_of_squares(pheno_vec.iter());
+    let yy = sum_of_squares(pheno_arr.iter());
     timer.print();
 
     println!("\n=> solving for heritability");
     let b = array![yky, yy];
-    println!("solving {:?} {:?}", a, b);
+    println!("solving ax=b\na = {:?}\nb = {:?}", a, b);
     let sig_sq = a.solve_into(b).unwrap();
 
     println!("{:?}", sig_sq);
     let s_y_sq = yy / (num_cols - 1) as f64;
     let heritability = sig_sq[0] as f64 / s_y_sq;
     println!("heritability: {}  s_y^2: {}", heritability, s_y_sq);
-    timer.print();
 
     Ok(heritability)
 }
@@ -121,6 +127,15 @@ fn extract_filename_arg(matches: &ArgMatches, arg_name: &str) -> String {
     }
 }
 
+fn get_pheno_arr(pheno_filename: &String) -> Result<Array<f32, Ix1>, String> {
+    let buf = match OpenOptions::new().read(true).open(pheno_filename.as_str()) {
+        Err(why) => return Err(format!("failed to open {}: {}", pheno_filename, why)),
+        Ok(f) => BufReader::new(f)
+    };
+    let pheno_vec: Vec<f32> = buf.lines().map(|l| l.unwrap().parse::<f32>().unwrap()).collect();
+    Ok(Array::from_vec(pheno_vec))
+}
+
 fn main() {
     let matches = clap_app!(Saber =>
         (version: "0.1")
@@ -128,14 +143,16 @@ fn main() {
         (@arg plink_bed_filename: --bed <BED> "required")
         (@arg plink_bim_filename: --bim <BIM> "required")
         (@arg plink_fam_filename: --fam <FAM> "required")
+        (@arg pheno_filename: --pheno <PHENO> "required; each row is one individual containing one phenotype value")
     ).get_matches();
 
     let plink_bed_filename = extract_filename_arg(&matches, "plink_bed_filename");
     let plink_bim_filename = extract_filename_arg(&matches, "plink_bim_filename");
     let plink_fam_filename = extract_filename_arg(&matches, "plink_fam_filename");
+    let pheno_filename = extract_filename_arg(&matches, "pheno_filename");
 
-    println!("PLINK bed filename: {}\nPLINK bim filename: {}\nPLINK fam filename: {}",
-             plink_bed_filename, plink_bim_filename, plink_fam_filename);
+    println!("PLINK bed filename: {}\nPLINK bim filename: {}\nPLINK fam filename: {}\npheno_filename: {}",
+             plink_bed_filename, plink_bim_filename, plink_fam_filename, pheno_filename);
 
     let mut bed = match PlinkBed::new(&plink_bed_filename, &plink_bim_filename, &plink_fam_filename) {
         Err(why) => {
@@ -143,6 +160,14 @@ fn main() {
             std::process::exit(1);
         }
         Ok(bed) => bed
+    };
+    println!("=> generating pheno_arr");
+    let pheno_arr = match get_pheno_arr(&pheno_filename) {
+        Err(why) => {
+            println!("{}", why);
+            std::process::exit(1);
+        }
+        Ok(arr) => arr
     };
 
     println!("\n=> generating the genotype matrix");
@@ -155,7 +180,7 @@ fn main() {
     };
     println!("genotype_matrix.shape: ({}, {})", genotype_matrix.num_rows, genotype_matrix.num_columns);
 
-    match estimate_heritability(genotype_matrix, 100) {
+    match estimate_heritability(genotype_matrix, pheno_arr, 100) {
         Ok(mat) => mat,
         Err(why) => {
             eprintln!("{}", why);
