@@ -17,12 +17,11 @@ use ndarray::{Array, Ix1, ShapeError};
 use ndarray_linalg::Solve;
 
 use bio_file_reader::plink_bed::{MatrixIR, PlinkBed};
-use matrix_util::{generate_plus_minus_one_bernoulli_matrix, matrix_ir_to_ndarray, normalize_matrix_row_wise};
+use matrix_util::{generate_plus_minus_one_bernoulli_matrix, matrix_ir_to_ndarray, normalize_matrix_row_wise,
+                  mean_center_vector};
 use program_flow::OrExit;
 use stats_util::sum_of_squares;
 use timer::Timer;
-
-use crate::matrix_util::mean_center_vector;
 
 pub mod histogram;
 pub mod matrix_util;
