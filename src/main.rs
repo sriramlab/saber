@@ -15,6 +15,7 @@ use std::io::{BufRead, BufReader};
 
 use clap::ArgMatches;
 use ndarray::{Array, Array2, Ix1, ShapeError};
+use ndarray::prelude::aview1;
 use ndarray_linalg::Solve;
 use ndarray_rand::RandomExt;
 use rand::distributions::Bernoulli;
@@ -22,8 +23,6 @@ use rand::distributions::Bernoulli;
 use bio_file_reader::plink_bed::{MatrixIR, PlinkBed};
 use stats_util::sum_of_squares;
 use timer::Timer;
-use ndarray::prelude::aview1;
-use crate::stats_util::mean;
 
 pub mod histogram;
 pub mod stats_util;
@@ -53,12 +52,6 @@ fn estimate_heritability(genotype_matrix_ir: MatrixIR<u8>, mut pheno_arr: Array<
     geno_arr -= &mean_vec;
     timer.print();
 
-    println!("\n=> mean centering the phenotype vector");
-    let pheno_mean = pheno_arr.dot(&aview1(ones_vec.as_slice().unwrap())) / pheno_arr.dim() as f32;
-    println!("pheno_mean: {}", pheno_mean);
-    pheno_arr -= pheno_mean;
-    timer.print();
-
     println!("\n=> calculating the standard deviation");
     let mut std_vec = vec![0f32; num_rows];
     let mut i = 0;
@@ -74,15 +67,11 @@ fn estimate_heritability(genotype_matrix_ir: MatrixIR<u8>, mut pheno_arr: Array<
     geno_arr /= &std_arr;
     timer.print();
 
-    /////
-    // DEBUG
-//    for row in geno_arr.genrows() {
-//        let row_mean = mean(row.iter());
-//        let row_var = row.iter().fold(0f32, |acc, &a| (a as f32).mul_add(a as f32, acc)) / (num_cols - 1) as f32;
-//        println!("mean: {}  std: {}", row_mean, row_var.sqrt());
-//    }
-//    println!("adjusted pheno mean {}", mean(pheno_arr.iter()));
-    /////
+    println!("\n=> mean centering the phenotype vector");
+    let pheno_mean = pheno_arr.dot(&aview1(ones_vec.as_slice().unwrap())) / pheno_arr.dim() as f32;
+    println!("pheno_mean: {}", pheno_mean);
+    pheno_arr -= pheno_mean;
+    timer.print();
 
     println!("\n=> generating random estimators");
     let rand_mat = Array::random(
@@ -104,18 +93,6 @@ fn estimate_heritability(genotype_matrix_ir: MatrixIR<u8>, mut pheno_arr: Array<
     let trace_est = sum_of_squares(xxz.iter()) / (num_rows * num_rows * num_random_vecs) as f64;
     println!("trace_est: {}", trace_est);
     timer.print();
-
-    // DEUBG check what's the real trace
-//    let k = geno_arr.t().dot(&geno_arr);
-//    println!("K dim: {:?}", k.dim());
-//    let trace = sum_of_squares(k.iter()) / (num_rows * num_rows) as f64;
-//    println!("real trace: {}", trace);
-//    timer.print();
-//    let m1 = k.dot(&pheno_arr);
-//    let m2 = pheno_arr.t().dot(&m1);
-//    println!("true yky: {:?}", m2);
-//    let ssq = sum_of_squares(geno_arr.iter())/ num_rows as f64;
-//    println!("TRACE(K): {}", ssq);
 
     println!("\n=> calculating Xy");
     let xy = geno_arr.dot(&pheno_arr);
@@ -223,7 +200,8 @@ mod tests {
 
     use ndarray::Array;
     use ndarray_rand::RandomExt;
-    use rand::distributions::{StandardNormal, Bernoulli};
+    use rand::distributions::{Bernoulli, StandardNormal};
+
     use crate::stats_util::sum_of_squares;
 
     #[test]
