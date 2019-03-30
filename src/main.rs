@@ -17,25 +17,28 @@ use ndarray::{Array, Ix1, ShapeError};
 use ndarray_linalg::Solve;
 
 use bio_file_reader::plink_bed::{MatrixIR, PlinkBed};
-use matrix_util::{generate_plus_minus_one_bernoulli_matrix, normalize_matrix_row_wise, matrix_ir_to_ndarray};
+use matrix_util::{generate_plus_minus_one_bernoulli_matrix, matrix_ir_to_ndarray, normalize_matrix_row_wise};
+use program_flow::OrExit;
 use stats_util::sum_of_squares;
 use timer::Timer;
+
 use crate::matrix_util::mean_center_vector;
 
 pub mod histogram;
-pub mod stats_util;
+pub mod matrix_util;
+pub mod program_flow;
 pub mod sparsity_stats;
 pub mod timer;
 pub mod simulation;
-pub mod matrix_util;
+pub mod stats_util;
 
 fn estimate_heritability(genotype_matrix_ir: MatrixIR<u8>, mut pheno_arr: Array<f32, Ix1>, num_random_vecs: usize) -> Result<f64, ShapeError> {
-    println!("\n=> creating the genotype ndarray");
+    println!("\n=> creating the genotype ndarray and starting the timer for profiling");
     let mut timer = Timer::new();
     // geno_arr is num_snps x num_people
     let mut geno_arr = matrix_ir_to_ndarray(genotype_matrix_ir)?.mapv(|e| e as f32);
     let (num_rows, num_cols) = geno_arr.dim();
-    println!("\n=> geno_arr dim: {:?}", geno_arr.dim());
+    println!("geno_arr dim: {:?}", geno_arr.dim());
     timer.print();
 
     println!("\n=> normalizing the genotype matrix row-wise");
@@ -51,31 +54,31 @@ fn estimate_heritability(genotype_matrix_ir: MatrixIR<u8>, mut pheno_arr: Array<
     timer.print();
 
     println!("\n=> MatMul geno_arr{:?} with rand_mat{:?}", geno_arr.dim(), rand_mat.dim());
-    let intermediate_arr = geno_arr.dot(&rand_mat);
-    println!("intermediate_arr: {:?}", intermediate_arr.dim());
+    let xz_arr = geno_arr.dot(&rand_mat);
+    println!("xz_arr: {:?}", xz_arr.dim());
     timer.print();
 
-    println!("\n=> MatMul geno_arr{:?}.T with intermediate_arr{:?}", geno_arr.dim(), intermediate_arr.dim());
-    let xxz = geno_arr.t().dot(&intermediate_arr);
+    println!("\n=> MatMul geno_arr{:?}.T with xz_arr{:?}", geno_arr.dim(), xz_arr.dim());
+    let xxz = geno_arr.t().dot(&xz_arr);
     println!("xxz dim: {:?}", xxz.dim());
     timer.print();
 
     println!("\n=> calculating trace estimate through L2 squared");
-    let trace_est = sum_of_squares(xxz.iter()) / (num_rows * num_rows * num_random_vecs) as f64;
-    println!("trace_est: {}", trace_est);
+    let trace_kk_est = sum_of_squares(xxz.iter()) / (num_rows * num_rows * num_random_vecs) as f64;
+    println!("trace_kk_est: {}", trace_kk_est);
     timer.print();
 
     println!("\n=> calculating Xy");
     let xy = geno_arr.dot(&pheno_arr);
     timer.print();
 
-    println!("\n=> calculating yky and yy");
+    println!("\n=> calculating yKy and yy");
     let yky = sum_of_squares(xy.iter()) / num_rows as f64;
     let yy = sum_of_squares(pheno_arr.iter());
     timer.print();
 
     println!("\n=> solving for heritability");
-    let a = array![[trace_est, (num_cols - 1) as f64],[(num_cols - 1) as f64, num_cols as f64]];
+    let a = array![[trace_kk_est, (num_cols - 1) as f64],[(num_cols - 1) as f64, num_cols as f64]];
     let b = array![yky, yy];
     println!("solving ax=b\na = {:?}\nb = {:?}", a, b);
     let sig_sq = a.solve_into(b).unwrap();
@@ -85,7 +88,7 @@ fn estimate_heritability(genotype_matrix_ir: MatrixIR<u8>, mut pheno_arr: Array<
     let heritability = sig_sq[0] as f64 / s_y_sq;
     println!("heritability: {}  s_y^2: {}", heritability, s_y_sq);
 
-    let standard_error = (2. / (trace_est - num_cols as f64)).sqrt();
+    let standard_error = (2. / (trace_kk_est - num_cols as f64)).sqrt();
     println!("standard error: {}", standard_error);
 
     Ok(heritability)
@@ -128,34 +131,15 @@ fn main() {
     println!("PLINK bed filename: {}\nPLINK bim filename: {}\nPLINK fam filename: {}\npheno_filename: {}",
              plink_bed_filename, plink_bim_filename, plink_fam_filename, pheno_filename);
 
-    let mut bed = match PlinkBed::new(&plink_bed_filename, &plink_bim_filename, &plink_fam_filename) {
-        Err(why) => {
-            println!("{}", why);
-            std::process::exit(1);
-        }
-        Ok(bed) => bed
-    };
-    println!("=> generating pheno_arr");
-    let pheno_arr = match get_pheno_arr(&pheno_filename) {
-        Err(why) => {
-            println!("{}", why);
-            std::process::exit(1);
-        }
-        Ok(arr) => arr
-    };
+    let mut bed = PlinkBed::new(&plink_bed_filename, &plink_bim_filename, &plink_fam_filename).unwrap_or_exit(None::<String>);
 
-    println!("\n=> generating the genotype matrix");
-    let genotype_matrix = match bed.get_genotype_matrix() {
-        Err(io_error) => {
-            eprintln!("failed to get the genotype matrix: {}", io_error);
-            std::process::exit(1);
-        }
-        Ok(matrix) => matrix
-    };
-    println!("genotype_matrix.shape: ({}, {})", genotype_matrix.num_rows, genotype_matrix.num_columns);
+    println!("=> generating the phenotype array and the genotype matrix");
+    let pheno_arr = get_pheno_arr(&pheno_filename).unwrap_or_exit(None::<String>);
+    let genotype_matrix = bed.get_genotype_matrix().unwrap_or_exit(Some("failed to get the genotype matrix"));
+    println!("genotype_matrix dim: {:?}\npheno_arr dim: {:?}", genotype_matrix.dim(), pheno_arr.dim());
 
     match estimate_heritability(genotype_matrix, pheno_arr, 100) {
-        Ok(mat) => mat,
+        Ok(h) => h,
         Err(why) => {
             eprintln!("{}", why);
             return ();
