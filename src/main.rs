@@ -6,7 +6,9 @@ extern crate colored;
 extern crate ndarray;
 extern crate ndarray_linalg;
 extern crate ndarray_rand;
+extern crate num_traits;
 extern crate rand;
+extern crate time;
 
 use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader};
@@ -15,23 +17,21 @@ use clap::ArgMatches;
 use ndarray::{Array, Array2, Ix1, ShapeError};
 use ndarray_linalg::Solve;
 use ndarray_rand::RandomExt;
-use rand::distributions::{Bernoulli, StandardNormal};
+use rand::distributions::Bernoulli;
 
 use bio_file_reader::plink_bed::{MatrixIR, PlinkBed};
 use stats_util::sum_of_squares;
 use timer::Timer;
+use ndarray::prelude::aview1;
+use crate::stats_util::mean;
 
 pub mod histogram;
 pub mod stats_util;
 pub mod sparsity_stats;
 pub mod timer;
+pub mod simulation;
 
-#[allow(dead_code)]
-fn generate_random_pheno_vec(num_cols: usize) -> Array<f32, Ix1> {
-    Array::random(num_cols, StandardNormal).mapv(|e| e as f32)
-}
-
-fn estimate_heritability(genotype_matrix_ir: MatrixIR<u8>, pheno_arr: Array<f32, Ix1>, num_random_vecs: usize) -> Result<f64, ShapeError> {
+fn estimate_heritability(genotype_matrix_ir: MatrixIR<u8>, mut pheno_arr: Array<f32, Ix1>, num_random_vecs: usize) -> Result<f64, ShapeError> {
     println!("\n=> creating the genotype ndarray");
     let mut timer = Timer::new();
     // geno_arr is num_snps x num_people
@@ -53,6 +53,12 @@ fn estimate_heritability(genotype_matrix_ir: MatrixIR<u8>, pheno_arr: Array<f32,
     geno_arr -= &mean_vec;
     timer.print();
 
+    println!("\n=> mean centering the phenotype vector");
+    let pheno_mean = pheno_arr.dot(&aview1(ones_vec.as_slice().unwrap())) / pheno_arr.dim() as f32;
+    println!("pheno_mean: {}", pheno_mean);
+    pheno_arr -= pheno_mean;
+    timer.print();
+
     println!("\n=> calculating the standard deviation");
     let mut std_vec = vec![0f32; num_rows];
     let mut i = 0;
@@ -68,10 +74,20 @@ fn estimate_heritability(genotype_matrix_ir: MatrixIR<u8>, pheno_arr: Array<f32,
     geno_arr /= &std_arr;
     timer.print();
 
+    /////
+    // DEBUG
+//    for row in geno_arr.genrows() {
+//        let row_mean = mean(row.iter());
+//        let row_var = row.iter().fold(0f32, |acc, &a| (a as f32).mul_add(a as f32, acc)) / (num_cols - 1) as f32;
+//        println!("mean: {}  std: {}", row_mean, row_var.sqrt());
+//    }
+//    println!("adjusted pheno mean {}", mean(pheno_arr.iter()));
+    /////
+
     println!("\n=> generating random estimators");
     let rand_mat = Array::random(
         (num_cols, num_random_vecs),
-        Bernoulli::new(0.5)).mapv(|e| e as i32 as f32);
+        Bernoulli::new(0.5)).mapv(|e| (e as i32 * 2 - 1) as f32);
     timer.print();
 
     println!("\n=> MatMul geno_arr{:?} with rand_mat{:?}", geno_arr.dim(), rand_mat.dim());
@@ -89,8 +105,19 @@ fn estimate_heritability(genotype_matrix_ir: MatrixIR<u8>, pheno_arr: Array<f32,
     println!("trace_est: {}", trace_est);
     timer.print();
 
+    // DEUBG check what's the real trace
+//    let k = geno_arr.t().dot(&geno_arr);
+//    println!("K dim: {:?}", k.dim());
+//    let trace = sum_of_squares(k.iter()) / (num_rows * num_rows) as f64;
+//    println!("real trace: {}", trace);
+//    timer.print();
+//    let m1 = k.dot(&pheno_arr);
+//    let m2 = pheno_arr.t().dot(&m1);
+//    println!("true yky: {:?}", m2);
+//    let ssq = sum_of_squares(geno_arr.iter())/ num_rows as f64;
+//    println!("TRACE(K): {}", ssq);
+
     println!("\n=> calculating Xy");
-    let a = array![[trace_est, num_cols as f64],[num_cols as f64, num_cols as f64]];
     let xy = geno_arr.dot(&pheno_arr);
     timer.print();
 
@@ -105,11 +132,12 @@ fn estimate_heritability(genotype_matrix_ir: MatrixIR<u8>, pheno_arr: Array<f32,
     timer.print();
 
     println!("\n=> solving for heritability");
+    let a = array![[trace_est, num_cols as f64],[num_cols as f64, num_cols as f64]];
     let b = array![yky, yy];
     println!("solving ax=b\na = {:?}\nb = {:?}", a, b);
     let sig_sq = a.solve_into(b).unwrap();
 
-    println!("{:?}", sig_sq);
+    println!("sig_sq: {:?}", sig_sq);
     let s_y_sq = yy / (num_cols - 1) as f64;
     let heritability = sig_sq[0] as f64 / s_y_sq;
     println!("heritability: {}  s_y^2: {}", heritability, s_y_sq);
@@ -187,4 +215,33 @@ fn main() {
             return ();
         }
     };
+}
+
+#[cfg(test)]
+mod tests {
+    extern crate rand;
+
+    use ndarray::Array;
+    use ndarray_rand::RandomExt;
+    use rand::distributions::{StandardNormal, Bernoulli};
+    use crate::stats_util::sum_of_squares;
+
+    #[test]
+    fn test_trace_estimator() {
+        let n = 1000;
+        let num_random_vecs = 40;
+        let x = Array::random(
+            (n, n),
+            StandardNormal).mapv(|e| e as i32 as f32);
+        // want to estimate the trace of x.t().dot(&x)
+        let true_trace = sum_of_squares(x.iter());
+        println!("true trace: {}", true_trace);
+
+        let rand_mat = Array::random(
+            (n, num_random_vecs),
+            Bernoulli::new(0.5)).mapv(|e| (e as i32 * 2 - 1) as f32);
+
+        let trace_est = sum_of_squares(x.dot(&rand_mat).iter()) / num_random_vecs as f64;
+        println!("trace_est: {}", trace_est);
+    }
 }

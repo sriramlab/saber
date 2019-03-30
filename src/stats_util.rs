@@ -1,5 +1,3 @@
-extern crate num_traits;
-
 use std::ops::Deref;
 
 use num_traits::ToPrimitive;

@@ -1,5 +1,3 @@
-extern crate time;
-
 use colored::Colorize;
 use time::PreciseTime;
 

@@ -1,5 +1,3 @@
-extern crate num_traits;
-
 use num_traits::{NumOps, NumAssign};
 use num_traits::cast::{ToPrimitive, FromPrimitive};
 use std::fmt;
