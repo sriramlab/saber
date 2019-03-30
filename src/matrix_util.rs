@@ -1,7 +1,7 @@
 use ndarray::{Array, Ix1, Ix2, ScalarOperand, ShapeError};
 use ndarray_rand::RandomExt;
 use num_traits::{Float, FromPrimitive, NumAssign, ToPrimitive};
-use rand::distributions::Bernoulli;
+use rand::distributions::{Bernoulli, StandardNormal};
 
 use crate::stats_util::{sum_of_squares, mean};
 use bio_file_reader::plink_bed::MatrixIR;
@@ -14,11 +14,15 @@ pub fn generate_plus_minus_one_bernoulli_matrix(num_rows: usize, num_cols: usize
     Array::random((num_rows, num_cols), Bernoulli::new(0.5)).mapv(|e| (e as i32 * 2 - 1) as f32)
 }
 
+pub fn generate_standard_normal_matrix(num_rows: usize, num_cols: usize) -> Array<f32, Ix2> {
+    Array::random((num_rows, num_cols), StandardNormal).mapv(|e| e as f32)
+}
+
 /// `ddof`: delta degrees of freedom, where the denominator will be `N - ddof`,
 /// where `N` is the number of elements per row
 pub fn normalize_matrix_row_wise<A>(mut matrix: Array<A, Ix2>, ddof: usize) -> Array<A, Ix2>
     where A: ToPrimitive + FromPrimitive + NumAssign + Float + ScalarOperand {
-    let (num_rows, num_cols) = matrix.dim();
+    let (_num_rows, num_cols) = matrix.dim();
     let ones = Array::from_shape_vec((num_cols, 1), vec![A::one(); num_cols]).unwrap();
 
     // mean center
@@ -27,15 +31,9 @@ pub fn normalize_matrix_row_wise<A>(mut matrix: Array<A, Ix2>, ddof: usize) -> A
 
     // now that each row has zero mean, so we can just use the sum of squares
     let denominator = A::from(num_cols - ddof).unwrap();
-    let mut std_vec = vec![A::zero(); num_rows];
-    let mut i = 0;
-    for row in matrix.genrows() {
-        std_vec[i] = (A::from(sum_of_squares(row.iter())).unwrap() / denominator).sqrt();
-        i += 1;
+    for mut row in matrix.genrows_mut() {
+        row /= (A::from(sum_of_squares(row.iter())).unwrap() / denominator).sqrt();
     };
-
-    let std_arr = Array::from_shape_vec((num_rows, 1), std_vec).unwrap();
-    matrix /= &std_arr;
     matrix
 }
 
