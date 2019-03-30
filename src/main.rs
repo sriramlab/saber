@@ -1,4 +1,3 @@
-#![feature(unboxed_closures)]
 #[macro_use]
 extern crate clap;
 extern crate colored;
@@ -17,10 +16,9 @@ use clap::ArgMatches;
 use ndarray::{Array, Array2, Ix1, ShapeError};
 use ndarray::prelude::aview1;
 use ndarray_linalg::Solve;
-use ndarray_rand::RandomExt;
-use rand::distributions::Bernoulli;
 
 use bio_file_reader::plink_bed::{MatrixIR, PlinkBed};
+use matrix_util::{generate_plus_minus_one_bernoulli_matrix, normalize_matrix_row_wise};
 use stats_util::sum_of_squares;
 use timer::Timer;
 
@@ -29,6 +27,7 @@ pub mod stats_util;
 pub mod sparsity_stats;
 pub mod timer;
 pub mod simulation;
+pub mod matrix_util;
 
 fn estimate_heritability(genotype_matrix_ir: MatrixIR<u8>, mut pheno_arr: Array<f32, Ix1>, num_random_vecs: usize) -> Result<f64, ShapeError> {
     println!("\n=> creating the genotype ndarray");
@@ -42,41 +41,19 @@ fn estimate_heritability(genotype_matrix_ir: MatrixIR<u8>, mut pheno_arr: Array<
     println!("\n=> geno_arr dim: {:?}", geno_arr.dim());
     timer.print();
 
-    println!("\n=> calculating the mean vector");
-    let ones_vec = Array::from_shape_vec(
-        (num_cols, 1), vec![1f32; num_cols]).unwrap();
-    let mean_vec = geno_arr.dot(&ones_vec) / num_cols as f32;
-    println!("mean_vec dim: {:?}", mean_vec.dim());
-    timer.print();
-    println!("\n=> subtracting the means");
-    geno_arr -= &mean_vec;
-    timer.print();
-
-    println!("\n=> calculating the standard deviation");
-    let mut std_vec = vec![0f32; num_rows];
-    let mut i = 0;
-    for row in geno_arr.genrows() {
-        let row_var = row.iter().fold(0f32, |acc, &a| (a as f32).mul_add(a as f32, acc)) / (num_cols - 1) as f32;
-        std_vec[i] = row_var.sqrt();
-        i += 1;
-    };
-    timer.print();
-    println!("\n=> dividing by the standard deviation");
-    let std_arr = Array::from_shape_vec((num_rows, 1), std_vec).unwrap();
-    println!("std_arr dim: {:?}", std_arr.dim());
-    geno_arr /= &std_arr;
+    println!("\n=> normalizing the genotype matrix row-wise");
+    geno_arr = normalize_matrix_row_wise(geno_arr, 1);
     timer.print();
 
     println!("\n=> mean centering the phenotype vector");
+    let ones_vec = Array::from_shape_vec((num_cols, 1), vec![1f32; num_cols]).unwrap();
     let pheno_mean = pheno_arr.dot(&aview1(ones_vec.as_slice().unwrap())) / pheno_arr.dim() as f32;
     println!("pheno_mean: {}", pheno_mean);
     pheno_arr -= pheno_mean;
     timer.print();
 
     println!("\n=> generating random estimators");
-    let rand_mat = Array::random(
-        (num_cols, num_random_vecs),
-        Bernoulli::new(0.5)).mapv(|e| (e as i32 * 2 - 1) as f32);
+    let rand_mat = generate_plus_minus_one_bernoulli_matrix(num_cols, num_random_vecs);
     timer.print();
 
     println!("\n=> MatMul geno_arr{:?} with rand_mat{:?}", geno_arr.dim(), rand_mat.dim());
@@ -118,6 +95,9 @@ fn estimate_heritability(genotype_matrix_ir: MatrixIR<u8>, mut pheno_arr: Array<
     let s_y_sq = yy / (num_cols - 1) as f64;
     let heritability = sig_sq[0] as f64 / s_y_sq;
     println!("heritability: {}  s_y^2: {}", heritability, s_y_sq);
+
+    let standard_error = (2. / (trace_est - num_cols as f64)).sqrt();
+    println!("standard error: {}", standard_error);
 
     Ok(heritability)
 }
@@ -198,10 +178,13 @@ fn main() {
 mod tests {
     extern crate rand;
 
+    use std::collections::HashSet;
+
     use ndarray::Array;
     use ndarray_rand::RandomExt;
-    use rand::distributions::{Bernoulli, StandardNormal};
+    use rand::distributions::StandardNormal;
 
+    use crate::generate_plus_minus_one_bernoulli_matrix;
     use crate::stats_util::sum_of_squares;
 
     #[test]
@@ -215,11 +198,25 @@ mod tests {
         let true_trace = sum_of_squares(x.iter());
         println!("true trace: {}", true_trace);
 
-        let rand_mat = Array::random(
-            (n, num_random_vecs),
-            Bernoulli::new(0.5)).mapv(|e| (e as i32 * 2 - 1) as f32);
+        let rand_mat = generate_plus_minus_one_bernoulli_matrix(n, num_random_vecs);
 
         let trace_est = sum_of_squares(x.dot(&rand_mat).iter()) / num_random_vecs as f64;
         println!("trace_est: {}", trace_est);
+    }
+
+    #[test]
+    fn test_bernoulli_matrix() {
+        let n = 1000;
+        let num_random_vecs = 100;
+        let rand_mat = generate_plus_minus_one_bernoulli_matrix(n, num_random_vecs);
+        assert_eq!((n, num_random_vecs), rand_mat.dim());
+        let mut value_set = HashSet::<i32>::new();
+        for a in rand_mat.iter() {
+            value_set.insert(*a as i32);
+        }
+        // almost certainly this will contain the two values 1 and -1
+        assert_eq!(2, value_set.len());
+        assert_eq!(true, value_set.contains(&-1));
+        assert_eq!(true, value_set.contains(&1));
     }
 }
