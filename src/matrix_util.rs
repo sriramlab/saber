@@ -1,9 +1,14 @@
-use ndarray::{Array, Ix2, ScalarOperand};
+use ndarray::{Array, Ix1, Ix2, ScalarOperand, ShapeError};
 use ndarray_rand::RandomExt;
 use num_traits::{Float, FromPrimitive, NumAssign, ToPrimitive};
 use rand::distributions::Bernoulli;
 
-use crate::stats_util::sum_of_squares;
+use crate::stats_util::{sum_of_squares, mean};
+use bio_file_reader::plink_bed::MatrixIR;
+
+pub fn matrix_ir_to_ndarray<T>(matrix_ir: MatrixIR<T>) -> Result<Array<T, Ix2>, ShapeError> {
+    Array::from_shape_vec((matrix_ir.num_rows, matrix_ir.num_columns), matrix_ir.data)
+}
 
 pub fn generate_plus_minus_one_bernoulli_matrix(num_rows: usize, num_cols: usize) -> Array<f32, Ix2> {
     Array::random((num_rows, num_cols), Bernoulli::new(0.5)).mapv(|e| (e as i32 * 2 - 1) as f32)
@@ -34,6 +39,12 @@ pub fn normalize_matrix_row_wise<A>(mut matrix: Array<A, Ix2>, ddof: usize) -> A
     matrix
 }
 
+pub fn mean_center_vector<A>(mut vector: Array<A, Ix1>) -> Array<A, Ix1>
+    where A: ToPrimitive + FromPrimitive + NumAssign + Float + ScalarOperand {
+    vector -= A::from(mean(vector.iter())).unwrap();
+    vector
+}
+
 #[cfg(test)]
 mod tests {
     use ndarray::Array;
@@ -42,7 +53,7 @@ mod tests {
 
     use crate::stats_util::{mean, std};
 
-    use super::normalize_matrix_row_wise;
+    use super::{mean_center_vector, normalize_matrix_row_wise};
 
     #[test]
     fn test_normalize_matrix_row_wise() {
@@ -56,5 +67,13 @@ mod tests {
             assert!(mean(row.iter()).abs() < 1e-6);
             assert!((std(row.iter(), ddof) - 1.).abs() < 1e-6);
         }
+    }
+
+    #[test]
+    fn test_mean_center_vector() {
+        let size = 100;
+        let mut vec = Array::random(size, Uniform::new(-10f32, 50f32));
+        vec = mean_center_vector(vec);
+        assert!(mean(vec.iter()).abs() < 1e-6);
     }
 }

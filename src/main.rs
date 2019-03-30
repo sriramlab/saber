@@ -13,14 +13,14 @@ use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader};
 
 use clap::ArgMatches;
-use ndarray::{Array, Array2, Ix1, ShapeError};
-use ndarray::prelude::aview1;
+use ndarray::{Array, Ix1, ShapeError};
 use ndarray_linalg::Solve;
 
 use bio_file_reader::plink_bed::{MatrixIR, PlinkBed};
-use matrix_util::{generate_plus_minus_one_bernoulli_matrix, normalize_matrix_row_wise};
+use matrix_util::{generate_plus_minus_one_bernoulli_matrix, normalize_matrix_row_wise, matrix_ir_to_ndarray};
 use stats_util::sum_of_squares;
 use timer::Timer;
+use crate::matrix_util::mean_center_vector;
 
 pub mod histogram;
 pub mod stats_util;
@@ -33,11 +33,8 @@ fn estimate_heritability(genotype_matrix_ir: MatrixIR<u8>, mut pheno_arr: Array<
     println!("\n=> creating the genotype ndarray");
     let mut timer = Timer::new();
     // geno_arr is num_snps x num_people
-    let mut geno_arr = Array2::from_shape_vec(
-        (genotype_matrix_ir.num_rows, genotype_matrix_ir.num_columns),
-        genotype_matrix_ir.data)?.mapv(|e| e as f32);
-    let num_cols = genotype_matrix_ir.num_columns;
-    let num_rows = genotype_matrix_ir.num_rows;
+    let mut geno_arr = matrix_ir_to_ndarray(genotype_matrix_ir)?.mapv(|e| e as f32);
+    let (num_rows, num_cols) = geno_arr.dim();
     println!("\n=> geno_arr dim: {:?}", geno_arr.dim());
     timer.print();
 
@@ -46,10 +43,7 @@ fn estimate_heritability(genotype_matrix_ir: MatrixIR<u8>, mut pheno_arr: Array<
     timer.print();
 
     println!("\n=> mean centering the phenotype vector");
-    let ones_vec = Array::from_shape_vec((num_cols, 1), vec![1f32; num_cols]).unwrap();
-    let pheno_mean = pheno_arr.dot(&aview1(ones_vec.as_slice().unwrap())) / pheno_arr.dim() as f32;
-    println!("pheno_mean: {}", pheno_mean);
-    pheno_arr -= pheno_mean;
+    pheno_arr = mean_center_vector(pheno_arr);
     timer.print();
 
     println!("\n=> generating random estimators");
@@ -75,18 +69,13 @@ fn estimate_heritability(genotype_matrix_ir: MatrixIR<u8>, mut pheno_arr: Array<
     let xy = geno_arr.dot(&pheno_arr);
     timer.print();
 
-    // yky
-    println!("\n=> calculating yky");
+    println!("\n=> calculating yky and yy");
     let yky = sum_of_squares(xy.iter()) / num_rows as f64;
-    timer.print();
-
-    // yy
-    println!("\n=> calculating yy");
     let yy = sum_of_squares(pheno_arr.iter());
     timer.print();
 
     println!("\n=> solving for heritability");
-    let a = array![[trace_est, num_cols as f64],[num_cols as f64, num_cols as f64]];
+    let a = array![[trace_est, (num_cols - 1) as f64],[(num_cols - 1) as f64, num_cols as f64]];
     let b = array![yky, yy];
     println!("solving ax=b\na = {:?}\nb = {:?}", a, b);
     let sig_sq = a.solve_into(b).unwrap();

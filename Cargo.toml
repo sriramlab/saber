@@ -4,6 +4,9 @@ version = "0.1.0"
 authors = ["Aaron <aaronzhouqian@ucla.edu>"]
 edition = "2018"
 
+[workspace]
+members = ["bio_file_reader"]
+
 [dependencies]
 bio_file_reader = {path = "bio_file_reader"}
 clap = "2.32.0"
