@@ -24,6 +24,7 @@ use stats_util::sum_of_squares;
 use timer::Timer;
 
 pub mod histogram;
+pub mod matrix_op;
 pub mod matrix_util;
 pub mod program_flow;
 pub mod sparsity_stats;
