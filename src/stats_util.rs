@@ -32,6 +32,7 @@ pub fn kahan_sigma_return_counter<'a, A, T: Iterator<Item=&'a A>>(element_iterat
     (sum, count)
 }
 
+#[inline]
 pub fn sum<'a, A, T: Iterator<Item=&'a A>>(element_iterator: T) -> f64
     where A: Copy + ToPrimitive + 'a, &'a A: Deref {
     kahan_sigma(element_iterator, Box::new(|a| a.to_f64().unwrap()))
@@ -45,8 +46,8 @@ pub fn sum_of_squares<'a, A, T: Iterator<Item=&'a A>>(element_iterator: T) -> f6
     }))
 }
 
-pub fn mean<'a, T: Iterator<Item=&'a A>, A: Copy + ToPrimitive + 'a>(element_iterator: T) -> f64
-    where &'a A: Deref {
+pub fn mean<'a, A, T: Iterator<Item=&'a A>>(element_iterator: T) -> f64
+    where A: Copy + ToPrimitive + 'a, &'a A: Deref {
     let (sum, count) = kahan_sigma_return_counter(element_iterator, Box::new(|a| a.to_f64().unwrap()));
     sum / count as f64
 }
@@ -55,7 +56,7 @@ pub fn mean<'a, T: Iterator<Item=&'a A>, A: Copy + ToPrimitive + 'a>(element_ite
 /// where `count` is the number of elements
 /// for population variance, set `ddof` to 0
 /// for sample variance, set `ddof` to 1
-pub fn variance<'a, T: Clone + Iterator<Item=&'a A>, A: Copy + ToPrimitive + 'a>(element_iterator: T, ddof: usize) -> f64
+pub fn variance<'a, T: Clone + Iterator<Item=&'a A>, A>(element_iterator: T, ddof: usize) -> f64
     where A: Copy + ToPrimitive + 'a, &'a A: Deref {
     let mean = mean(element_iterator.clone());
     let (sum, count) = kahan_sigma_return_counter(element_iterator, Box::new(move |a| {
@@ -69,7 +70,7 @@ pub fn variance<'a, T: Clone + Iterator<Item=&'a A>, A: Copy + ToPrimitive + 'a>
 /// where `count` is the number of elements
 /// for population standard deviation, set `ddof` to 0
 /// for sample standard deviation, set `ddof` to 1
-pub fn std<'a, T: Clone + Iterator<Item=&'a A>, A: Copy + ToPrimitive + 'a>(element_iterator: T, ddof: usize) -> f64
+pub fn std<'a, T: Clone + Iterator<Item=&'a A>, A>(element_iterator: T, ddof: usize) -> f64
     where A: Copy + ToPrimitive + 'a, &'a A: Deref {
     variance(element_iterator, ddof).sqrt()
 }
