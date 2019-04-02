@@ -2,8 +2,11 @@
 #[macro_use]
 extern crate clap;
 extern crate colored;
-#[cfg(feature = "use_cublas")]
-extern crate cublas;
+#[cfg(feature = "cuda")]
+extern crate collenchyma as co;
+#[cfg(feature = "cuda")]
+extern crate collenchyma_blas as co_blas;
+//extern crate cublas;
 #[macro_use]
 extern crate ndarray;
 extern crate ndarray_linalg;
@@ -37,7 +40,7 @@ pub mod sparsity_stats;
 pub mod timer;
 pub mod simulation;
 pub mod stats_util;
-#[cfg(feature = "use_cublas")]
+#[cfg(feature = "cuda")]
 pub mod matmul_cublas;
 
 fn estimate_heritability_mailman(genotype_matrix_ir: MatrixIR<u8>, mut pheno_arr: Array<f32, Ix1>,

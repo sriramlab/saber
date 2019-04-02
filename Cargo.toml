@@ -19,10 +19,13 @@ blas-src = { version = "0.2", features = ["openblas"] }
 #cblas-sys = { version = "0.1.4", default-features = false }
 colored = "1.7.0"
 time = "0.1.42"
-cublas = {version = "0.2.0", optional = true}
+
+collenchyma = {version = "0.0.8", default-features = false, features = ["native", "cuda"], optional = true}
+collenchyma-blas = {version = "0.2.0", default-features = false, features = ["native", "cuda"], optional = true}
+rblas = {version = "0.0.13", optional=true}
 
 [features]
-use_cublas = ["cublas"]
+cuda = ["collenchyma", "collenchyma-blas", "rblas"]
 
 [profile.bench]
 opt-level = 3
