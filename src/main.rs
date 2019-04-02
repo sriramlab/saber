@@ -2,6 +2,8 @@
 #[macro_use]
 extern crate clap;
 extern crate colored;
+#[cfg(feature = "use_cublas")]
+extern crate cublas;
 #[macro_use]
 extern crate ndarray;
 extern crate ndarray_linalg;
@@ -18,12 +20,13 @@ use ndarray::{Array, Ix1};
 use ndarray_linalg::Solve;
 
 use bio_file_reader::plink_bed::{MatrixIR, PlinkBed};
-use matrix_util::{generate_plus_minus_one_bernoulli_matrix, matrix_ir_to_ndarray, normalize_matrix_row_wise_inplace,
-                  mean_center_vector, row_mean_vec, row_std_vec};
-use program_flow::OrExit;
-use stats_util::{sum_of_squares, sum};
-use timer::Timer;
 use mailman::zero_one_two_matrix_to_indicator_vec;
+use matrix_util::{generate_plus_minus_one_bernoulli_matrix, matrix_ir_to_ndarray, mean_center_vector,
+                  normalize_matrix_row_wise_inplace, row_mean_vec, row_std_vec};
+use program_flow::OrExit;
+use stats_util::{sum, sum_of_squares};
+use timer::Timer;
+
 use crate::mailman::mailman_zero_one_two;
 
 pub mod histogram;
@@ -34,6 +37,8 @@ pub mod sparsity_stats;
 pub mod timer;
 pub mod simulation;
 pub mod stats_util;
+#[cfg(feature = "use_cublas")]
+pub mod matmul_cublas;
 
 fn estimate_heritability_mailman(genotype_matrix_ir: MatrixIR<u8>, mut pheno_arr: Array<f32, Ix1>,
     num_random_vecs: usize) -> Result<f64, String> {
