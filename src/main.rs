@@ -1,11 +1,11 @@
 #![feature(test)]
 #[macro_use]
 extern crate clap;
-extern crate colored;
 #[cfg(feature = "cuda")]
 extern crate collenchyma as co;
 #[cfg(feature = "cuda")]
 extern crate collenchyma_blas as co_blas;
+extern crate colored;
 //extern crate cublas;
 #[macro_use]
 extern crate ndarray;
@@ -19,10 +19,14 @@ use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader};
 
 use clap::ArgMatches;
+#[cfg(feature = "cuda")]
+use co_blas::transpose::Transpose;
 use ndarray::{Array, Ix1};
 use ndarray_linalg::Solve;
 
 use bio_file_reader::plink_bed::{MatrixIR, PlinkBed};
+#[cfg(feature = "cuda")]
+use estimate_heritability_cublas as estimate_heritability;
 use mailman::zero_one_two_matrix_to_indicator_vec;
 use matrix_util::{generate_plus_minus_one_bernoulli_matrix, matrix_ir_to_ndarray, mean_center_vector,
                   normalize_matrix_row_wise_inplace, row_mean_vec, row_std_vec};
@@ -30,6 +34,7 @@ use program_flow::OrExit;
 use stats_util::{sum, sum_of_squares};
 use timer::Timer;
 
+use crate::cublas::linalg::mul_xtxz_f32;
 use crate::mailman::mailman_zero_one_two;
 
 pub mod histogram;
@@ -41,59 +46,70 @@ pub mod timer;
 pub mod simulation;
 pub mod stats_util;
 #[cfg(feature = "cuda")]
-pub mod matmul_cublas;
+pub mod cublas;
 
-fn estimate_heritability_mailman(genotype_matrix_ir: MatrixIR<u8>, mut pheno_arr: Array<f32, Ix1>,
+#[cfg(feature = "cuda")]
+fn estimate_heritability_cublas(genotype_matrix_ir: MatrixIR<u8>, mut pheno_arr: Array<f32, Ix1>,
     num_random_vecs: usize) -> Result<f64, String> {
-    println!("\n=> creating the genotype ndarray and starting the timer for profiling");
+    println!("\nusing cuBLAS\n=> creating the genotype ndarray and starting the timer for profiling");
     let mut timer = Timer::new();
     // geno_arr is num_snps x num_people
-    let mut geno_arr = matrix_ir_to_ndarray(genotype_matrix_ir)?;
+    let mut geno_arr = matrix_ir_to_ndarray(genotype_matrix_ir)?.mapv(|e| e as f32);
     let (num_rows, num_cols) = geno_arr.dim();
+    println!("geno_arr dim: {:?}", geno_arr.dim());
+    timer.print();
 
-    let indicator_vec = zero_one_two_matrix_to_indicator_vec(&geno_arr);
-    let mean_arr = row_mean_vec::<_, f32>(&geno_arr);
-    let std_arr = row_std_vec::<_, f32>(&geno_arr, 1);
-    let mut mean_over_std_vec = Vec::new();
-    for i in 0..num_rows {
-        mean_over_std_vec.push(mean_arr[i] / std_arr[i]);
-    }
-    let mean_over_std_arr = Array::from_vec(mean_over_std_vec);
+    println!("\n=> normalizing the genotype matrix row-wise");
+    geno_arr = normalize_matrix_row_wise_inplace(geno_arr, 1);
+    timer.print();
 
-//    let rand_mat = generate_plus_minus_one_bernoulli_matrix(num_cols, num_random_vecs);
-//    for z in rand_mat.gencolumns() {
-//        let z_sum= sum(z.iter()) as f32;
-//        let gz = mailman_zero_one_two(&indicator_vec, &z.to_vec())?;
-//        let xz = gz / &mean_over_std_arr - (&mean_over_std_arr * z_sum);
-//    }
-//    pheno_arr = mean_center_vector(pheno_arr);
-//
+    println!("\n=> mean centering the phenotype vector");
+    pheno_arr = mean_center_vector(pheno_arr);
+    timer.print();
 
-//    let xz_arr = geno_arr.dot(&rand_mat);
-//    let xxz = geno_arr.t().dot(&xz_arr);
-//    let trace_kk_est = sum_of_squares(xxz.iter()) / (num_rows * num_rows * num_random_vecs) as f64;
-//
-//    let xy = geno_arr.dot(&pheno_arr);
-//    let yky = sum_of_squares(xy.iter()) / num_rows as f64;
-//    let yy = sum_of_squares(pheno_arr.iter());
-//
-//    let a = array![[trace_kk_est, (num_cols - 1) as f64],[(num_cols - 1) as f64, num_cols as f64]];
-//    let b = array![yky, yy];
-//    println!("solving ax=b\na = {:?}\nb = {:?}", a, b);
-//    let sig_sq = a.solve_into(b).unwrap();
-//
-//    println!("sig_sq: {:?}", sig_sq);
-//    let s_y_sq = yy / (num_cols - 1) as f64;
-//    let heritability = sig_sq[0] as f64 / s_y_sq;
-//    println!("heritability: {}  s_y^2: {}", heritability, s_y_sq);
-//
-//    let standard_error = (2. / (trace_kk_est - num_cols as f64)).sqrt();
-//    println!("standard error: {}", standard_error);
-//
-    Ok(0.3)
-//    Ok(heritability)
+    println!("\n=> generating random estimators");
+    let rand_mat = generate_plus_minus_one_bernoulli_matrix(num_cols, num_random_vecs);
+    timer.print();
+
+    println!("\n=> getting xxz");
+    let xxz = Array::from_shape_vec((num_cols, num_random_vecs),
+                                    mul_xtxz_f32(geno_arr.as_slice().unwrap(), rand_mat.as_slice().unwrap(),
+                                                 num_rows, num_random_vecs, num_cols)).unwrap();
+    println!("xxz dim: {:?}", xxz.dim());
+    timer.print();
+
+    println!("\n=> calculating trace estimate through L2 squared");
+    let trace_kk_est = sum_of_squares(xxz.iter()) / (num_rows * num_rows * num_random_vecs) as f64;
+    println!("trace_kk_est: {}", trace_kk_est);
+    timer.print();
+
+    println!("\n=> calculating Xy");
+    let xy = geno_arr.dot(&pheno_arr);
+    timer.print();
+
+    println!("\n=> calculating yKy and yy");
+    let yky = sum_of_squares(xy.iter()) / num_rows as f64;
+    let yy = sum_of_squares(pheno_arr.iter());
+    timer.print();
+
+    println!("\n=> solving for heritability");
+    let a = array![[trace_kk_est, (num_cols - 1) as f64],[(num_cols - 1) as f64, num_cols as f64]];
+    let b = array![yky, yy];
+    println!("solving ax=b\na = {:?}\nb = {:?}", a, b);
+    let sig_sq = a.solve_into(b).unwrap();
+
+    println!("sig_sq: {:?}", sig_sq);
+    let s_y_sq = yy / (num_cols - 1) as f64;
+    let heritability = sig_sq[0] as f64 / s_y_sq;
+    println!("heritability: {}  s_y^2: {}", heritability, s_y_sq);
+
+    let standard_error = (2. / (trace_kk_est - num_cols as f64)).sqrt();
+    println!("standard error: {}", standard_error);
+
+    Ok(heritability)
 }
 
+#[cfg(not(feature = "cuda"))]
 fn estimate_heritability(genotype_matrix_ir: MatrixIR<u8>, mut pheno_arr: Array<f32, Ix1>, num_random_vecs: usize) -> Result<f64, String> {
     println!("\n=> creating the genotype ndarray and starting the timer for profiling");
     let mut timer = Timer::new();
