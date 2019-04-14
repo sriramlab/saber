@@ -25,26 +25,35 @@ pub mod linalg {
         }
     }
 
-    pub fn get_shared_tensor_one<T: Float, B: IFramework + Clone>(backend: &Backend<B>) -> SharedTensor<T> {
-        let mut one = match SharedTensor::<T>::new(backend.device(), &vec![1]) {
+    pub fn get_shared_tensor_one_as_col_vec<T: Float, B: IFramework + Clone>(backend: &Backend<B>, size: usize) -> SharedTensor<T> {
+        let mut one = match SharedTensor::<T>::new(backend.device(), &vec![size, 1]) {
             Ok(one) => one,
             Err(why) => panic!("{}", why)
         };
-        write_to_native_memory(one.get_mut(backend.device()).unwrap(), &[T::one()]);
+        write_to_native_memory(one.get_mut(backend.device()).unwrap(), &[T::one(); size]);
         one
     }
 
-    pub fn get_shared_tensor_zero<T: Float, B: IFramework + Clone>(backend: &Backend<B>) -> SharedTensor<T> {
-        let mut zero = match SharedTensor::<T>::new(backend.device(), &vec![1]) {
+    pub fn get_shared_tensor_one<T: Float, B: IFramework + Clone>(backend: &Backend<B>, size: usize) -> SharedTensor<T> {
+        let mut one = match SharedTensor::<T>::new(backend.device(), &vec![size]) {
+            Ok(one) => one,
+            Err(why) => panic!("{}", why)
+        };
+        write_to_native_memory(one.get_mut(backend.device()).unwrap(), &[T::one(); size]);
+        one
+    }
+
+    pub fn get_shared_tensor_zero<T: Float, B: IFramework + Clone>(backend: &Backend<B>, size: usize) -> SharedTensor<T> {
+        let mut zero = match SharedTensor::<T>::new(backend.device(), &vec![size]) {
             Ok(zero) => zero,
             Err(why) => panic!("{}", why)
         };
-        write_to_native_memory(zero.get_mut(backend.device()).unwrap(), &[T::zero()]);
+        write_to_native_memory(zero.get_mut(backend.device()).unwrap(), &[T::zero(); size]);
         zero
     }
 
-    pub fn get_one_zero_shared_tensor<T: Float, B: IFramework + Clone>(backend: &Backend<B>) -> (SharedTensor<T>, SharedTensor<T>) {
-        (get_shared_tensor_one::<T, B>(backend), get_shared_tensor_zero::<T, B>(backend))
+    pub fn get_one_zero_shared_tensor<T: Float, B: IFramework + Clone>(backend: &Backend<B>, size: usize) -> (SharedTensor<T>, SharedTensor<T>) {
+        (get_shared_tensor_one::<T, B>(backend, size), get_shared_tensor_zero::<T, B>(backend, size))
     }
 
     pub fn get_native_backend() -> Backend<Native> {
@@ -67,6 +76,7 @@ pub mod linalg {
         }
     }
 
+    // TODO: test
     pub fn matmul_f32(arr1: &[f32], arr2: &[f32], m: usize, n: usize, k: usize, a_t: Transpose, b_t: Transpose) -> Vec<f32> {
         let native_backend = get_native_backend();
         let cuda_backend = get_cuda_backend();
@@ -79,8 +89,8 @@ pub mod linalg {
 
         let mut c = SharedTensor::<f32>::new(native_backend.device(), &vec![m, n]).unwrap();
 
-        let mut one = get_shared_tensor_one::<f32, Native>(&native_backend);
-        let mut another_one = get_shared_tensor_one::<f32, Native>(&native_backend);
+        let mut one = get_shared_tensor_one::<f32, Native>(&native_backend, 1);
+        let mut another_one = get_shared_tensor_one::<f32, Native>(&native_backend, 1);
 
         cuda_backend.gemm(&mut one, a_t, &mut a, b_t, &mut b, &mut another_one, &mut c).unwrap();
         cuda_backend.synchronize().unwrap();
@@ -88,8 +98,10 @@ pub mod linalg {
         c.get(native_backend.device()).unwrap().as_native().unwrap().as_slice::<f32>().to_vec()
     }
 
-    /// arr1 has shape m by k
-    /// arr2 has shape k by n
+    /// computes arr1^T arr1 arr2
+    /// `arr1`: row-major; has shape m by k
+    /// `arr2`: row-major; has shape k by n
+    /// the returned result should have a length of k x n in row-major
     pub fn mul_xtxz_f32(arr1: &[f32], arr2: &[f32], m: usize, n: usize, k: usize) -> Vec<f32> {
         let native_backend = get_native_backend();
         let cuda_backend = get_cuda_backend();
@@ -103,8 +115,8 @@ pub mod linalg {
         let mut xz = SharedTensor::<f32>::new(native_backend.device(), &vec![m, n]).unwrap();
         let mut c = SharedTensor::<f32>::new(native_backend.device(), &vec![k, n]).unwrap();
 
-        let mut one = get_shared_tensor_one::<f32, Native>(&native_backend);
-        let mut another_one = get_shared_tensor_one::<f32, Native>(&native_backend);
+        let mut one = get_shared_tensor_one::<f32, Native>(&native_backend, 1);
+        let mut another_one = get_shared_tensor_one::<f32, Native>(&native_backend, 1);
 
         cuda_backend.gemm(&mut one, Transpose::NoTrans, &mut x_arr, Transpose::NoTrans, &mut z_arr, &mut another_one, &mut xz).unwrap();
         cuda_backend.gemm(&mut one, Transpose::Trans, &mut x_arr, Transpose::NoTrans, &mut xz, &mut another_one, &mut c).unwrap();
@@ -113,6 +125,40 @@ pub mod linalg {
         c.sync(native_backend.device()).unwrap();
         c.get(native_backend.device()).unwrap().as_native().unwrap().as_slice::<f32>().to_vec()
     }
+
+    /// computes arr1^T arr1 arr2 after standardize arr1. The original arr1's data are not modified
+    /// `arr1`: row-major; has shape m by k
+    /// `arr2`: row-major; has shape k by n
+    /// the returned result should have a length of k x n in row-major
+//    pub fn mul_xtxz_f32_standardize_x_first(arr1: &[f32], arr2: &[f32], m: usize, n: usize, k: usize) -> Vec<f32> {
+//        let native_backend = get_native_backend();
+//        let cuda_backend = get_cuda_backend();
+//
+//        let mut x_arr = SharedTensor::<f32>::new(native_backend.device(), &vec![m, k]).unwrap();
+//        write_to_native_memory(x_arr.get_mut(native_backend.device()).unwrap(), arr1);
+//
+//        let mut one = get_shared_tensor_one::<f32, Native>(&native_backend, 1);
+//        let mut another_one = get_shared_tensor_one::<f32, Native>(&native_backend, 1);
+//
+//        let mut ones_vec = get_shared_tensor_one_as_col_vec::<f32, Native>(&native_backend, k);
+//        let mut row_sums = SharedTensor::<f32>::new(native_backend.device(), &vec![m, 1]).unwrap();
+//        cuda_backend.gemm(&mut one, Transpose::NoTrans, &mut x_arr, Transpose::NoTrans, &mut ones_vec, &mut another_one, &mut row_sums).unwrap();
+//
+//        let mut demeaned_x_arr = SharedTensor::<f32>::new(native_backend.device(), &vec![m, k]).unwrap();
+//
+//        let mut z_arr = SharedTensor::<f32>::new(native_backend.device(), &vec![k, n]).unwrap();
+//        write_to_native_memory(z_arr.get_mut(native_backend.device()).unwrap(), arr2);
+//
+//        let mut xz = SharedTensor::<f32>::new(native_backend.device(), &vec![m, n]).unwrap();
+//        let mut c = SharedTensor::<f32>::new(native_backend.device(), &vec![k, n]).unwrap();
+//
+//        cuda_backend.gemm(&mut one, Transpose::NoTrans, &mut x_arr, Transpose::NoTrans, &mut z_arr, &mut another_one, &mut xz).unwrap();
+//        cuda_backend.gemm(&mut one, Transpose::Trans, &mut x_arr, Transpose::NoTrans, &mut xz, &mut another_one, &mut c).unwrap();
+//
+//        cuda_backend.synchronize().unwrap();
+//        c.sync(native_backend.device()).unwrap();
+//        c.get(native_backend.device()).unwrap().as_native().unwrap().as_slice::<f32>().to_vec()
+//    }
 }
 
 #[cfg(feature = "cuda")]

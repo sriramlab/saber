@@ -34,6 +34,7 @@ use program_flow::OrExit;
 use stats_util::{sum, sum_of_squares};
 use timer::Timer;
 
+#[cfg(feature = "cuda")]
 use crate::cublas::linalg::mul_xtxz_f32;
 use crate::mailman::mailman_zero_one_two;
 
@@ -211,8 +212,8 @@ fn main() {
 
     let mut bed = PlinkBed::new(&plink_bed_filename, &plink_bim_filename, &plink_fam_filename).unwrap_or_exit(None::<String>);
 
-    println!("=> generating the phenotype array and the genotype matrix");
     let pheno_arr = get_pheno_arr(&pheno_filename).unwrap_or_exit(None::<String>);
+    println!("=> generating the phenotype array and the genotype matrix");
     let genotype_matrix = bed.get_genotype_matrix().unwrap_or_exit(Some("failed to get the genotype matrix"));
     println!("genotype_matrix dim: {:?}\npheno_arr dim: {:?}", genotype_matrix.dim(), pheno_arr.dim());
 
