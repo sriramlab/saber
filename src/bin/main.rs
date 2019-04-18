@@ -1,53 +1,34 @@
-#![feature(test)]
-#[macro_use]
-extern crate clap;
-#[cfg(feature = "cuda")]
-extern crate collenchyma as co;
-#[cfg(feature = "cuda")]
-extern crate collenchyma_blas as co_blas;
-extern crate colored;
-//extern crate cublas;
-#[macro_use]
-extern crate ndarray;
-extern crate ndarray_linalg;
-extern crate ndarray_rand;
-extern crate num_traits;
-extern crate rand;
-extern crate time;
+extern crate saber;
 
 use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader};
 
+#[macro_use]
+extern crate clap;
+
 use clap::ArgMatches;
 #[cfg(feature = "cuda")]
 use co_blas::transpose::Transpose;
+
+#[macro_use]
+extern crate ndarray;
+
 use ndarray::{Array, Ix1};
 use ndarray_linalg::Solve;
 
 use bio_file_reader::plink_bed::{MatrixIR, PlinkBed};
 #[cfg(feature = "cuda")]
 use estimate_heritability_cublas as estimate_heritability;
-use mailman::zero_one_two_matrix_to_indicator_vec;
-use matrix_util::{generate_plus_minus_one_bernoulli_matrix, matrix_ir_to_ndarray, mean_center_vector,
-                  normalize_matrix_row_wise_inplace, row_mean_vec, row_std_vec};
-use program_flow::OrExit;
-use stats_util::{sum, sum_of_squares};
-use timer::Timer;
+use saber::mailman::zero_one_two_matrix_to_indicator_vec;
+use saber::matrix_util::{generate_plus_minus_one_bernoulli_matrix, matrix_ir_to_ndarray, mean_center_vector,
+                         normalize_matrix_row_wise_inplace, row_mean_vec, row_std_vec};
+use saber::program_flow::OrExit;
+use saber::stats_util::{sum, sum_of_squares};
+use saber::timer::Timer;
 
 #[cfg(feature = "cuda")]
-use crate::cublas::linalg::mul_xtxz_f32;
-use crate::mailman::mailman_zero_one_two;
-
-pub mod histogram;
-pub mod mailman;
-pub mod matrix_util;
-pub mod program_flow;
-pub mod sparsity_stats;
-pub mod timer;
-pub mod simulation;
-pub mod stats_util;
-#[cfg(feature = "cuda")]
-pub mod cublas;
+use saber::cublas::linalg::mul_xtxz_f32;
+use saber::mailman::mailman_zero_one_two;
 
 #[cfg(feature = "cuda")]
 fn estimate_heritability_cublas(genotype_matrix_ir: MatrixIR<u8>, mut pheno_arr: Array<f32, Ix1>,
