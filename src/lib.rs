@@ -14,7 +14,7 @@ extern crate num_traits;
 extern crate rand;
 extern crate time;
 
-pub mod gg_estimates;
+pub mod gxg_trace_estimators;
 pub mod histogram;
 pub mod mailman;
 pub mod matrix_util;
