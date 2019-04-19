@@ -27,9 +27,6 @@ pub fn estimate_kk_trace(geno_arr: &Array<f32, Ix2>, num_random_vecs: usize) -> 
     let u_arr = generate_plus_minus_one_bernoulli_matrix(num_cols, num_random_vecs);
     let ones = Array::<f32, Ix1>::ones(num_cols);
 
-    let axis0 = Axis(0);
-    let axis1 = Axis(1);
-
     let gg_sq = geno_arr * geno_arr;
     let geno_ssq = gg_sq.dot(&ones);
     let squashed = geno_arr.dot(&u_arr);
