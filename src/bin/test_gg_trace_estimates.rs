@@ -21,7 +21,7 @@ use estimate_heritability_cublas as estimate_heritability;
 use saber::program_flow::OrExit;
 use saber::timer::Timer;
 
-use saber::gg_estimates::{estimate_gxg_gram_trace, estimate_kk_trace};
+use saber::gxg_trace_estimators::{estimate_gxg_gram_trace, estimate_kk_trace};
 
 fn extract_filename_arg(matches: &ArgMatches, arg_name: &str) -> String {
     match matches.value_of(arg_name) {
