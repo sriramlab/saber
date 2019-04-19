@@ -95,24 +95,13 @@ fn main() {
         };
         let r = (tr_k_est - tr_k_true) / tr_k_true;
         println!("\niter: {} tr_k_est: {}\nk_trace_est error ratio: {:.5}", iter + 1, tr_k_est, r);
-        ratio_list.push(r);
+        ratio_list.push(r.abs());
     }
     timer.print();
 
-    let ratio_avg = ratio_list.iter().sum::<f64>() / ratio_list.len() as f64;
-    let ratio_std = (ratio_list.iter().map(|r| (r - ratio_avg) * (r - ratio_avg)).sum::<f64>() / ratio_list.len() as f64).sqrt();
-    println!("\nratio_avg: {}\nratio_std: {}", ratio_avg, ratio_std);
-
-    println!("\n=> computing tr_kk_est");
-    let tr_kk_est = match estimate_kk_trace(&geno_arr, num_random_vecs) {
-        Ok(t) => t,
-        Err(why) => {
-            eprintln!("{}", why);
-            return;
-        }
-    };
-    println!("tr_kk_est: {}", tr_kk_est);
-    timer.print();
+    let abs_ratio_avg = ratio_list.iter().sum::<f64>() / ratio_list.len() as f64;
+    let abs_ratio_std = (ratio_list.iter().map(|r| (r - abs_ratio_avg) * (r - abs_ratio_avg)).sum::<f64>() / ratio_list.len() as f64).sqrt();
+    println!("\nabs_ratio_avg: {}\nabs_ratio_std: {}", abs_ratio_avg, abs_ratio_std);
 
     println!("\n=> calculating tr_kk_true");
     let k = gxg.dot(&gxg.t());
@@ -121,7 +110,25 @@ fn main() {
     println!("tr_kk_true: {}", tr_kk_true);
     timer.print();
 
-    let kk_ratio = (tr_kk_est - tr_kk_true) / tr_kk_true;
-    println!("tr kk error ratio: {}", kk_ratio);
+    println!("\n=> computing tr_kk_est");
+    let mut kk_abs_ratio_list = Vec::new();
+    for iter in 0..20 {
+        let tr_kk_est = match estimate_kk_trace(&geno_arr, num_random_vecs) {
+            Ok(t) => t,
+            Err(why) => {
+                eprintln!("{}", why);
+                return;
+            }
+        };
+        let kk_ratio = (tr_kk_est - tr_kk_true) / tr_kk_true;
+        println!("\niter: {} tr_kk_est: {}\ntr_kk_est error ratio: {:.5}", iter + 1, tr_kk_est, kk_ratio);
+        kk_abs_ratio_list.push(kk_ratio.abs());
+    }
+    timer.print();
 
+    let kk_abs_ratio_avg = kk_abs_ratio_list.iter().sum::<f64>() / kk_abs_ratio_list.len() as f64;
+    let kk_abs_ratio_std = (kk_abs_ratio_list.iter()
+                                             .map(|r| (r - abs_ratio_avg) * (r - abs_ratio_avg))
+                                             .sum::<f64>() / kk_abs_ratio_list.len() as f64).sqrt();
+    println!("\nkk_abs_ratio_avg: {}\nkk_abs_ratio_std: {}", kk_abs_ratio_avg, kk_abs_ratio_std);
 }
