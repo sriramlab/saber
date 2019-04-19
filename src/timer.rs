@@ -24,4 +24,7 @@ impl Timer {
                             total_elapsed.num_milliseconds() as f64 * 1e-3));
         self.last_print_time = now;
     }
+    pub fn update_last_print_time(&mut self) {
+        self.last_print_time = PreciseTime::now();
+    }
 }
