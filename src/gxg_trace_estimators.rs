@@ -34,13 +34,13 @@ pub fn estimate_kk_trace(geno_arr: &Array<f32, Ix2>, num_random_vecs: usize) -> 
     let mut sum = 0f64;
     let num_rand_z_vecs = 100;
     println!("num_rand_z_vecs: {}", num_rand_z_vecs);
-    let rand_vecs = generate_plus_minus_one_bernoulli_matrix(num_cols, num_rand_z_vecs);
-    let geno_arr_dot_rand_vecs = geno_arr.dot(&rand_vecs);
 
     for col in squashed_squared.gencolumns() {
         let uugg_sum = (&col - &geno_ssq) / 2.;
         let wg = &geno_arr.t() * &uugg_sum;
         let s = (&gg_sq.t() * &uugg_sum).sum();
+        let rand_vecs = generate_plus_minus_one_bernoulli_matrix(num_cols, num_rand_z_vecs);
+        let geno_arr_dot_rand_vecs = geno_arr.dot(&rand_vecs);
         let ggz = wg.dot(&geno_arr_dot_rand_vecs);
         sum += (((&ggz * &ggz).sum() / num_rand_z_vecs as f32 - s) / 2.) as f64;
     }
