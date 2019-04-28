@@ -20,6 +20,7 @@ use rand::distributions::Uniform;
 use estimate_heritability_cublas as estimate_heritability;
 use saber::program_flow::OrExit;
 use saber::timer::Timer;
+use saber::simulation::get_gxg_arr;
 
 use saber::gxg_trace_estimators::{estimate_gxg_gram_trace, estimate_kk_trace};
 
@@ -31,27 +32,6 @@ fn extract_filename_arg(matches: &ArgMatches, arg_name: &str) -> String {
             std::process::exit(1);
         }
     }
-}
-
-/// `geno_arr`: each row is an individual consisting of M snps
-/// the returned array will have the same number of rows corresponding to the same indidivuals
-/// but each row will consist of M*(M-1)/2 snps formed by g_i * g_j for all i < j
-fn get_gxg_arr(geno_arr: &Array<f32, Ix2>) -> Array<f32, Ix2> {
-    let (num_rows, num_cols) = geno_arr.dim();
-    let num_cols_gxg = num_cols * (num_cols - 1) / 2;
-    let mut gxg = Array::zeros((num_rows, num_cols_gxg));
-    let mut k = 0;
-    for row in geno_arr.genrows() {
-        let mut gxg_col_j = 0usize;
-        for i in 0..num_cols {
-            for j in i + 1..num_cols {
-                gxg[[k, gxg_col_j]] = row[i] * row[j];
-                gxg_col_j += 1;
-            }
-        }
-        k += 1;
-    }
-    gxg
 }
 
 fn main() {
