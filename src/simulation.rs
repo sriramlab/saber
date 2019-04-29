@@ -2,6 +2,7 @@ use ndarray::{Array, Ix1, Ix2};
 use ndarray::prelude::aview1;
 use ndarray_rand::RandomExt;
 use rand::distributions::{Normal, WeightedIndex, Distribution};
+use crate::stats_util::{mean, variance};
 
 /// generate a G matrix with elements drawn independently from {0, 1, 2}
 /// `zero_prob` is the probability of an element being 0
@@ -49,6 +50,10 @@ pub fn generate_pheno_arr(geno_arr: &Array<f32, Ix2>, effect_variance: f64, nois
     let noise = Array::random(
         (num_individuals, 1), Normal::new(0f64, noise_variance.sqrt()))
         .mapv(|e| e as f32);
+
+    println!("beta mean: {}  noise mean: {}", mean(effect_size_matrix.iter()), mean(noise.iter()));
+    println!("beta variance: {}  noise variance: {}", variance(effect_size_matrix.iter(), 1),
+             variance(noise.iter(), 1));
 
     let pheno = geno_arr.dot(&effect_size_matrix) + &noise;
     aview1(pheno.as_slice().unwrap()).into_owned()

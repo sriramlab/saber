@@ -40,6 +40,13 @@ pub fn normalize_matrix_row_wise_inplace<A>(mut matrix: Array<A, Ix2>, ddof: usi
     matrix
 }
 
+pub fn normalize_matrix_column_wise_inplace<A>(mut matrix: Array<A, Ix2>, ddof: usize) -> Array<A, Ix2>
+    where A: ToPrimitive + FromPrimitive + NumAssign + Float + ScalarOperand {
+    matrix = matrix.t().to_owned();
+    matrix = normalize_matrix_row_wise_inplace(matrix, ddof);
+    matrix.t().to_owned()
+}
+
 pub fn mean_center_vector<A>(mut vector: Array<A, Ix1>) -> Array<A, Ix1>
     where A: ToPrimitive + FromPrimitive + NumAssign + Float + ScalarOperand {
     vector -= A::from(mean(vector.iter())).unwrap();
