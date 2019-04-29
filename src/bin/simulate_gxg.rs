@@ -10,7 +10,9 @@ use saber::program_flow::OrExit;
 use saber::simulation::{generate_g_matrix, generate_gxg_pheno_arr, get_gxg_arr, generate_pheno_arr};
 use saber::gxg_trace_estimators::{estimate_gxg_gram_trace, estimate_kk_trace};
 use saber::heritability_estimator::{estimate_heritability, estimate_gxg_heritability};
-use saber::stats_util::sum_of_squares;
+use saber::stats_util::{sum_of_squares, mean};
+use bio_file_reader::plink_bed::{MatrixIR, PlinkBed};
+use saber::matrix_util::{matrix_ir_to_ndarray, normalize_matrix_row_wise_inplace, mean_center_vector};
 
 fn extract_filename_arg(matches: &ArgMatches, arg_name: &str) -> String {
     match matches.value_of(arg_name) {
@@ -61,8 +63,18 @@ fn main() {
     println!("num_people: {}\nnum_snps: {}\ng_var: {}\ngxg_var: {}\nnoise_var: {}\nnum_random_vecs: {}",
              num_people, num_snps, g_var, gxg_var, noise_var, num_random_vecs);
 
-    let g = generate_g_matrix(num_people, num_snps, 0.64, 0.04)
-        .unwrap().mapv(|e| e as f32);
+    let mut bed = PlinkBed::new(&"../saber-data/nfbc/NFBC_20091001.bed".to_string(),
+                                &"../saber-data/nfbc/NFBC_20091001.bim".to_string(),
+                                &"../saber-data/nfbc/NFBC_20091001.fam".to_string()).unwrap_or_exit(None::<String>);
+
+    let genotype_matrix = bed.get_genotype_matrix().unwrap_or_exit(Some("failed to get the genotype matrix"));
+    let mut g = matrix_ir_to_ndarray(genotype_matrix).unwrap().mapv(|e| e as f32);
+    println!("=> getting slice");
+    g = g.slice(s![..num_snps,..num_people]).to_owned();
+//    let g = generate_g_matrix(num_people, num_snps, 0.64, 0.04)
+//        .unwrap().mapv(|e| e as f32);
+    println!("=> normalizing");
+    g = normalize_matrix_row_wise_inplace(g,1).t().to_owned();
 
     //////
     println!("\n=> creating gxg");
@@ -71,7 +83,11 @@ fn main() {
 
 //    let pheno_arr = generate_gxg_pheno_arr(&g, g_var, gxg_var, 1. - g_var - gxg_var);
     println!("\n=> generating phenotypes");
-    let pheno_arr = generate_pheno_arr(&gxg, gxg_var, noise_var);
+    let mut pheno_arr = generate_pheno_arr(&gxg, gxg_var, noise_var);
+    let pheno_mean = mean(pheno_arr.iter());
+    println!("pheno_mean: {}", pheno_mean);
+    println!("=> centering pheno_arr");
+    pheno_arr = mean_center_vector(pheno_arr);
 
     let gxg_heritability_est = estimate_gxg_heritability(g, pheno_arr.clone(), num_random_vecs).unwrap();
 
@@ -96,6 +112,6 @@ fn main() {
 //    let sig_sq = a.solve_into(b).unwrap();
 //    println!("{:?}", sig_sq);
 //    let s_y_sq = yy / (num_people - 1) as f64;
-//    let heritability = sig_sq[0] as f64 / s_y_sq;
+//    let heritability = sig_sq[0] as f64 / (sig_sq[0] as f64 + sig_sq[1] as f64);
 //    println!("heritability: {}  s_y^2: {}", heritability, s_y_sq);
 }
