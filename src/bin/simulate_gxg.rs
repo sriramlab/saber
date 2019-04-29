@@ -73,17 +73,18 @@ fn main() {
 //    g = g.slice(s![..num_snps, ..num_people]).t().to_owned();
     let mut g = generate_g_matrix(num_people, num_snps, 0.64, 0.04).unwrap().mapv(|e| e as f32);
 
-    println!("\n=> creating gxg");
-    let mut gxg = get_gxg_arr(&g);
-
-    println!("\n=> normalizing gxg");
-    gxg = normalize_matrix_row_wise_inplace(gxg.t().to_owned(), 1).t().to_owned();
-
     println!("=> normalizing g for the gxg heritability estimator");
     g = normalize_matrix_row_wise_inplace(g.t().to_owned(), 1).t().to_owned();
 
+    println!("\n=> creating gxg");
+    let mut gxg = get_gxg_arr(&g);
+
+    let unstandardized_gxg = gxg.clone();
+//    println!("\n=> normalizing gxg");
+//    gxg = normalize_matrix_row_wise_inplace(gxg.t().to_owned(), 1).t().to_owned();
+
     println!("some naive computation");
-    let x = gxg.clone();
+    let x = unstandardized_gxg.clone();
     let num_snp_pairs = x.dim().1;
     let tr_k = sum_of_squares(x.iter()) / num_snp_pairs as f64;
     println!("tr_K: {}", tr_k);
@@ -95,7 +96,7 @@ fn main() {
     for iter in 0..8 {
         println!("\n=== ITER: {}", iter);
         println!("\n=> generating phenotypes");
-        let mut pheno_arr = generate_pheno_arr(&gxg, gxg_var, noise_var);
+        let mut pheno_arr = generate_pheno_arr(&unstandardized_gxg, gxg_var, noise_var);
         let pheno_mean = mean(pheno_arr.iter());
         println!("pheno_mean: {}", pheno_mean);
         println!("=> centering pheno_arr");
