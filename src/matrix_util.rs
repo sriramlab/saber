@@ -35,7 +35,10 @@ pub fn normalize_matrix_row_wise_inplace<A>(mut matrix: Array<A, Ix2>, ddof: usi
     // now that each row has zero mean, so we can just use the sum of squares
     let denominator = A::from(num_cols - ddof).unwrap();
     for mut row in matrix.genrows_mut() {
-        row /= (A::from(sum_of_squares(row.iter())).unwrap() / denominator).sqrt();
+        let std = (A::from((&row * &row).sum()).unwrap() / denominator).sqrt();
+        if std > A::zero() {
+            row /= std;
+        }
     };
     matrix
 }
