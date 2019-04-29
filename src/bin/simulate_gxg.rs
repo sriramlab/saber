@@ -70,26 +70,34 @@ fn main() {
     let genotype_matrix = bed.get_genotype_matrix().unwrap_or_exit(Some("failed to get the genotype matrix"));
     let mut g = matrix_ir_to_ndarray(genotype_matrix).unwrap().mapv(|e| e as f32);
     println!("=> getting slice");
-    g = g.slice(s![..num_snps,..num_people]).to_owned();
+    g = g.slice(s![..num_snps, ..num_people]).to_owned();
 //    let g = generate_g_matrix(num_people, num_snps, 0.64, 0.04)
 //        .unwrap().mapv(|e| e as f32);
-    println!("=> normalizing");
-    g = normalize_matrix_row_wise_inplace(g,1).t().to_owned();
+    g = g.t().to_owned();
 
-    //////
     println!("\n=> creating gxg");
-    let gxg = get_gxg_arr(&g);
-    //////
+    let mut gxg = get_gxg_arr(&g);
 
-//    let pheno_arr = generate_gxg_pheno_arr(&g, g_var, gxg_var, 1. - g_var - gxg_var);
-    println!("\n=> generating phenotypes");
-    let mut pheno_arr = generate_pheno_arr(&gxg, gxg_var, noise_var);
-    let pheno_mean = mean(pheno_arr.iter());
-    println!("pheno_mean: {}", pheno_mean);
-    println!("=> centering pheno_arr");
-    pheno_arr = mean_center_vector(pheno_arr);
+//    let pheno_arr = generate_gxg_pheno_arr(&g, g_var, gxg_var, noise_var);
+    println!("\n=> normalizing gxg");
+    gxg = normalize_matrix_row_wise_inplace(gxg.t().to_owned(), 1).t().to_owned();
 
-    let gxg_heritability_est = estimate_gxg_heritability(g, pheno_arr.clone(), num_random_vecs).unwrap();
+    println!("=> normalizing g for the gxg heritability estimator");
+    g = normalize_matrix_row_wise_inplace(g.t().to_owned(), 1).t().to_owned();
+
+    for iter in 0..8 {
+        println!("\n=== ITER: {}", iter);
+        println!("\n=> generating phenotypes");
+        let mut pheno_arr = generate_pheno_arr(&gxg, gxg_var, noise_var);
+        let pheno_mean = mean(pheno_arr.iter());
+        println!("pheno_mean: {}", pheno_mean);
+        println!("=> centering pheno_arr");
+        pheno_arr = mean_center_vector(pheno_arr);
+
+        let gxg_heritability_est = estimate_gxg_heritability(g.clone(), pheno_arr.clone(), num_random_vecs).unwrap();
+        let gxg_heritability_est = estimate_gxg_heritability(g.clone(), pheno_arr.clone(), num_random_vecs).unwrap();
+        let gxg_heritability_est = estimate_gxg_heritability(g.clone(), pheno_arr.clone(), num_random_vecs).unwrap();
+    }
 
 //    let x = gxg;
 //    let num_snp_pairs = x.dim().1;

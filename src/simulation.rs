@@ -44,19 +44,22 @@ pub fn get_gxg_arr(geno_arr: &Array<f32, Ix2>) -> Array<f32, Ix2> {
 pub fn generate_pheno_arr(geno_arr: &Array<f32, Ix2>, effect_variance: f64, noise_variance: f64) -> Array<f32, Ix1> {
     let (num_individuals, num_snps) = geno_arr.dim();
     let effect_size_matrix = Array::random(
-        (num_snps, 1), Normal::new(0f64, (effect_variance / num_snps as f64).sqrt()))
+        (num_snps ), Normal::new(0f64, (effect_variance / num_snps as f64).sqrt()))
         .mapv(|e| e as f32);
 
     let noise = Array::random(
-        (num_individuals, 1), Normal::new(0f64, noise_variance.sqrt()))
+        (num_individuals), Normal::new(0f64, noise_variance.sqrt()))
         .mapv(|e| e as f32);
 
     println!("beta mean: {}  noise mean: {}", mean(effect_size_matrix.iter()), mean(noise.iter()));
     println!("beta variance: {}  noise variance: {}", variance(effect_size_matrix.iter(), 1),
              variance(noise.iter(), 1));
 
+//    println!("{:?}", geno_arr.slice(s![0,..]));
+//    println!("{:?}", geno_arr.dot(&effect_size_matrix));
     let pheno = geno_arr.dot(&effect_size_matrix) + &noise;
-    aview1(pheno.as_slice().unwrap()).into_owned()
+    pheno
+//    aview1(pheno.as_slice().unwrap()).into_owned()
 }
 
 pub fn generate_gxg_pheno_arr(geno_arr: &Array<f32, Ix2>, g_variance: f64, gxg_variance: f64, noise_variance: f64) -> Array<f32, Ix1> {

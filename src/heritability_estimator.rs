@@ -6,6 +6,11 @@ use crate::matrix_util::{generate_plus_minus_one_bernoulli_matrix, matrix_ir_to_
                          normalize_matrix_row_wise_inplace, row_mean_vec, row_std_vec};
 use crate::stats_util::{sum, sum_of_squares};
 use crate::gxg_trace_estimators::{estimate_kk_trace, estimate_gxg_gram_trace, estimate_gxg_dot_y_norm_sq};
+use colored::Colorize;
+
+fn bold_print(msg: &String) {
+    println!("{}", msg.bold());
+}
 
 pub fn estimate_heritability(mut geno_arr: Array<f32, Ix2>, mut pheno_arr: Array<f32, Ix1>, num_random_vecs: usize) -> Result<f64, String> {
     println!("\n=> creating the genotype ndarray and starting the timer for profiling");
@@ -116,7 +121,7 @@ pub fn estimate_gxg_heritability(geno_arr: Array<f32, Ix2>, mut pheno_arr: Array
     let sig_sq_e = sig_sq[1] as f64;
     println!("\nsig_sq: {} {}", sig_sq_g, sig_sq_e);
     let heritability = sig_sq_g / (sig_sq_g + sig_sq_e);
-    println!("heritability: {}", heritability);
+    bold_print(&format!("heritability: {}", heritability));
 
     Ok(heritability)
 }
