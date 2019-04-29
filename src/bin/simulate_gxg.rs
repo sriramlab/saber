@@ -63,27 +63,34 @@ fn main() {
     println!("num_people: {}\nnum_snps: {}\ng_var: {}\ngxg_var: {}\nnoise_var: {}\nnum_random_vecs: {}",
              num_people, num_snps, g_var, gxg_var, noise_var, num_random_vecs);
 
-    let mut bed = PlinkBed::new(&"../saber-data/nfbc/NFBC_20091001.bed".to_string(),
-                                &"../saber-data/nfbc/NFBC_20091001.bim".to_string(),
-                                &"../saber-data/nfbc/NFBC_20091001.fam".to_string()).unwrap_or_exit(None::<String>);
-
-    let genotype_matrix = bed.get_genotype_matrix().unwrap_or_exit(Some("failed to get the genotype matrix"));
-    let mut g = matrix_ir_to_ndarray(genotype_matrix).unwrap().mapv(|e| e as f32);
-    println!("=> getting slice");
-    g = g.slice(s![..num_snps, ..num_people]).to_owned();
-//    let g = generate_g_matrix(num_people, num_snps, 0.64, 0.04)
-//        .unwrap().mapv(|e| e as f32);
-    g = g.t().to_owned();
+//    let mut bed = PlinkBed::new(&"../saber-data/nfbc/NFBC_20091001.bed".to_string(),
+//                                &"../saber-data/nfbc/NFBC_20091001.bim".to_string(),
+//                                &"../saber-data/nfbc/NFBC_20091001.fam".to_string()).unwrap_or_exit(None::<String>);
+//
+//    let genotype_matrix = bed.get_genotype_matrix().unwrap_or_exit(Some("failed to get the genotype matrix"));
+//    let mut g = matrix_ir_to_ndarray(genotype_matrix).unwrap().mapv(|e| e as f32);
+//    println!("=> getting slice");
+//    g = g.slice(s![..num_snps, ..num_people]).t().to_owned();
+    let mut g = generate_g_matrix(num_people, num_snps, 0.64, 0.04).unwrap().mapv(|e| e as f32);
 
     println!("\n=> creating gxg");
     let mut gxg = get_gxg_arr(&g);
 
-//    let pheno_arr = generate_gxg_pheno_arr(&g, g_var, gxg_var, noise_var);
     println!("\n=> normalizing gxg");
     gxg = normalize_matrix_row_wise_inplace(gxg.t().to_owned(), 1).t().to_owned();
 
     println!("=> normalizing g for the gxg heritability estimator");
     g = normalize_matrix_row_wise_inplace(g.t().to_owned(), 1).t().to_owned();
+
+    println!("some naive computation");
+    let x = gxg.clone();
+    let num_snp_pairs = x.dim().1;
+    let tr_k = sum_of_squares(x.iter()) / num_snp_pairs as f64;
+    println!("tr_K: {}", tr_k);
+    let k = x.dot(&x.t()) / num_snp_pairs as f32;
+    println!("{:?} {:?}", k.dim(), x.dim());
+    let tr_kk = sum_of_squares(k.iter());
+    println!("tr_KK: {}", tr_kk);
 
     for iter in 0..8 {
         println!("\n=== ITER: {}", iter);
@@ -97,29 +104,21 @@ fn main() {
         let gxg_heritability_est = estimate_gxg_heritability(g.clone(), pheno_arr.clone(), num_random_vecs).unwrap();
         let gxg_heritability_est = estimate_gxg_heritability(g.clone(), pheno_arr.clone(), num_random_vecs).unwrap();
         let gxg_heritability_est = estimate_gxg_heritability(g.clone(), pheno_arr.clone(), num_random_vecs).unwrap();
-    }
 
-//    let x = gxg;
-//    let num_snp_pairs = x.dim().1;
-//    let tr_k = sum_of_squares(x.iter()) / num_snp_pairs as f64;
-//    println!("tr_K: {}", tr_k);
-//    let k = x.dot(&x.t()) / num_snp_pairs as f32;
-//    println!("{:?} {:?}", k.dim(), x.dim());
-//    let tr_kk = sum_of_squares(k.iter());
-//    println!("tr_KK: {}", tr_kk);
-//
-//    let yky = pheno_arr.dot(&k.dot(&pheno_arr)) as f64;
-//    println!("yky: {}", yky);
-//    let yy = pheno_arr.dot(&pheno_arr) as f64;
-//    println!("yy: {}", yy);
-//
-//    use ndarray_linalg::Solve;
-//    let a = array![[tr_kk, tr_k],[tr_k, num_people as f64]];
-//    let b = array![yky, yy];
-//    println!("solving ax=b\na = {:?}\nb = {:?}", a, b);
-//    let sig_sq = a.solve_into(b).unwrap();
-//    println!("{:?}", sig_sq);
-//    let s_y_sq = yy / (num_people - 1) as f64;
-//    let heritability = sig_sq[0] as f64 / (sig_sq[0] as f64 + sig_sq[1] as f64);
-//    println!("heritability: {}  s_y^2: {}", heritability, s_y_sq);
+        println!("\n=> doing it naively");
+        let yky = pheno_arr.dot(&k.dot(&pheno_arr)) as f64;
+        println!("yky: {}", yky);
+        let yy = pheno_arr.dot(&pheno_arr) as f64;
+        println!("yy: {}", yy);
+
+        use ndarray_linalg::Solve;
+        let a = array![[tr_kk, tr_k],[tr_k, num_people as f64]];
+        let b = array![yky, yy];
+        println!("solving ax=b\na = {:?}\nb = {:?}", a, b);
+        let sig_sq = a.solve_into(b).unwrap();
+        println!("{:?}", sig_sq);
+        let s_y_sq = yy / (num_people - 1) as f64;
+        let heritability = sig_sq[0] as f64 / (sig_sq[0] as f64 + sig_sq[1] as f64);
+        println!("heritability: {}  s_y^2: {}", heritability, s_y_sq);
+    }
 }
