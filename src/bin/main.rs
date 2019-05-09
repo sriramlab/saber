@@ -21,7 +21,7 @@ use bio_file_reader::plink_bed::{MatrixIR, PlinkBed};
 #[cfg(feature = "cuda")]
 use estimate_heritability_cublas as estimate_heritability;
 #[cfg(not(feature = "cuda"))]
-use saber::heritability_estimator::estimate_heritability;
+use saber::heritability_estimator::{estimate_heritability, estimate_joint_heritability};
 
 use saber::mailman::zero_one_two_matrix_to_indicator_vec;
 use saber::matrix_util::{generate_plus_minus_one_bernoulli_matrix, matrix_ir_to_ndarray, mean_center_vector,
@@ -138,9 +138,17 @@ fn main() {
     let genotype_matrix = bed.get_genotype_matrix().unwrap_or_exit(Some("failed to get the genotype matrix"));
     println!("genotype_matrix dim: {:?}\npheno_arr dim: {:?}", genotype_matrix.dim(), pheno_arr.dim());
 
-    let geno_arr = matrix_ir_to_ndarray(genotype_matrix).unwrap().mapv(|e| e as f32);
+    let mut indepent_snps_bed = PlinkBed::new(&"../saber-data/nfbc/nfbc_r1percent.bed".to_string(),
+                                              &"../saber-data/nfbc/nfbc_r1percent.bim".to_string(),
+                                              &"../saber-data/nfbc/nfbc_r1percent.fam".to_string()).unwrap_or_exit(None::<String>);
+    let independent_snps = indepent_snps_bed.get_genotype_matrix().unwrap();
 
-    match estimate_heritability(geno_arr, pheno_arr, 100) {
+    let geno_arr = matrix_ir_to_ndarray(genotype_matrix).unwrap().mapv(|e| e as f32);
+    let independent_snps_arr = matrix_ir_to_ndarray(independent_snps).unwrap().mapv(|e| e as f32);
+
+    match estimate_joint_heritability(geno_arr.t().to_owned(),
+                                      independent_snps_arr.t().to_owned(),
+                                      pheno_arr, 1000) {
         Ok(h) => h,
         Err(why) => {
             eprintln!("{}", why);
