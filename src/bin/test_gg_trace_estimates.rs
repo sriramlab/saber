@@ -22,7 +22,7 @@ use saber::program_flow::OrExit;
 use saber::timer::Timer;
 use saber::simulation::get_gxg_arr;
 
-use saber::gxg_trace_estimators::{estimate_gxg_gram_trace, estimate_kk_trace};
+use saber::gxg_trace_estimators::{estimate_gxg_gram_trace, estimate_gxg_kk_trace};
 
 fn extract_filename_arg(matches: &ArgMatches, arg_name: &str) -> String {
     match matches.value_of(arg_name) {
@@ -93,7 +93,7 @@ fn main() {
     println!("\n=> computing tr_kk_est");
     let mut kk_abs_ratio_list = Vec::new();
     for iter in 0..20 {
-        let tr_kk_est = match estimate_kk_trace(&geno_arr, num_random_vecs) {
+        let tr_kk_est = match estimate_gxg_kk_trace(&geno_arr, num_random_vecs) {
             Ok(t) => t,
             Err(why) => {
                 eprintln!("{}", why);

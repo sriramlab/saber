@@ -35,7 +35,7 @@ pub fn estimate_gxg_gram_trace(geno_arr: &Array<f32, Ix2>, num_random_vecs: usiz
     Ok(avg)
 }
 
-pub fn estimate_kk_trace(geno_arr: &Array<f32, Ix2>, num_random_vecs: usize) -> Result<f64, String> {
+pub fn estimate_gxg_kk_trace(geno_arr: &Array<f32, Ix2>, num_random_vecs: usize) -> Result<f64, String> {
     let (num_rows, num_cols) = geno_arr.dim();
     let u_arr = generate_plus_minus_one_bernoulli_matrix(num_cols, num_random_vecs);
     let ones = Array::<f32, Ix1>::ones(num_cols);
