@@ -117,16 +117,22 @@ fn main() {
     let matches = clap_app!(Saber =>
         (version: "0.1")
         (author: "Aaron Zhou")
-        (@arg plink_bed_filename: --bed <BED> "required")
-        (@arg plink_bim_filename: --bim <BIM> "required")
-        (@arg plink_fam_filename: --fam <FAM> "required")
+        (@arg plink_filename_prefix: --bfile <BFILE> "required; the prefix for x.bed, x.bim, x.fam is x")
+        (@arg le_snps_filename: --le <LE_SNPS> "required; plink file prefix to the SNPs in linkage equilibrium")
         (@arg pheno_filename: --pheno <PHENO> "required; each row is one individual containing one phenotype value")
     ).get_matches();
 
-    let plink_bed_filename = extract_filename_arg(&matches, "plink_bed_filename");
-    let plink_bim_filename = extract_filename_arg(&matches, "plink_bim_filename");
-    let plink_fam_filename = extract_filename_arg(&matches, "plink_fam_filename");
+    let plink_filename_prefix = extract_filename_arg(&matches, "plink_filename_prefix");
+    let le_snps_filename = extract_filename_arg(&matches, "le_snps_filename");
     let pheno_filename = extract_filename_arg(&matches, "pheno_filename");
+
+    let plink_bed_filename = format!("{}.bed", plink_filename_prefix);
+    let plink_bim_filename = format!("{}.bim", plink_filename_prefix);
+    let plink_fam_filename = format!("{}.fam", plink_filename_prefix);
+
+    let le_snps_bed = format!("{}.bed", le_snps_filename);
+    let le_snps_bim = format!("{}.bim", le_snps_filename);
+    let le_snps_fam = format!("{}.fam", le_snps_filename);
 
     println!("PLINK bed filename: {}\nPLINK bim filename: {}\nPLINK fam filename: {}\npheno_filename: {}",
              plink_bed_filename, plink_bim_filename, plink_fam_filename, pheno_filename);
@@ -134,13 +140,14 @@ fn main() {
     let mut bed = PlinkBed::new(&plink_bed_filename, &plink_bim_filename, &plink_fam_filename).unwrap_or_exit(None::<String>);
 
     let pheno_arr = get_pheno_arr(&pheno_filename).unwrap_or_exit(None::<String>);
+
     println!("=> generating the phenotype array and the genotype matrix");
     let genotype_matrix = bed.get_genotype_matrix().unwrap_or_exit(Some("failed to get the genotype matrix"));
     println!("genotype_matrix dim: {:?}\npheno_arr dim: {:?}", genotype_matrix.dim(), pheno_arr.dim());
 
-    let mut indepent_snps_bed = PlinkBed::new(&"../saber-data/nfbc/nfbc_r1percent.bed".to_string(),
-                                              &"../saber-data/nfbc/nfbc_r1percent.bim".to_string(),
-                                              &"../saber-data/nfbc/nfbc_r1percent.fam".to_string()).unwrap_or_exit(None::<String>);
+    let mut indepent_snps_bed = PlinkBed::new(&le_snps_bed,
+                                              &le_snps_bim,
+                                              &le_snps_fam).unwrap_or_exit(None::<String>);
     let independent_snps = indepent_snps_bed.get_genotype_matrix().unwrap();
 
     let geno_arr = matrix_ir_to_ndarray(genotype_matrix).unwrap().mapv(|e| e as f32);
