@@ -77,7 +77,7 @@ use crate::simulation::{get_gxg_arr, generate_gxg_pheno_arr};
 
 pub fn estimate_joint_heritability(mut geno_arr: Array<f32, Ix2>, mut independent_snps_arr: Array<f32, Ix2>,
     mut pheno_arr: Array<f32, Ix1>, num_random_vecs: usize) -> Result<(f64, f64, f64), String> {
-    independent_snps_arr = independent_snps_arr.slice(s![..,..1200]).to_owned();
+    independent_snps_arr = independent_snps_arr.slice(s![..,..400]).to_owned();
     let (num_people, num_snps) = geno_arr.dim();
     let num_independent_snps = independent_snps_arr.dim().1;
     println!("num_people: {}\nnum_snps: {}\nnum_independent_snps: {}",
@@ -96,7 +96,7 @@ pub fn estimate_joint_heritability(mut geno_arr: Array<f32, Ix2>, mut independen
     pheno_arr /= std(pheno_arr.iter(), 0) as f32;
 
     println!("\n=> estimating traces related to the G matrix");
-    let num_rand_z = 200usize;
+    let num_rand_z = 300usize;
     let tr_kk_est = estimate_tr_k(&geno_arr, num_rand_z);
     println!("tr_kk_est: {}", tr_kk_est);
     let xy = geno_arr.t().dot(&pheno_arr);
@@ -113,7 +113,7 @@ pub fn estimate_joint_heritability(mut geno_arr: Array<f32, Ix2>, mut independen
     println!("gxg_tr_k_est: {}", gxg_tr_k_est);
     println!("gxg_tr_kk_est: {}", gxg_tr_kk_est);
 
-    let gxg_yky = estimate_gxg_dot_y_norm_sq(&independent_snps_arr, &pheno_arr, num_random_vecs) / mm;
+    let gxg_yky = estimate_gxg_dot_y_norm_sq(&independent_snps_arr, &pheno_arr, 2 * num_random_vecs) / mm;
     println!("gxg_yky: {}", gxg_yky);
 
     let tr_gk_est = estimate_tr_k_gxg_k(&geno_arr, &independent_snps_arr, num_random_vecs) / (mm * num_snps as f64);
