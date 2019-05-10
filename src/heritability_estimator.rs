@@ -5,7 +5,7 @@ use crate::timer::Timer;
 use crate::matrix_util::{generate_plus_minus_one_bernoulli_matrix, matrix_ir_to_ndarray, mean_center_vector,
                          normalize_matrix_row_wise_inplace, row_mean_vec, row_std_vec};
 use crate::stats_util::{sum, sum_of_squares, std};
-use crate::gxg_trace_estimators::{estimate_kk_trace, estimate_gxg_gram_trace, estimate_gxg_dot_y_norm_sq, estimate_tr_k_gxg_k};
+use crate::gxg_trace_estimators::{estimate_gxg_kk_trace, estimate_gxg_gram_trace, estimate_gxg_dot_y_norm_sq, estimate_tr_k_gxg_k};
 use colored::Colorize;
 
 fn bold_print(msg: &String) {
@@ -73,11 +73,11 @@ pub fn estimate_heritability(mut geno_arr: Array<f32, Ix2>, mut pheno_arr: Array
     Ok(heritability)
 }
 
-use crate::simulation::get_gxg_arr;
+use crate::simulation::{get_gxg_arr, generate_gxg_pheno_arr};
 
 pub fn estimate_joint_heritability(mut geno_arr: Array<f32, Ix2>, mut independent_snps_arr: Array<f32, Ix2>,
     mut pheno_arr: Array<f32, Ix1>, num_random_vecs: usize) -> Result<(f64, f64, f64), String> {
-    independent_snps_arr = independent_snps_arr.slice(s![..,..748]).to_owned();
+    independent_snps_arr = independent_snps_arr.slice(s![..,..1000]).to_owned();
     let (num_people, num_snps) = geno_arr.dim();
     let num_independent_snps = independent_snps_arr.dim().1;
     println!("num_people: {}\nnum_snps: {}\nnum_independent_snps: {}",
@@ -87,15 +87,20 @@ pub fn estimate_joint_heritability(mut geno_arr: Array<f32, Ix2>, mut independen
     geno_arr = normalize_matrix_row_wise_inplace(geno_arr.t().to_owned(), 0).t().to_owned();
     independent_snps_arr = normalize_matrix_row_wise_inplace(independent_snps_arr.t().to_owned(), 0).t().to_owned();
 
+    println!("simulating phenotypes");
+    pheno_arr = generate_gxg_pheno_arr(&geno_arr, &get_gxg_arr(&independent_snps_arr),
+                                       0.5, 0.05, 0.45);
+
     println!("\n=> mean centering the phenotype vector");
     pheno_arr = mean_center_vector(pheno_arr);
     pheno_arr /= std(pheno_arr.iter(), 0) as f32;
 
     println!("\n=> estimating traces related to the G matrix");
-    let rand_mat = generate_plus_minus_one_bernoulli_matrix(num_people, num_random_vecs);
+    let num_rand_z = 100;
+    let rand_mat = generate_plus_minus_one_bernoulli_matrix(num_people, num_rand_z);
     let xz_arr = geno_arr.t().dot(&rand_mat);
     let xxz = geno_arr.dot(&xz_arr);
-    let tr_kk_est = sum_of_squares(xxz.iter()) / (num_snps * num_snps * num_random_vecs) as f64;
+    let tr_kk_est = sum_of_squares(xxz.iter()) / (num_snps * num_snps * num_rand_z) as f64;
     println!("tr_kk_est: {}", tr_kk_est);
     let xy = geno_arr.t().dot(&pheno_arr);
     let yky = sum_of_squares(xy.iter()) / num_snps as f64;
@@ -105,13 +110,13 @@ pub fn estimate_joint_heritability(mut geno_arr: Array<f32, Ix2>, mut independen
     let num_snp_pairs = num_independent_snps * (num_independent_snps - 1) / 2;
     let mm = num_snp_pairs as f64;
 
-    let gxg_tr_kk_est = estimate_kk_trace(&independent_snps_arr, num_random_vecs)? / (mm * mm);
+    let gxg_tr_kk_est = estimate_gxg_kk_trace(&independent_snps_arr, num_random_vecs)? / (mm * mm);
     let gxg_tr_k_est = estimate_gxg_gram_trace(&independent_snps_arr, num_random_vecs)? / mm;
 
     println!("gxg_tr_k_est: {}", gxg_tr_k_est);
     println!("gxg_tr_kk_est: {}", gxg_tr_kk_est);
 
-    let gxg_yky = estimate_gxg_dot_y_norm_sq(&independent_snps_arr, &pheno_arr, 1000) / mm;
+    let gxg_yky = estimate_gxg_dot_y_norm_sq(&independent_snps_arr, &pheno_arr, num_random_vecs) / mm;
     println!("gxg_yky: {}", gxg_yky);
 
     let tr_gk_est = estimate_tr_k_gxg_k(&geno_arr, &independent_snps_arr, num_random_vecs) / (mm * num_snps as f64);
@@ -153,13 +158,13 @@ pub fn estimate_gxg_heritability(geno_arr: Array<f32, Ix2>, mut pheno_arr: Array
 //    println!("tr_kk_true: {}", tr_kk_true);
     //////
 
-    let gxg_kk_trace_est = estimate_kk_trace(&geno_arr, num_random_vecs)? / (mm * mm);
+    let gxg_kk_trace_est = estimate_gxg_kk_trace(&geno_arr, num_random_vecs)? / (mm * mm);
     let gxg_k_trace_est = estimate_gxg_gram_trace(&geno_arr, num_random_vecs)? / mm;
 
     println!("gxg_k_trace_est: {}", gxg_k_trace_est);
     println!("gxg_kk_trace_est: {}", gxg_kk_trace_est);
 
-    let yky = estimate_gxg_dot_y_norm_sq(&geno_arr, &pheno_arr, 1000) / mm;
+    let yky = estimate_gxg_dot_y_norm_sq(&geno_arr, &pheno_arr, num_random_vecs) / mm;
     let yy = sum_of_squares(pheno_arr.iter());
     println!("yky: {}", yky);
     println!("yy: {}", yy);

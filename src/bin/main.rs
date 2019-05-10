@@ -148,7 +148,7 @@ fn main() {
 
     match estimate_joint_heritability(geno_arr.t().to_owned(),
                                       independent_snps_arr.t().to_owned(),
-                                      pheno_arr, 1000) {
+                                      pheno_arr, 5000) {
         Ok(h) => h,
         Err(why) => {
             eprintln!("{}", why);
