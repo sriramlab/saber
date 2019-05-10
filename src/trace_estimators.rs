@@ -1,9 +1,15 @@
-use bio_file_reader::plink_bed::MatrixIR;
-use ndarray::{Array, Ix1, Ix2, Axis};
+use ndarray::{Array, Ix1, Ix2};
 use crate::matrix_util::generate_plus_minus_one_bernoulli_matrix;
 use crate::stats_util::sum_of_squares;
-use ndarray::prelude::aview2;
-use crate::timer::Timer;
+
+/// geno_arr has shape num_people x num_snps
+pub fn estimate_tr_k(geno_arr: &Array<f32, Ix2>, num_random_vecs: usize) -> f64 {
+    let (num_people, num_snps) = geno_arr.dim();
+    let rand_mat = generate_plus_minus_one_bernoulli_matrix(num_people, num_random_vecs);
+    let xz_arr = geno_arr.t().dot(&rand_mat);
+    let xxz = geno_arr.dot(&xz_arr);
+    sum_of_squares(xxz.iter()) / (num_snps * num_snps * num_random_vecs) as f64
+}
 
 pub fn estimate_tr_k_gxg_k(geno_arr: &Array<f32, Ix2>, independent_snps_arr: &Array<f32, Ix2>, num_random_vecs: usize) -> f64 {
     let u_arr = generate_plus_minus_one_bernoulli_matrix(independent_snps_arr.dim().1, num_random_vecs);
