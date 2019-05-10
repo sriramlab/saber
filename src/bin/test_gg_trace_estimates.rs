@@ -22,7 +22,7 @@ use saber::program_flow::OrExit;
 use saber::timer::Timer;
 use saber::simulation::get_gxg_arr;
 
-use saber::gxg_trace_estimators::{estimate_gxg_gram_trace, estimate_gxg_kk_trace};
+use saber::trace_estimators::{estimate_gxg_gram_trace, estimate_gxg_kk_trace};
 
 fn extract_filename_arg(matches: &ArgMatches, arg_name: &str) -> String {
     match matches.value_of(arg_name) {
