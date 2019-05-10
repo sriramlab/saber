@@ -11,12 +11,11 @@ pub fn estimate_tr_k_gxg_k(geno_arr: &Array<f32, Ix2>, independent_snps_arr: &Ar
     let geno_ssq = (independent_snps_arr * independent_snps_arr).dot(&ones);
     let squashed = independent_snps_arr.dot(&u_arr);
     let squashed_squared = &squashed * &squashed;
-    let mut sum = 0f64;
-    for col in squashed_squared.gencolumns() {
-        let uugg = (&col - &geno_ssq) / 2.;
-        sum += sum_of_squares(geno_arr.t().dot(&uugg).iter());
-    }
-    sum / num_random_vecs as f64
+
+    let v = Vec::from(geno_ssq.as_slice().unwrap());
+    let x = Array::from_shape_vec((geno_arr.dim().0, 1), v).unwrap();
+    let corrected = (squashed_squared - x) / 2.;
+    sum_of_squares(geno_arr.t().dot(&corrected).iter()) / num_random_vecs as f64
 }
 
 pub fn estimate_gxg_gram_trace(geno_arr: &Array<f32, Ix2>, num_random_vecs: usize) -> Result<f64, String> {
