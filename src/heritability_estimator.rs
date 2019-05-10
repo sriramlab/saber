@@ -77,6 +77,7 @@ use crate::simulation::get_gxg_arr;
 
 pub fn estimate_joint_heritability(mut geno_arr: Array<f32, Ix2>, mut independent_snps_arr: Array<f32, Ix2>,
     mut pheno_arr: Array<f32, Ix1>, num_random_vecs: usize) -> Result<(f64, f64, f64), String> {
+    independent_snps_arr = independent_snps_arr.slice(s![..,..748]).to_owned();
     let (num_people, num_snps) = geno_arr.dim();
     let num_independent_snps = independent_snps_arr.dim().1;
     println!("num_people: {}\nnum_snps: {}\nnum_independent_snps: {}",
@@ -86,7 +87,6 @@ pub fn estimate_joint_heritability(mut geno_arr: Array<f32, Ix2>, mut independen
     geno_arr = normalize_matrix_row_wise_inplace(geno_arr.t().to_owned(), 0).t().to_owned();
     independent_snps_arr = normalize_matrix_row_wise_inplace(independent_snps_arr.t().to_owned(), 0).t().to_owned();
 
-    let geno_arr = independent_snps_arr.slice(s![..,..748]).to_owned();
     println!("\n=> mean centering the phenotype vector");
     pheno_arr = mean_center_vector(pheno_arr);
     pheno_arr /= std(pheno_arr.iter(), 0) as f32;
