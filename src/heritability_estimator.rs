@@ -77,19 +77,20 @@ use crate::simulation::{get_gxg_arr, generate_gxg_pheno_arr};
 
 pub fn estimate_joint_heritability(mut geno_arr: Array<f32, Ix2>, mut independent_snps_arr: Array<f32, Ix2>,
     mut pheno_arr: Array<f32, Ix1>, num_random_vecs: usize) -> Result<(f64, f64, f64), String> {
-    independent_snps_arr = independent_snps_arr.slice(s![..,..400]).to_owned();
+//    independent_snps_arr = independent_snps_arr.slice(s![..,..600]).to_owned();
+//    geno_arr = geno_arr.slice(s![..,..100000]).to_owned();
     let (num_people, num_snps) = geno_arr.dim();
     let num_independent_snps = independent_snps_arr.dim().1;
-    println!("num_people: {}\nnum_snps: {}\nnum_independent_snps: {}",
+    println!("\n=> estimating heritability due to G and GxG\nnum_people: {}\nnum_snps: {}\nnum_independent_snps: {}",
              num_people, num_snps, num_independent_snps);
 
     println!("\n=> normalizing the genotype matrix row-wise");
     geno_arr = normalize_matrix_row_wise_inplace(geno_arr.t().to_owned(), 0).t().to_owned();
     independent_snps_arr = normalize_matrix_row_wise_inplace(independent_snps_arr.t().to_owned(), 0).t().to_owned();
 
-    println!("simulating phenotypes");
-    pheno_arr = generate_gxg_pheno_arr(&geno_arr, &get_gxg_arr(&independent_snps_arr),
-                                       0.5, 0.05, 0.45);
+//    println!("\n=> simulating phenotypes");
+//    pheno_arr = generate_gxg_pheno_arr(&geno_arr, &get_gxg_arr(&independent_snps_arr),
+//                                       0.4, 0.15, 0.45);
 
     println!("\n=> mean centering the phenotype vector");
     pheno_arr = mean_center_vector(pheno_arr);

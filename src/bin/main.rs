@@ -126,35 +126,36 @@ fn main() {
     let le_snps_filename = extract_filename_arg(&matches, "le_snps_filename");
     let pheno_filename = extract_filename_arg(&matches, "pheno_filename");
 
-    let plink_bed_filename = format!("{}.bed", plink_filename_prefix);
-    let plink_bim_filename = format!("{}.bim", plink_filename_prefix);
-    let plink_fam_filename = format!("{}.fam", plink_filename_prefix);
+    let plink_bed_path = format!("{}.bed", plink_filename_prefix);
+    let plink_bim_path = format!("{}.bim", plink_filename_prefix);
+    let plink_fam_path = format!("{}.fam", plink_filename_prefix);
 
-    let le_snps_bed = format!("{}.bed", le_snps_filename);
-    let le_snps_bim = format!("{}.bim", le_snps_filename);
-    let le_snps_fam = format!("{}.fam", le_snps_filename);
+    let le_snps_bed_path = format!("{}.bed", le_snps_filename);
+    let le_snps_bim_path = format!("{}.bim", le_snps_filename);
+    let le_snps_fam_path = format!("{}.fam", le_snps_filename);
 
-    println!("PLINK bed filename: {}\nPLINK bim filename: {}\nPLINK fam filename: {}\npheno_filename: {}",
-             plink_bed_filename, plink_bim_filename, plink_fam_filename, pheno_filename);
+    println!("PLINK bed path: {}\nPLINK bim path: {}\nPLINK fam path: {}\npheno_filepath: {}",
+             plink_bed_path, plink_bim_path, plink_fam_path, pheno_filename);
+    println!("LE SNPs bed path: {}\nLE SNPs bim path: {}\nLE SNPs fam path: {}",
+             le_snps_bed_path, le_snps_bim_path, le_snps_fam_path);
 
-    let mut bed = PlinkBed::new(&plink_bed_filename, &plink_bim_filename, &plink_fam_filename).unwrap_or_exit(None::<String>);
+    println!("\n=> generating the phenotype array and the genotype matrix");
 
     let pheno_arr = get_pheno_arr(&pheno_filename).unwrap_or_exit(None::<String>);
 
-    println!("=> generating the phenotype array and the genotype matrix");
+    let mut bed = PlinkBed::new(&plink_bed_path, &plink_bim_path, &plink_fam_path).unwrap_or_exit(None::<String>);
     let genotype_matrix = bed.get_genotype_matrix().unwrap_or_exit(Some("failed to get the genotype matrix"));
-    println!("genotype_matrix dim: {:?}\npheno_arr dim: {:?}", genotype_matrix.dim(), pheno_arr.dim());
 
-    let mut indepent_snps_bed = PlinkBed::new(&le_snps_bed,
-                                              &le_snps_bim,
-                                              &le_snps_fam).unwrap_or_exit(None::<String>);
-    let independent_snps = indepent_snps_bed.get_genotype_matrix().unwrap();
+    let mut le_snps_bed = PlinkBed::new(&le_snps_bed_path,
+                                        &le_snps_bim_path,
+                                        &le_snps_fam_path).unwrap_or_exit(None::<String>);
+    let le_snps = le_snps_bed.get_genotype_matrix().unwrap_or_exit(Some("failed to get the le_snps genotype matrix"));
 
     let geno_arr = matrix_ir_to_ndarray(genotype_matrix).unwrap().mapv(|e| e as f32);
-    let independent_snps_arr = matrix_ir_to_ndarray(independent_snps).unwrap().mapv(|e| e as f32);
+    let le_snps_arr = matrix_ir_to_ndarray(le_snps).unwrap().mapv(|e| e as f32);
 
     match estimate_joint_heritability(geno_arr.t().to_owned(),
-                                      independent_snps_arr.t().to_owned(),
+                                      le_snps_arr.t().to_owned(),
                                       pheno_arr, 5000) {
         Ok(h) => h,
         Err(why) => {
