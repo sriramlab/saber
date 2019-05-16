@@ -120,6 +120,9 @@ fn main() {
         (@arg plink_filename_prefix: --bfile <BFILE> "required; the prefix for x.bed, x.bim, x.fam is x")
         (@arg le_snps_filename: --le <LE_SNPS> "required; plink file prefix to the SNPs in linkage equilibrium")
         (@arg pheno_filename: --pheno <PHENO> "required; each row is one individual containing one phenotype value")
+        (@arg num_le_snps_to_use: -n +takes_value "number of independent SNPs to use; required")
+        (@arg g_var: --g +takes_value "G variance; required")
+        (@arg gxg_var: --gg +takes_value "GxG variance; required")
     ).get_matches();
 
     let plink_filename_prefix = extract_filename_arg(&matches, "plink_filename_prefix");
@@ -134,10 +137,22 @@ fn main() {
     let le_snps_bim_path = format!("{}.bim", le_snps_filename);
     let le_snps_fam_path = format!("{}.fam", le_snps_filename);
 
+    let num_le_snps_to_use = extract_filename_arg(&matches, "num_le_snps_to_use")
+        .parse::<usize>()
+        .unwrap_or_exit(Some("failed to parse num_le_snps_to_use"));
+    let g_var = extract_filename_arg(&matches, "g_var")
+        .parse::<f64>()
+        .unwrap_or_exit(Some("failed to parse g_var"));
+
+    let gxg_var = extract_filename_arg(&matches, "gxg_var")
+        .parse::<f64>()
+        .unwrap_or_exit(Some("failed to parse gxg_var"));
+
     println!("PLINK bed path: {}\nPLINK bim path: {}\nPLINK fam path: {}\npheno_filepath: {}",
              plink_bed_path, plink_bim_path, plink_fam_path, pheno_filename);
     println!("LE SNPs bed path: {}\nLE SNPs bim path: {}\nLE SNPs fam path: {}",
              le_snps_bed_path, le_snps_bim_path, le_snps_fam_path);
+    println!("num_le_snps_to_use: {}\ng_var: {} gxg_var: {}", num_le_snps_to_use, g_var, gxg_var);
 
     println!("\n=> generating the phenotype array and the genotype matrix");
 
@@ -156,7 +171,8 @@ fn main() {
 
     match estimate_joint_heritability(geno_arr.t().to_owned(),
                                       le_snps_arr.t().to_owned(),
-                                      pheno_arr, 5000) {
+                                      pheno_arr, 5000,
+                                      num_le_snps_to_use, g_var, gxg_var) {
         Ok(h) => h,
         Err(why) => {
             eprintln!("{}", why);
