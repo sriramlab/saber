@@ -94,7 +94,7 @@ pub fn estimate_joint_heritability(mut geno_arr: Array<f32, Ix2>, mut independen
 //    pheno_arr = generate_gxg_pheno_arr(&geno_arr, &get_gxg_arr(&independent_snps_arr),
 //                                       g_var, gxg_var, 1. - g_var - gxg_var);
 
-    println!("\n=> mean centering the phenotype vector");
+    println!("\n=> normalizing the phenotype vector");
     pheno_arr = mean_center_vector(pheno_arr);
     pheno_arr /= std(pheno_arr.iter(), 0) as f32;
 
@@ -140,7 +140,7 @@ pub fn estimate_joint_heritability(mut geno_arr: Array<f32, Ix2>, mut independen
 //    println!("\n=> estimating heritability due to G and GxG\nnum_people: {}\nnum_snps: {}\n", num_people, num_snps);
 //
 //    println!("\n=> normalizing the genotype matrix");
-//    geno_arr = normalize_matrix_row_wise_inplace(geno_arr.t().to_owned(), 0).t().to_owned();
+//    normalize_matrix_columns_inplace(&mut geno_arr, 0);
 //
 //    println!("\n=> normalizing the LE SNPs:");
 //    let mut num_le_snps_list = Vec::new();
@@ -148,10 +148,10 @@ pub fn estimate_joint_heritability(mut geno_arr: Array<f32, Ix2>, mut independen
 //        let num_le_snps = arr.dim().1;
 //        num_le_snps_list.push(num_le_snps);
 //        println!("num LE SNPs: {}", num_le_snps);
-//        arr = normalize_matrix_row_wise_inplace(arr.t().to_owned(), 0).t().to_owned();
+//        normalize_matrix_columns_inplace(&mut arr, 0);
 //    }
 //
-//    println!("\n=> mean centering the phenotype vector");
+//    println!("\n=> normalizing the phenotype vector");
 //    pheno_arr = mean_center_vector(pheno_arr);
 //    pheno_arr /= std(pheno_arr.iter(), 0) as f32;
 //
