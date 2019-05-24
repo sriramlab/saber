@@ -43,6 +43,21 @@ pub fn normalize_matrix_row_wise_inplace<A>(mut matrix: Array<A, Ix2>, ddof: usi
     matrix
 }
 
+/// `ddof`: delta degrees of freedom, where the denominator will be `N - ddof`,
+/// where `N` is the number of elements per row
+pub fn normalize_matrix_columns_inplace<A>(mut matrix: &mut Array<A, Ix2>, ddof: usize)
+    where A: ToPrimitive + FromPrimitive + NumAssign + Float + ScalarOperand {
+    let (num_rows, _num_cols) = matrix.dim();
+    let denominator = A::from(num_rows - ddof).unwrap();
+    for mut col in matrix.gencolumns_mut() {
+        col -= col.sum();
+        let std = (A::from((&col * &col).sum()).unwrap() / denominator).sqrt();
+        if std > A::zero() {
+            col /= std;
+        }
+    };
+}
+
 pub fn normalize_matrix_column_wise_inplace<A>(mut matrix: Array<A, Ix2>, ddof: usize) -> Array<A, Ix2>
     where A: ToPrimitive + FromPrimitive + NumAssign + Float + ScalarOperand {
     matrix = matrix.t().to_owned();
