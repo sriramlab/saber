@@ -48,9 +48,10 @@ pub fn normalize_matrix_row_wise_inplace<A>(mut matrix: Array<A, Ix2>, ddof: usi
 pub fn normalize_matrix_columns_inplace<A>(mut matrix: &mut Array<A, Ix2>, ddof: usize)
     where A: ToPrimitive + FromPrimitive + NumAssign + Float + ScalarOperand {
     let (num_rows, _num_cols) = matrix.dim();
+    let num_rows_denom = A::from(num_rows).unwrap();
     let denominator = A::from(num_rows - ddof).unwrap();
     for mut col in matrix.gencolumns_mut() {
-        col -= col.sum();
+        col -= col.sum() / num_rows_denom;
         let std = (A::from((&col * &col).sum()).unwrap() / denominator).sqrt();
         if std > A::zero() {
             col /= std;
@@ -97,7 +98,7 @@ mod tests {
 
     use crate::stats_util::{mean, std};
 
-    use super::{mean_center_vector, normalize_matrix_row_wise_inplace};
+    use super::{mean_center_vector, normalize_matrix_row_wise_inplace, normalize_matrix_columns_inplace};
 
     #[test]
     fn test_normalize_matrix_row_wise() {
@@ -110,6 +111,20 @@ mod tests {
         for row in matrix.genrows() {
             assert!(mean(row.iter()).abs() < 1e-6);
             assert!((std(row.iter(), ddof) - 1.).abs() < 1e-6);
+        }
+    }
+
+    #[test]
+    fn test_normalize_matrix_columns() {
+        let ddof = 1;
+        let (num_rows, num_cols) = (50, 100);
+        let mut matrix = Array::random((num_rows, num_cols), Uniform::new(-10f32, 50f32));
+        normalize_matrix_columns_inplace(&mut matrix, ddof);
+
+        // check that the means are close to 0 and the standard deviations are close to 1
+        for col in matrix.gencolumns() {
+            assert!(mean(col.iter()).abs() < 1e-6);
+            assert!((std(col.iter(), ddof) - 1.).abs() < 1e-6);
         }
     }
 

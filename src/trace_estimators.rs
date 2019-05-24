@@ -83,3 +83,38 @@ pub fn estimate_gxg_dot_y_norm_sq(geno_arr: &Array<f32, Ix2>, y: &Array<f32, Ix1
     let ggz = wg.dot(&geno_arr_dot_rand_vecs);
     (((&ggz * &ggz).sum() / num_random_vecs as f32 - s) / 2.) as f64
 }
+
+
+pub fn estimate_gxg1_k_gxg2_k_trace(geno_arr: &Array<f32, Ix2>, geno_arr2: &Array<f32, Ix2>,
+    num_random_vecs: usize) -> Result<f64, String> {
+    let (num_rows, num_cols) = geno_arr.dim();
+    let (num_rows2, num_cols2) = geno_arr2.dim();
+    let u_arr = generate_plus_minus_one_bernoulli_matrix(num_cols, num_random_vecs);
+    let ones = Array::<f32, Ix1>::ones(num_cols);
+
+    let gg_sq = geno_arr * geno_arr;
+    let geno_ssq = gg_sq.dot(&ones);
+    let squashed = geno_arr.dot(&u_arr);
+    let squashed_squared = &squashed * &squashed;
+    let mut sum = 0f64;
+    let num_rand_z_vecs = 100;
+    println!("num_rand_z_vecs: {}\nnum_random_vecs: {}", num_rand_z_vecs, num_random_vecs);
+
+    let gg2_sq = geno_arr2 * geno_arr2;
+    let mut i = 0;
+    for col in squashed_squared.gencolumns() {
+        if i % 100 == 0 {
+            println!("{} / {}", i + 1, num_random_vecs);
+        }
+        i += 1;
+        let uugg_sum = (&col - &geno_ssq) / 2.;
+        let wg = &geno_arr2.t() * &uugg_sum;
+        let s = (&gg2_sq.t() * &uugg_sum).sum();
+        let rand_vecs = generate_plus_minus_one_bernoulli_matrix(num_cols2, num_rand_z_vecs);
+        let geno_arr_dot_rand_vecs = geno_arr2.dot(&rand_vecs);
+        let ggz = wg.dot(&geno_arr_dot_rand_vecs);
+        sum += (((&ggz * &ggz).sum() / num_rand_z_vecs as f32 - s) / 2.) as f64;
+    }
+    let avg = sum / num_random_vecs as f64;
+    Ok(avg)
+}
