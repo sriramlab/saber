@@ -25,7 +25,7 @@ pub fn estimate_tr_k_gxg_k(geno_arr: &Array<f32, Ix2>, independent_snps_arr: &Ar
 }
 
 pub fn estimate_gxg_gram_trace(geno_arr: &Array<f32, Ix2>, num_random_vecs: usize) -> Result<f64, String> {
-    let (num_rows, num_cols) = geno_arr.dim();
+    let (_num_rows, num_cols) = geno_arr.dim();
     let u_arr = generate_plus_minus_one_bernoulli_matrix(num_cols, num_random_vecs);
     let ones = Array::<f32, Ix1>::ones(num_cols);
 
@@ -42,7 +42,7 @@ pub fn estimate_gxg_gram_trace(geno_arr: &Array<f32, Ix2>, num_random_vecs: usiz
 }
 
 pub fn estimate_gxg_kk_trace(geno_arr: &Array<f32, Ix2>, num_random_vecs: usize) -> Result<f64, String> {
-    let (num_rows, num_cols) = geno_arr.dim();
+    let (_num_rows, num_cols) = geno_arr.dim();
     let u_arr = generate_plus_minus_one_bernoulli_matrix(num_cols, num_random_vecs);
     let ones = Array::<f32, Ix1>::ones(num_cols);
 
@@ -73,7 +73,7 @@ pub fn estimate_gxg_kk_trace(geno_arr: &Array<f32, Ix2>, num_random_vecs: usize)
 }
 
 pub fn estimate_gxg_dot_y_norm_sq(geno_arr: &Array<f32, Ix2>, y: &Array<f32, Ix1>, num_random_vecs: usize) -> f64 {
-    let (num_rows, num_cols) = geno_arr.dim();
+    let (_num_rows, num_cols) = geno_arr.dim();
     println!("estimate_gxg_dot_y using {} random vectors", num_random_vecs);
     let wg = &geno_arr.t() * y;
     let gg_sq = geno_arr * geno_arr;
@@ -87,8 +87,8 @@ pub fn estimate_gxg_dot_y_norm_sq(geno_arr: &Array<f32, Ix2>, y: &Array<f32, Ix1
 
 pub fn estimate_gxg1_k_gxg2_k_trace(geno_arr: &Array<f32, Ix2>, geno_arr2: &Array<f32, Ix2>,
     num_random_vecs: usize) -> Result<f64, String> {
-    let (num_rows, num_cols) = geno_arr.dim();
-    let (num_rows2, num_cols2) = geno_arr2.dim();
+    let (_num_rows, num_cols) = geno_arr.dim();
+    let (_num_rows2, num_cols2) = geno_arr2.dim();
     let u_arr = generate_plus_minus_one_bernoulli_matrix(num_cols, num_random_vecs);
     let ones = Array::<f32, Ix1>::ones(num_cols);
 

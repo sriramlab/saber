@@ -1,20 +1,15 @@
 extern crate saber;
 
-use std::fs::OpenOptions;
-use std::io::{BufRead, BufReader};
-
 #[macro_use]
 extern crate clap;
 
 use clap::ArgMatches;
-#[cfg(feature = "cuda")]
-use co_blas::transpose::Transpose;
 
 #[macro_use]
 extern crate ndarray;
 
 use ndarray_rand::RandomExt;
-use ndarray::{Array, Ix1, Ix2};
+use ndarray::{Array, Ix1};
 use rand::distributions::Uniform;
 #[cfg(feature = "cuda")]
 use estimate_heritability_cublas as estimate_heritability;

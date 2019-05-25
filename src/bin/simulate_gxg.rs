@@ -6,12 +6,12 @@ extern crate ndarray;
 
 use clap::ArgMatches;
 
+use bio_file_reader::plink_bed::PlinkBed;
 use saber::program_flow::OrExit;
 use saber::simulation::simulation::{generate_g_matrix, generate_gxg_pheno_arr, get_gxg_arr, generate_pheno_arr};
 use saber::trace_estimators::{estimate_gxg_gram_trace, estimate_gxg_kk_trace};
 use saber::heritability_estimator::{estimate_heritability, estimate_gxg_heritability};
 use saber::stats_util::{sum_of_squares, mean};
-use bio_file_reader::plink_bed::{MatrixIR, PlinkBed};
 use saber::matrix_util::{matrix_ir_to_ndarray, normalize_matrix_row_wise_inplace, mean_center_vector};
 
 fn extract_filename_arg(matches: &ArgMatches, arg_name: &str) -> String {
@@ -75,9 +75,8 @@ fn main() {
 
 
     println!("\n=> creating gxg");
-    let mut gxg = get_gxg_arr(&g);
+    let gxg = get_gxg_arr(&g);
 
-    let unstandardized_gxg = gxg.clone();
 //    println!("\n=> normalizing gxg");
 //    gxg = normalize_matrix_row_wise_inplace(gxg, 0);
 //    println!("=> normalizing g for the gxg heritability estimator");
