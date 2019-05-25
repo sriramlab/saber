@@ -36,6 +36,7 @@ fn main() {
         (@arg num_le_snps_to_use: -n +takes_value "number of independent SNPs to use; required")
         (@arg g_var: --g +takes_value "G variance; required")
         (@arg gxg_var: --gxg +takes_value "GxG variance; required")
+        (@arg num_random_vecs: --nrv +takes_value "number of random vectors used to estimate traces; required")
     ).get_matches();
 
     let plink_filename_prefix = extract_filename_arg(&matches, "plink_filename_prefix");
@@ -60,11 +61,16 @@ fn main() {
         .parse::<f64>()
         .unwrap_or_exit(Some("failed to parse gxg_var"));
 
+    let num_random_vecs = extract_filename_arg(&matches, "num_random_vecs")
+        .parse::<usize>()
+        .unwrap_or_exit(Some("failed to parse num_random_vecs"));
+
     println!("PLINK bed path: {}\nPLINK bim path: {}\nPLINK fam path: {}\n",
              plink_bed_path, plink_bim_path, plink_fam_path);
     println!("LE SNPs bed path: {}\nLE SNPs bim path: {}\nLE SNPs fam path: {}",
              le_snps_bed_path, le_snps_bim_path, le_snps_fam_path);
-    println!("num_le_snps_to_use: {}\ng_var: {} gxg_var: {}", num_le_snps_to_use, g_var, gxg_var);
+    println!("num_le_snps_to_use: {}\ng_var: {} \ngxg_var: {}\nnum_random_vecs: {}",
+             num_le_snps_to_use, g_var, gxg_var, num_random_vecs);
 
     println!("\n=> generating the genotype matrix");
 
@@ -93,7 +99,6 @@ fn main() {
                                                           g_var, gxg_var, 1. - g_var - gxg_var);
     }
 
-    let num_random_vecs = 1000usize;
     match estimate_joint_heritability(geno_arr,
                                       le_snps_arr,
                                       pheno_arr,
