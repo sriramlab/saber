@@ -3,7 +3,7 @@ use ndarray_rand::RandomExt;
 use num_traits::{Float, FromPrimitive, NumAssign, ToPrimitive};
 use rand::distributions::{Bernoulli, StandardNormal};
 
-use crate::stats_util::{sum_of_squares, mean, std};
+use crate::stats_util::{mean, std};
 use bio_file_reader::plink_bed::MatrixIR;
 
 pub fn matrix_ir_to_ndarray<T>(matrix_ir: MatrixIR<T>) -> Result<Array<T, Ix2>, String> {

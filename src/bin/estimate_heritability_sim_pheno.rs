@@ -73,29 +73,30 @@ fn main() {
 
     println!("\n=> generating the genotype matrix");
 
-    let mut bed = PlinkBed::new(&plink_bed_path, &plink_bim_path, &plink_fam_path).unwrap_or_exit(None::<String>);
-    let genotype_matrix = bed.get_genotype_matrix().unwrap_or_exit(Some("failed to get the genotype matrix"));
+    let mut bed = PlinkBed::new(&plink_bed_path,
+                                &plink_bim_path,
+                                &plink_fam_path).unwrap_or_exit(None::<String>);
+    let geno_arr = bed.get_genotype_matrix()
+                      .unwrap_or_exit(Some("failed to get the genotype matrix"));
 
     let mut le_snps_bed = PlinkBed::new(&le_snps_bed_path,
                                         &le_snps_bim_path,
                                         &le_snps_fam_path).unwrap_or_exit(None::<String>);
-    let le_snps = le_snps_bed.get_genotype_matrix().unwrap_or_exit(Some("failed to get the le_snps genotype matrix"));
-
-    let geno_arr = matrix_ir_to_ndarray(genotype_matrix).unwrap().mapv(|e| e as f32).t().to_owned();
-    let le_snps_arr = matrix_ir_to_ndarray(le_snps).unwrap().mapv(|e| e as f32).t().to_owned();
+    let mut le_snps_arr = le_snps_bed.get_genotype_matrix()
+                                     .unwrap_or_exit(Some("failed to get the le_snps genotype matrix"));
+    le_snps_arr = le_snps_arr.slice(s![.., ..num_le_snps_to_use]).to_owned();
 
     println!("geno_arr.dim: {:?}\nle_snps_arr.dim: {:?}", geno_arr.dim(), le_snps_arr.dim());
 
     println!("\n=> simulating phenotypes");
     let pheno_arr = generate_gxg_pheno_arr_from_gxg_basis(&geno_arr, &le_snps_arr,
-                                                      g_var, gxg_var, 1. - g_var - gxg_var);
+                                                          g_var, gxg_var, 1. - g_var - gxg_var);
 
     let num_random_vecs = 1000usize;
     match estimate_joint_heritability(geno_arr,
                                       le_snps_arr,
                                       pheno_arr,
-                                      num_random_vecs,
-                                      num_le_snps_to_use) {
+                                      num_random_vecs) {
         Ok(h) => h,
         Err(why) => {
             eprintln!("{}", why);

@@ -1,9 +1,8 @@
 extern crate test;
 
-use ndarray::{Array, Slice, Ix1, Ix2, Axis};
+use ndarray::{Array, Slice, Ix2, Axis};
 use num_traits::{pow, PrimInt};
 use ndarray::prelude::aview1;
-use crate::timer::Timer;
 
 pub fn zero_one_two_matrix_to_indicator_vec<T: PrimInt>(matrix: &Array<T, Ix2>) -> Vec<usize> {
     let (m, n) = matrix.dim();

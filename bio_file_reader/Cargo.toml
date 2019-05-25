@@ -5,3 +5,4 @@ authors = ["Aaron <aaronzhouqian@ucla.edu>"]
 edition = "2018"
 
 [dependencies]
+ndarray = {version = "0.12.1"}
