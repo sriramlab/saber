@@ -15,7 +15,7 @@ use std::io::{BufRead, BufReader};
 use bio_file_reader::plink_bed::{MatrixIR, PlinkBed};
 use saber::heritability_estimator::estimate_joint_heritability;
 use saber::program_flow::OrExit;
-use saber::simulation::simulation::generate_gxg_pheno_arr_from_gxg_basis;
+use saber::simulation::simulation::{generate_gxg_pheno_arr_from_gxg_basis, generate_pheno_arr};
 
 fn extract_filename_arg(matches: &ArgMatches, arg_name: &str) -> String {
     match matches.value_of(arg_name) {
@@ -84,8 +84,14 @@ fn main() {
     println!("geno_arr.dim: {:?}\nle_snps_arr.dim: {:?}", geno_arr.dim(), le_snps_arr.dim());
 
     println!("\n=> simulating phenotypes");
-    let pheno_arr = generate_gxg_pheno_arr_from_gxg_basis(&geno_arr, &le_snps_arr,
+    let pheno_arr;
+    if gxg_var == 0. {
+        println!("\n=> gxg variance is 0. Generating the phenotypes using only the geno_arr");
+        pheno_arr = generate_pheno_arr(&geno_arr, g_var, 1. - g_var);
+    } else {
+        pheno_arr = generate_gxg_pheno_arr_from_gxg_basis(&geno_arr, &le_snps_arr,
                                                           g_var, gxg_var, 1. - g_var - gxg_var);
+    }
 
     let num_random_vecs = 1000usize;
     match estimate_joint_heritability(geno_arr,
