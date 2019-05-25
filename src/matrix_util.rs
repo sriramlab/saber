@@ -45,7 +45,7 @@ pub fn normalize_matrix_row_wise_inplace<A>(mut matrix: Array<A, Ix2>, ddof: usi
 
 /// `ddof`: delta degrees of freedom, where the denominator will be `N - ddof`,
 /// where `N` is the number of elements per row
-pub fn normalize_matrix_columns_inplace<A>(mut matrix: &mut Array<A, Ix2>, ddof: usize)
+pub fn normalize_matrix_columns_inplace<A>(matrix: &mut Array<A, Ix2>, ddof: usize)
     where A: ToPrimitive + FromPrimitive + NumAssign + Float + ScalarOperand {
     let (num_rows, _num_cols) = matrix.dim();
     let num_rows_denom = A::from(num_rows).unwrap();

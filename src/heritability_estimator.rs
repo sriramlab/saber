@@ -80,13 +80,9 @@ pub fn estimate_joint_heritability(mut geno_arr: Array<f32, Ix2>, mut independen
     println!("\n=> estimating heritability due to G and GxG\nnum_people: {}\nnum_snps: {}\nnum_independent_snps: {}",
              num_people, num_snps, num_independent_snps);
 
-    println!("\n=> normalizing the genotype matrix row-wise");
+    println!("\n=> normalizing the genotype matrices");
     normalize_matrix_columns_inplace(&mut geno_arr, 0);
     normalize_matrix_columns_inplace(&mut independent_snps_arr, 0);
-
-//    println!("\n=> simulating phenotypes");
-//    pheno_arr = generate_gxg_pheno_arr(&geno_arr, &get_gxg_arr(&independent_snps_arr),
-//                                       g_var, gxg_var, 1. - g_var - gxg_var);
 
     println!("\n=> normalizing the phenotype vector");
     pheno_arr = mean_center_vector(pheno_arr);
@@ -194,8 +190,9 @@ pub fn estimate_gxg_heritability(geno_arr: Array<f32, Ix2>, mut pheno_arr: Array
     let num_snp_pairs = num_snps * (num_snps - 1) / 2;
     let mm = num_snp_pairs as f64;
 
-//    println!("\n=> mean centering the phenotype vector");
-//    pheno_arr = mean_center_vector(pheno_arr);
+    println!("\n=> normalizing the phenotype vector");
+    pheno_arr = mean_center_vector(pheno_arr);
+    pheno_arr /= std(pheno_arr.iter(), 0) as f32;
     //////
 //    let gxg = get_gxg_arr(&geno_arr);
 //    println!("GxG dim: {:?}", gxg.dim());

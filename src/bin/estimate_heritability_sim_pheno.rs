@@ -1,8 +1,5 @@
 extern crate saber;
 
-use std::fs::OpenOptions;
-use std::io::{BufRead, BufReader};
-
 #[macro_use]
 extern crate clap;
 
@@ -13,13 +10,11 @@ extern crate ndarray;
 
 use ndarray::{Array, Ix1};
 
+use std::io::{BufRead, BufReader};
+
 use bio_file_reader::plink_bed::{MatrixIR, PlinkBed};
-
 use saber::heritability_estimator::estimate_joint_heritability;
-
-use saber::matrix_util::matrix_ir_to_ndarray;
 use saber::program_flow::OrExit;
-
 use saber::simulation::simulation::generate_gxg_pheno_arr_from_gxg_basis;
 
 fn extract_filename_arg(matches: &ArgMatches, arg_name: &str) -> String {
