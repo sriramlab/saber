@@ -73,11 +73,8 @@ pub fn estimate_heritability(mut geno_arr: Array<f32, Ix2>, mut pheno_arr: Array
     Ok(heritability)
 }
 
-use crate::simulation::{get_gxg_arr, generate_gxg_pheno_arr};
-
 pub fn estimate_joint_heritability(mut geno_arr: Array<f32, Ix2>, mut independent_snps_arr: Array<f32, Ix2>,
-    mut pheno_arr: Array<f32, Ix1>, num_random_vecs: usize,
-    num_le_snps_to_use: usize, g_var: f64, gxg_var: f64,
+    mut pheno_arr: Array<f32, Ix1>, num_random_vecs: usize, num_le_snps_to_use: usize
 ) -> Result<(f64, f64, f64), String> {
     independent_snps_arr = independent_snps_arr.slice(s![..,..num_le_snps_to_use]).to_owned();
 //    geno_arr = geno_arr.slice(s![..,..100000]).to_owned();
