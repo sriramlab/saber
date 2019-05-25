@@ -14,24 +14,22 @@ use co_blas::transpose::Transpose;
 extern crate ndarray;
 
 use ndarray::{Array, Ix1};
-use ndarray_linalg::Solve;
 
-use bio_file_reader::plink_bed::{MatrixIR, PlinkBed};
+use bio_file_reader::plink_bed::PlinkBed;
 
 #[cfg(feature = "cuda")]
 use estimate_heritability_cublas as estimate_heritability;
 #[cfg(not(feature = "cuda"))]
-use saber::heritability_estimator::{estimate_heritability, estimate_joint_heritability};
+use saber::heritability_estimator::estimate_joint_heritability;
 
-use saber::matrix_util::{generate_plus_minus_one_bernoulli_matrix, matrix_ir_to_ndarray, mean_center_vector,
+use saber::matrix_util::{generate_plus_minus_one_bernoulli_matrix, mean_center_vector,
                          normalize_matrix_row_wise_inplace, row_mean_vec, row_std_vec};
 use saber::program_flow::OrExit;
-use saber::stats_util::{sum, sum_of_squares};
+use saber::stats_util::sum_of_squares;
 use saber::timer::Timer;
 
 #[cfg(feature = "cuda")]
 use saber::cublas::linalg::mul_xtxz_f32;
-use saber::mailman::mailman_zero_one_two;
 
 #[cfg(feature = "cuda")]
 fn estimate_heritability_cublas(mut geno_arr: Array<f32, Ix2>, mut pheno_arr: Array<f32, Ix1>,
@@ -153,22 +151,21 @@ fn main() {
 
     let pheno_arr = get_pheno_arr(&pheno_filename).unwrap_or_exit(None::<String>);
 
-    let mut bed = PlinkBed::new(&plink_bed_path, &plink_bim_path, &plink_fam_path).unwrap_or_exit(None::<String>);
-    let genotype_matrix = bed.get_genotype_matrix().unwrap_or_exit(Some("failed to get the genotype matrix"));
+    let mut bed = PlinkBed::new(&plink_bed_path,
+                                &plink_bim_path,
+                                &plink_fam_path).unwrap_or_exit(None::<String>);
+    let geno_arr = bed.get_genotype_matrix().unwrap_or_exit(Some("failed to get the genotype matrix"));
 
     let mut le_snps_bed = PlinkBed::new(&le_snps_bed_path,
                                         &le_snps_bim_path,
                                         &le_snps_fam_path).unwrap_or_exit(None::<String>);
-    let le_snps = le_snps_bed.get_genotype_matrix().unwrap_or_exit(Some("failed to get the le_snps genotype matrix"));
+    let mut le_snps_arr = le_snps_bed.get_genotype_matrix().unwrap_or_exit(Some("failed to get the le_snps genotype matrix"));
+    le_snps_arr = le_snps_arr.slice(s![.., ..num_le_snps_to_use]).to_owned();
 
-    let geno_arr = matrix_ir_to_ndarray(genotype_matrix).unwrap().mapv(|e| e as f32);
-    let le_snps_arr = matrix_ir_to_ndarray(le_snps).unwrap().mapv(|e| e as f32);
-
-    match estimate_joint_heritability(geno_arr.t().to_owned(),
-                                      le_snps_arr.t().to_owned(),
+    match estimate_joint_heritability(geno_arr,
+                                      le_snps_arr,
                                       pheno_arr,
-                                      num_rand_vecs,
-                                      num_le_snps_to_use) {
+                                      num_rand_vecs) {
         Ok(h) => h,
         Err(why) => {
             eprintln!("{}", why);

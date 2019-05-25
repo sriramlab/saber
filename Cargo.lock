@@ -26,6 +26,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "bio_file_reader"
 version = "0.1.0"
+dependencies = [
+ "ndarray 0.12.1 (registry+https://github.com/rust-lang/crates.io-index)",
+]
 
 [[package]]
 name = "bitflags"

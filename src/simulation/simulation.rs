@@ -1,7 +1,6 @@
 use ndarray::{Array, Ix1, Ix2};
-use ndarray::prelude::aview1;
 use ndarray_rand::RandomExt;
-use rand::distributions::{Normal, WeightedIndex, Distribution};
+use rand::distributions::{Normal, WeightedIndex};
 use crate::stats_util::{mean, variance};
 
 /// generate a G matrix with elements drawn independently from {0, 1, 2}

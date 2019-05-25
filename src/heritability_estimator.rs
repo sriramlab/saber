@@ -1,10 +1,9 @@
 use ndarray::{Array, Ix1, Ix2};
 use ndarray_linalg::Solve;
-use bio_file_reader::plink_bed::MatrixIR;
 use crate::timer::Timer;
-use crate::matrix_util::{generate_plus_minus_one_bernoulli_matrix, matrix_ir_to_ndarray, mean_center_vector,
-                         normalize_matrix_row_wise_inplace, normalize_matrix_columns_inplace, row_mean_vec, row_std_vec};
-use crate::stats_util::{sum, sum_of_squares, std};
+use crate::matrix_util::{generate_plus_minus_one_bernoulli_matrix, mean_center_vector,
+                         normalize_matrix_row_wise_inplace, normalize_matrix_columns_inplace};
+use crate::stats_util::{sum_of_squares, std};
 use crate::trace_estimators::{estimate_gxg_kk_trace, estimate_gxg_gram_trace, estimate_gxg_dot_y_norm_sq, estimate_tr_k_gxg_k, estimate_tr_k};
 use colored::Colorize;
 
@@ -74,10 +73,8 @@ pub fn estimate_heritability(mut geno_arr: Array<f32, Ix2>, mut pheno_arr: Array
 }
 
 pub fn estimate_joint_heritability(mut geno_arr: Array<f32, Ix2>, mut independent_snps_arr: Array<f32, Ix2>,
-    mut pheno_arr: Array<f32, Ix1>, num_random_vecs: usize, num_le_snps_to_use: usize
+    mut pheno_arr: Array<f32, Ix1>, num_random_vecs: usize
 ) -> Result<(f64, f64, f64), String> {
-    independent_snps_arr = independent_snps_arr.slice(s![..,..num_le_snps_to_use]).to_owned();
-//    geno_arr = geno_arr.slice(s![..,..100000]).to_owned();
     let (num_people, num_snps) = geno_arr.dim();
     let num_independent_snps = independent_snps_arr.dim().1;
     println!("\n=> estimating heritability due to G and GxG\nnum_people: {}\nnum_snps: {}\nnum_independent_snps: {}",
