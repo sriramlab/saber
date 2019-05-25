@@ -79,3 +79,37 @@ pub fn generate_gxg_pheno_arr(geno_arr: &Array<f32, Ix2>, gxg_arr: &Array<f32, I
 
     geno_arr.dot(&g_effect_sizes) + gxg_arr.dot(&gxg_effect_sizes) + noise
 }
+
+pub fn generate_gxg_pheno_arr_from_gxg_basis(geno_arr: &Array<f32, Ix2>, gxg_basis: &Array<f32, Ix2>,
+    g_variance: f64, gxg_variance: f64, noise_variance: f64) -> Array<f32, Ix1> {
+    println!("g_variance: {}\ngxg_variance: {}\nnoise_variance: {}", g_variance, gxg_variance, noise_variance);
+    let (num_people, num_snps) = geno_arr.dim();
+
+    let num_basis = gxg_basis.dim().1;
+    let num_gxg_pairs = num_basis * (num_basis - 1) / 2;
+
+    let g_effect_sizes = Array::random(
+        num_snps, Normal::new(0f64, (g_variance / num_snps as f64).sqrt()))
+        .mapv(|e| e as f32);
+
+    let mut gxg_effects = Array::zeros(num_people);
+    for i in 0..num_basis - 1 {
+        let snp_i = gxg_basis.slice(s![.., i]);
+        let mut gxg = gxg_basis.slice(s![.., i+1..]).clone().to_owned();
+        for mut col in gxg.gencolumns_mut() {
+            for k in 0..num_people {
+                col[k] *= snp_i[k];
+            }
+        }
+        let gxg_effect_sizes = Array::random(
+            gxg.dim().1, Normal::new(0f64, (gxg_variance / num_gxg_pairs as f64).sqrt()))
+            .mapv(|e| e as f32);
+        gxg_effects += &gxg.dot(&gxg_effect_sizes);
+    }
+
+    let noise = Array::random(
+        num_people, Normal::new(0f64, noise_variance.sqrt()))
+        .mapv(|e| e as f32);
+
+    geno_arr.dot(&g_effect_sizes) + gxg_effects + noise
+}

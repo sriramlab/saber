@@ -20,7 +20,7 @@ use rand::distributions::Uniform;
 use estimate_heritability_cublas as estimate_heritability;
 use saber::program_flow::OrExit;
 use saber::timer::Timer;
-use saber::simulation::get_gxg_arr;
+use saber::simulation::simulation::get_gxg_arr;
 
 use saber::trace_estimators::{estimate_gxg_gram_trace, estimate_gxg_kk_trace};
 

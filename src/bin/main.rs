@@ -23,7 +23,6 @@ use estimate_heritability_cublas as estimate_heritability;
 #[cfg(not(feature = "cuda"))]
 use saber::heritability_estimator::{estimate_heritability, estimate_joint_heritability};
 
-use saber::mailman::zero_one_two_matrix_to_indicator_vec;
 use saber::matrix_util::{generate_plus_minus_one_bernoulli_matrix, matrix_ir_to_ndarray, mean_center_vector,
                          normalize_matrix_row_wise_inplace, row_mean_vec, row_std_vec};
 use saber::program_flow::OrExit;
@@ -121,8 +120,7 @@ fn main() {
         (@arg le_snps_filename: --le <LE_SNPS> "required; plink file prefix to the SNPs in linkage equilibrium")
         (@arg pheno_filename: --pheno <PHENO> "required; each row is one individual containing one phenotype value")
         (@arg num_le_snps_to_use: -n +takes_value "number of independent SNPs to use; required")
-        (@arg g_var: --g +takes_value "G variance; required")
-        (@arg gxg_var: --gg +takes_value "GxG variance; required")
+        (@arg num_rand_vecs: --nrv +takes_value "number of random vectors used to estimate traces; required")
     ).get_matches();
 
     let plink_filename_prefix = extract_filename_arg(&matches, "plink_filename_prefix");
@@ -140,19 +138,16 @@ fn main() {
     let num_le_snps_to_use = extract_filename_arg(&matches, "num_le_snps_to_use")
         .parse::<usize>()
         .unwrap_or_exit(Some("failed to parse num_le_snps_to_use"));
-    let g_var = extract_filename_arg(&matches, "g_var")
-        .parse::<f64>()
-        .unwrap_or_exit(Some("failed to parse g_var"));
 
-    let gxg_var = extract_filename_arg(&matches, "gxg_var")
-        .parse::<f64>()
-        .unwrap_or_exit(Some("failed to parse gxg_var"));
+    let num_rand_vecs = extract_filename_arg(&matches, "num_rand_vecs")
+        .parse::<usize>()
+        .unwrap_or_exit(Some("failed to parse num_rand_vecs"));
 
     println!("PLINK bed path: {}\nPLINK bim path: {}\nPLINK fam path: {}\npheno_filepath: {}",
              plink_bed_path, plink_bim_path, plink_fam_path, pheno_filename);
     println!("LE SNPs bed path: {}\nLE SNPs bim path: {}\nLE SNPs fam path: {}",
              le_snps_bed_path, le_snps_bim_path, le_snps_fam_path);
-    println!("num_le_snps_to_use: {}\ng_var: {} gxg_var: {}", num_le_snps_to_use, g_var, gxg_var);
+    println!("num_le_snps_to_use: {}\nnum_rand_vecs: {}", num_le_snps_to_use, num_rand_vecs);
 
     println!("\n=> generating the phenotype array and the genotype matrix");
 
@@ -171,8 +166,9 @@ fn main() {
 
     match estimate_joint_heritability(geno_arr.t().to_owned(),
                                       le_snps_arr.t().to_owned(),
-                                      pheno_arr, 5000,
-                                      num_le_snps_to_use, g_var, gxg_var) {
+                                      pheno_arr,
+                                      num_rand_vecs,
+                                      num_le_snps_to_use) {
         Ok(h) => h,
         Err(why) => {
             eprintln!("{}", why);
