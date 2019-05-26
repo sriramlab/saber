@@ -17,7 +17,7 @@ use saber::program_flow::OrExit;
 use saber::timer::Timer;
 use saber::simulation::simulation::get_gxg_arr;
 
-use saber::trace_estimators::{estimate_gxg_gram_trace, estimate_gxg_kk_trace};
+use saber::trace_estimators::{estimate_gxg_gram_trace, estimate_gxg_kk_trace, estimate_tr_k_gxg_k};
 
 fn extract_filename_arg(matches: &ArgMatches, arg_name: &str) -> String {
     match matches.value_of(arg_name) {
@@ -57,6 +57,10 @@ fn main() {
     let tr_k_true = (&gxg * &gxg).dot(&Array::<f32, Ix1>::ones(gxg.dim().1)).sum() as f64;
     println!("tr_k_true: {}", tr_k_true);
     timer.print();
+
+    println!("\n=> test estimate_tr_k_gxg_k");
+    let tr_k_gxg_k_est = estimate_tr_k_gxg_k(&geno_arr, &geno_arr, num_random_vecs);
+    println!("tr_k_gxg_k_est: {}", tr_k_gxg_k_est);
 
     println!("\n=> estimating the trace of GxG.dot(GxG.T)");
     let mut ratio_list = Vec::new();
