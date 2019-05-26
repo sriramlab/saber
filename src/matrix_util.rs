@@ -50,10 +50,11 @@ pub fn normalize_matrix_columns_inplace<A>(matrix: &mut Array<A, Ix2>, ddof: usi
     let (num_rows, _num_cols) = matrix.dim();
     let num_rows_denom = A::from(num_rows).unwrap();
     let denominator = A::from(num_rows - ddof).unwrap();
+    let zero = A::zero();
     for mut col in matrix.gencolumns_mut() {
         col -= col.sum() / num_rows_denom;
-        let std = (A::from((&col * &col).sum()).unwrap() / denominator).sqrt();
-        if std > A::zero() {
+        let std = ((&col * &col).sum() / denominator).sqrt();
+        if std > zero {
             col /= std;
         }
     };
