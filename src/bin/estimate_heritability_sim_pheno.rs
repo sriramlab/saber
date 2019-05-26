@@ -16,6 +16,7 @@ use bio_file_reader::plink_bed::{MatrixIR, PlinkBed};
 use saber::heritability_estimator::estimate_joint_heritability;
 use saber::program_flow::OrExit;
 use saber::simulation::simulation::{generate_gxg_pheno_arr_from_gxg_basis, generate_pheno_arr};
+use saber::matrix_util::normalize_matrix_columns_inplace;
 
 fn extract_filename_arg(matches: &ArgMatches, arg_name: &str) -> String {
     match matches.value_of(arg_name) {
@@ -77,8 +78,8 @@ fn main() {
     let mut bed = PlinkBed::new(&plink_bed_path,
                                 &plink_bim_path,
                                 &plink_fam_path).unwrap_or_exit(None::<String>);
-    let geno_arr = bed.get_genotype_matrix()
-                      .unwrap_or_exit(Some("failed to get the genotype matrix"));
+    let mut geno_arr = bed.get_genotype_matrix()
+                          .unwrap_or_exit(Some("failed to get the genotype matrix"));
 
     let mut le_snps_bed = PlinkBed::new(&le_snps_bed_path,
                                         &le_snps_bim_path,
@@ -88,6 +89,10 @@ fn main() {
     le_snps_arr = le_snps_arr.slice(s![.., ..num_le_snps_to_use]).to_owned();
 
     println!("geno_arr.dim: {:?}\nle_snps_arr.dim: {:?}", geno_arr.dim(), le_snps_arr.dim());
+
+    println!("\n=> normalizing genotype matrices before simulating phenotypes");
+    normalize_matrix_columns_inplace(&mut geno_arr, 0);
+    normalize_matrix_columns_inplace(&mut le_snps_arr, 0);
 
     println!("\n=> simulating phenotypes");
     let pheno_arr;
