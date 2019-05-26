@@ -13,6 +13,7 @@ clap = "2.32.0"
 num-traits = "0.2.6"
 ndarray = {version = "0.12.1", features = ["blas"] }
 ndarray-linalg = "0.10.0"
+ndarray-parallel = "0.9.0"
 rand = "0.6.5"
 ndarray-rand = "0.9.0"
 blas-src = { version = "0.2", features = ["openblas"] }
