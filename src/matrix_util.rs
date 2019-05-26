@@ -1,4 +1,8 @@
-use ndarray::{Array, Ix1, Ix2, ScalarOperand};
+extern crate ndarray_parallel;
+
+use ndarray_parallel::prelude::*;
+
+use ndarray::{Array, Axis, Ix1, Ix2, ScalarOperand};
 use ndarray_rand::RandomExt;
 use num_traits::{Float, FromPrimitive, NumAssign, ToPrimitive};
 use rand::distributions::{Bernoulli, StandardNormal};
@@ -46,18 +50,20 @@ pub fn normalize_matrix_row_wise_inplace<A>(mut matrix: Array<A, Ix2>, ddof: usi
 /// `ddof`: delta degrees of freedom, where the denominator will be `N - ddof`,
 /// where `N` is the number of elements per row
 pub fn normalize_matrix_columns_inplace<A>(matrix: &mut Array<A, Ix2>, ddof: usize)
-    where A: ToPrimitive + FromPrimitive + NumAssign + Float + ScalarOperand {
+    where A: ToPrimitive + FromPrimitive + NumAssign + Float + ScalarOperand + Send + Sync {
     let (num_rows, _num_cols) = matrix.dim();
     let num_rows_denom = A::from(num_rows).unwrap();
     let denominator = A::from(num_rows - ddof).unwrap();
     let zero = A::zero();
-    for mut col in matrix.gencolumns_mut() {
-        col -= col.sum() / num_rows_denom;
-        let std = ((&col * &col).sum() / denominator).sqrt();
-        if std > zero {
-            col /= std;
-        }
-    };
+    matrix.axis_iter_mut(Axis(1))
+          .into_par_iter()
+          .for_each(|mut col| {
+              col -= col.sum() / num_rows_denom;
+              let std = ((&col * &col).sum() / denominator).sqrt();
+              if std > zero {
+                  col /= std;
+              }
+          });
 }
 
 pub fn mean_center_vector<A>(mut vector: Array<A, Ix1>) -> Array<A, Ix1>
