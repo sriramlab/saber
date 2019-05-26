@@ -141,10 +141,11 @@ fn main() {
         .parse::<usize>()
         .unwrap_or_exit(Some("failed to parse num_random_vecs"));
 
-    println!("PLINK bed path: {}\nPLINK bim path: {}\nPLINK fam path: {}\npheno_filepath: {}",
-             plink_bed_path, plink_bim_path, plink_fam_path, pheno_filename);
+    println!("PLINK bed path: {}\nPLINK bim path: {}\nPLINK fam path: {}",
+             plink_bed_path, plink_bim_path, plink_fam_path);
     println!("LE SNPs bed path: {}\nLE SNPs bim path: {}\nLE SNPs fam path: {}",
              le_snps_bed_path, le_snps_bim_path, le_snps_fam_path);
+    println!("pheno_filepath: {}", pheno_filename);
     println!("num_le_snps_to_use: {}\nnum_random_vecs: {}", num_le_snps_to_use, num_random_vecs);
 
     println!("\n=> generating the phenotype array and the genotype matrix");

@@ -54,6 +54,7 @@ fn main() {
     let num_le_snps_to_use = extract_filename_arg(&matches, "num_le_snps_to_use")
         .parse::<usize>()
         .unwrap_or_exit(Some("failed to parse num_le_snps_to_use"));
+
     let g_var = extract_filename_arg(&matches, "g_var")
         .parse::<f64>()
         .unwrap_or_exit(Some("failed to parse g_var"));
