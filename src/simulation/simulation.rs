@@ -46,9 +46,11 @@ pub fn generate_pheno_arr(geno_arr: &Array<f32, Ix2>, effect_variance: f64, nois
         num_snps, Normal::new(0f64, (effect_variance / num_snps as f64).sqrt()))
         .mapv(|e| e as f32);
 
-    let noise = Array::random(
+    let mut noise = Array::random(
         num_individuals, Normal::new(0f64, noise_variance.sqrt()))
         .mapv(|e| e as f32);
+
+    noise -= mean(noise.iter()) as f32;
 
     println!("beta mean: {}  noise mean: {}", mean(effect_size_matrix.iter()), mean(noise.iter()));
     println!("beta variance: {}  noise variance: {}", variance(effect_size_matrix.iter(), 1),
