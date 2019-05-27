@@ -1,7 +1,7 @@
 use std::{fmt, io};
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
-use ndarray::{Array, Ix2};
+use ndarray::{Array, Ix2, ShapeBuilder};
 
 pub struct MatrixIR<T> {
     pub data: Vec<T>,
@@ -98,28 +98,49 @@ impl PlinkBed {
             x => x
         };
 
+        /*
         let mut geno_arr;
         unsafe {
             geno_arr = Array::<f32, Ix2>::uninitialized((self.num_people, self.num_snps));
         }
+        */
+
+        let mut v = Vec::with_capacity(self.num_people * self.num_snps);
+        unsafe {
+            v.set_len(self.num_people * self.num_snps);
+        }
+        let mut vi = 0usize;
 
         let mut snp_bytes = vec![0u8; self.num_bytes_per_snp];
         for j in 0..self.num_snps {
             self.bed_buf.read_exact(&mut snp_bytes)?;
             for i in 0..last_byte_index {
+                v[vi] = lowest_two_bits_to_geno(snp_bytes[i]) as f32;
+                v[vi + 1] = lowest_two_bits_to_geno(snp_bytes[i] >> 2) as f32;
+                v[vi + 2] = lowest_two_bits_to_geno(snp_bytes[i] >> 4) as f32;
+                v[vi + 3] = lowest_two_bits_to_geno(snp_bytes[i] >> 6) as f32;
+                vi += 4;
+                /*
                 // 4 people per byte, so we use i << 2 to get i * 4
                 let offset = i << 2;
                 geno_arr[[offset, j]] = lowest_two_bits_to_geno(snp_bytes[i]) as f32;
                 geno_arr[[offset + 1, j]] = lowest_two_bits_to_geno(snp_bytes[i] >> 2) as f32;
                 geno_arr[[offset + 2, j]] = lowest_two_bits_to_geno(snp_bytes[i] >> 4) as f32;
                 geno_arr[[offset + 3, j]] = lowest_two_bits_to_geno(snp_bytes[i] >> 6) as f32;
+                */
             }
             // last byte
             for k in 0..num_people_last_byte {
+                v[vi] = lowest_two_bits_to_geno(snp_bytes[last_byte_index] >> (k << 1)) as f32;
+                vi += 1;
+                /*
                 // two bits per person, so we use k << 1 to get k * 2
                 geno_arr[[last_byte_index * 4 + k, j]] = lowest_two_bits_to_geno(snp_bytes[last_byte_index] >> (k << 1)) as f32;
+                */
             }
         }
+        let geno_arr = Array::from_shape_vec((self.num_people, self.num_snps)
+                                                 .strides((1, self.num_people)), v).unwrap();
         Ok(geno_arr)
     }
 }
