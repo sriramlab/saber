@@ -54,13 +54,10 @@ fn main() {
 
     let mut timer = Timer::new();
     println!("\n=> calculating tr_k_true");
-    let tr_k_true = (&gxg * &gxg).dot(&Array::<f32, Ix1>::ones(gxg.dim().1)).sum() as f64;
+    let tr_k_true = (&gxg * &gxg).sum() as f64;
     println!("tr_k_true: {}", tr_k_true);
     timer.print();
 
-    println!("\n=> test estimate_tr_k_gxg_k");
-    let tr_k_gxg_k_est = estimate_tr_k_gxg_k(&geno_arr, &geno_arr, num_random_vecs);
-    println!("tr_k_gxg_k_est: {}", tr_k_gxg_k_est);
 
     println!("\n=> estimating the trace of GxG.dot(GxG.T)");
     let mut ratio_list = Vec::new();
@@ -110,4 +107,12 @@ fn main() {
                                              .map(|r| (r - kk_abs_ratio_avg) * (r - kk_abs_ratio_avg))
                                              .sum::<f64>() / kk_abs_ratio_list.len() as f64).sqrt();
     println!("\nkk_abs_ratio_avg: {}%\nkk_abs_ratio_std: {}%", kk_abs_ratio_avg * 100., kk_abs_ratio_std * 100.);
+
+    println!("\n=> test estimate_tr_k_gxg_k");
+    let tr_k_gxg_k_est = estimate_tr_k_gxg_k(&geno_arr, &geno_arr, num_random_vecs);
+    println!("tr_k_gxg_k_est: {}", tr_k_gxg_k_est);
+
+    let k_gxg_k = geno_arr.t().dot(&gxg);
+    let tr_k_gxg_k_true = (&k_gxg_k * &k_gxg_k).sum();
+    println!("tr_k_gxg_k_true: {}", tr_k_gxg_k_true);
 }

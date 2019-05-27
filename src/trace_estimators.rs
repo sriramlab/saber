@@ -12,7 +12,15 @@ pub fn estimate_tr_k(geno_arr: &Array<f32, Ix2>, num_random_vecs: usize) -> f64 
     let rand_mat = generate_plus_minus_one_bernoulli_matrix(num_people, num_random_vecs);
     let xz_arr = geno_arr.t().dot(&rand_mat);
     let xxz = geno_arr.dot(&xz_arr);
-    sum_of_squares(xxz.iter()) / (num_snps * num_snps * num_random_vecs) as f64
+
+    let mut sums = Vec::new();
+    xxz.axis_iter(Axis(1))
+       .into_par_iter()
+       .map(|col| sum_of_squares_f32(col.iter()))
+       .collect_into_vec(&mut sums);
+
+    (sums.iter().sum::<f32>() / (num_snps * num_snps * num_random_vecs) as f32) as f64
+//    sum_of_squares(xxz.iter()) / (num_snps * num_snps * num_random_vecs) as f64
 }
 
 pub fn estimate_tr_k_gxg_k(geno_arr: &Array<f32, Ix2>, independent_snps_arr: &Array<f32, Ix2>, num_random_vecs: usize) -> f64 {
