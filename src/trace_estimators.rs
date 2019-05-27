@@ -4,7 +4,7 @@ use ndarray_parallel::prelude::*;
 
 use ndarray::{Array, Axis, Ix1, Ix2};
 use crate::matrix_util::generate_plus_minus_one_bernoulli_matrix;
-use crate::stats_util::sum_of_squares;
+use crate::stats_util::{sum_of_squares, sum_of_squares_f32};
 
 /// geno_arr has shape num_people x num_snps
 pub fn estimate_tr_k(geno_arr: &Array<f32, Ix2>, num_random_vecs: usize) -> f64 {
@@ -17,12 +17,23 @@ pub fn estimate_tr_k(geno_arr: &Array<f32, Ix2>, num_random_vecs: usize) -> f64 
 
 pub fn estimate_tr_k_gxg_k(geno_arr: &Array<f32, Ix2>, independent_snps_arr: &Array<f32, Ix2>, num_random_vecs: usize) -> f64 {
     let u_arr = generate_plus_minus_one_bernoulli_matrix(independent_snps_arr.dim().1, num_random_vecs);
-    let ones = Array::<f32, Ix2>::ones((independent_snps_arr.dim().1, 1));
-    let geno_ssq = (independent_snps_arr * independent_snps_arr).dot(&ones);
+    let mut sums = Vec::new();
+    independent_snps_arr.axis_iter(Axis(0))
+                        .into_par_iter()
+                        .map(|row| sum_of_squares_f32(row.iter()))
+                        .collect_into_vec(&mut sums);
+    let geno_ssq = Array::from_shape_vec((independent_snps_arr.dim().0, 1), sums).unwrap();
     let squashed = independent_snps_arr.dot(&u_arr);
     let squashed_squared = &squashed * &squashed;
     let corrected = (squashed_squared - geno_ssq) / 2.;
-    sum_of_squares(geno_arr.t().dot(&corrected).iter()) / num_random_vecs as f64
+
+    let gc = geno_arr.t().dot(&corrected);
+    let mut sums = Vec::new();
+    gc.axis_iter(Axis(1))
+      .into_par_iter()
+      .map(|col| sum_of_squares_f32(col.iter()))
+      .collect_into_vec(&mut sums);
+    (sums.iter().sum::<f32>() / num_random_vecs as f32) as f64
 }
 
 pub fn estimate_gxg_gram_trace(geno_arr: &Array<f32, Ix2>, num_random_vecs: usize) -> Result<f64, String> {
