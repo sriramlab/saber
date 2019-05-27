@@ -74,9 +74,10 @@ pub fn generate_gxg_pheno_arr(geno_arr: &Array<f32, Ix2>, gxg_arr: &Array<f32, I
         num_gxg_pairs, Normal::new(0f64, (gxg_variance / num_gxg_pairs as f64).sqrt()))
         .mapv(|e| e as f32);
 
-    let noise = Array::random(
+    let mut noise = Array::random(
         num_individuals, Normal::new(0f64, noise_variance.sqrt()))
         .mapv(|e| e as f32);
+    noise -= mean(noise.iter()) as f32;
 
     geno_arr.dot(&g_effect_sizes) + gxg_arr.dot(&gxg_effect_sizes) + noise
 }

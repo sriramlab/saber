@@ -106,7 +106,7 @@ pub fn estimate_joint_heritability(mut geno_arr: Array<f32, Ix2>, mut independen
     println!("gxg_tr_k_est: {}", gxg_tr_k_est);
     println!("gxg_tr_kk_est: {}", gxg_tr_kk_est);
 
-    let gxg_yky = estimate_gxg_dot_y_norm_sq(&independent_snps_arr, &pheno_arr, 2 * num_random_vecs) / mm;
+    let gxg_yky = estimate_gxg_dot_y_norm_sq(&independent_snps_arr, &pheno_arr, num_random_vecs) / mm;
     println!("gxg_yky: {}", gxg_yky);
 
     let tr_gk_est = estimate_tr_k_gxg_k(&geno_arr, &independent_snps_arr, num_random_vecs) / (mm * num_snps as f64);
