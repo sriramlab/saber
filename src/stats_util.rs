@@ -16,6 +16,20 @@ pub fn kahan_sigma<'a, A, T: Iterator<Item=&'a A>>(element_iterator: T, op: Box<
     sum
 }
 
+pub fn kahan_sigma_f32<'a, A, T: Iterator<Item=&'a A>>(element_iterator: T, op: Box<dyn Fn(A) -> f32>) -> f32
+    where A: Copy + 'a, &'a A: Deref {
+    // Kahan summation algorithm
+    let mut sum = 0f32;
+    let mut lower_bits = 0f32;
+    for a in element_iterator {
+        let y = op(*a) - lower_bits;
+        let new_sum = sum + y;
+        lower_bits = (new_sum - sum) - y;
+        sum = new_sum;
+    }
+    sum
+}
+
 pub fn kahan_sigma_return_counter<'a, A, T: Iterator<Item=&'a A>>(element_iterator: T, op: Box<dyn Fn(A) -> f64>) -> (f64, usize)
     where A: Copy + 'a, &'a A: Deref {
     let mut count = 0usize;
@@ -43,6 +57,14 @@ pub fn sum_of_squares<'a, A, T: Iterator<Item=&'a A>>(element_iterator: T) -> f6
     kahan_sigma(element_iterator, Box::new(|a| {
         let a_f64 = a.to_f64().unwrap();
         a_f64 * a_f64
+    }))
+}
+
+pub fn sum_of_squares_f32<'a, A, T: Iterator<Item=&'a A>>(element_iterator: T) -> f32
+    where A: Copy + ToPrimitive + 'a, &'a A: Deref {
+    kahan_sigma_f32(element_iterator, Box::new(|a| {
+        let a_f32 = a.to_f32().unwrap();
+        a_f32 * a_f32
     }))
 }
 
