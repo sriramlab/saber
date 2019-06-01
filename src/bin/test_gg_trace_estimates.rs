@@ -58,7 +58,6 @@ fn main() {
     println!("tr_k_true: {}", tr_k_true);
     timer.print();
 
-
     println!("\n=> estimating the trace of GxG.dot(GxG.T)");
     let mut ratio_list = Vec::new();
     for iter in 0..50 {
