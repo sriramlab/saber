@@ -1,3 +1,4 @@
+extern crate ndarray_parallel;
 extern crate saber;
 
 #[macro_use]
@@ -8,16 +9,18 @@ use clap::ArgMatches;
 #[macro_use]
 extern crate ndarray;
 
+use ndarray_parallel::prelude::*;
 use ndarray_rand::RandomExt;
 use ndarray::{Array, Ix1};
-use rand::distributions::Uniform;
+use rand::distributions::{Uniform, Normal};
 #[cfg(feature = "cuda")]
 use estimate_heritability_cublas as estimate_heritability;
 use saber::program_flow::OrExit;
 use saber::timer::Timer;
 use saber::simulation::simulation::get_gxg_arr;
 
-use saber::trace_estimators::{estimate_gxg_gram_trace, estimate_gxg_kk_trace, estimate_tr_k_gxg_k};
+use saber::trace_estimators::{estimate_gxg_gram_trace, estimate_gxg_kk_trace, estimate_tr_k_gxg_k,
+                              estimate_gxg_dot_y_norm_sq};
 
 fn extract_filename_arg(matches: &ArgMatches, arg_name: &str) -> String {
     match matches.value_of(arg_name) {
@@ -87,7 +90,7 @@ fn main() {
 
     println!("\n=> computing tr_kk_est");
     let mut kk_abs_ratio_list = Vec::new();
-    for iter in 0..20 {
+    for iter in 0..2 {
         let tr_kk_est = match estimate_gxg_kk_trace(&geno_arr, num_random_vecs) {
             Ok(t) => t,
             Err(why) => {
@@ -114,4 +117,16 @@ fn main() {
     let k_gxg_k = geno_arr.t().dot(&gxg);
     let tr_k_gxg_k_true = (&k_gxg_k * &k_gxg_k).sum();
     println!("tr_k_gxg_k_true: {}", tr_k_gxg_k_true);
+    println!("error ratio: {:.5}%", (tr_k_gxg_k_est as f32 - tr_k_gxg_k_true) / tr_k_gxg_k_true * 100.);
+
+    println!("\n=> test estimate_gxg_dot_y_norm_sq");
+    let y = Array::random(num_rows, Normal::new(0., 1.))
+        .mapv(|e| e as f32);
+    let gxg_dot_y_norm_sq_est = estimate_gxg_dot_y_norm_sq(&geno_arr, &y, 1000);
+    println!("gxg_dot_y_norm_sq_est: {}", gxg_dot_y_norm_sq_est);
+    let mut gxg_dot_y = gxg.t().dot(&y);
+    gxg_dot_y.par_iter_mut().for_each(|x| *x = (*x) * (*x));
+    let gxg_dot_y_norm_sq = gxg_dot_y.sum();
+    println!("gxg_dot_y_norm_sq true: {}", gxg_dot_y_norm_sq);
+    println!("error ratio: {:.5}%", (gxg_dot_y_norm_sq_est as f32 - gxg_dot_y_norm_sq) / gxg_dot_y_norm_sq * 100.);
 }
