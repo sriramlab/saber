@@ -89,7 +89,7 @@ pub fn estimate_joint_heritability(mut geno_arr: Array<f32, Ix2>, mut independen
     pheno_arr /= std(pheno_arr.iter(), 0) as f32;
 
     println!("\n=> estimating traces related to the G matrix");
-    let num_rand_z = 300usize;
+    let num_rand_z = 100usize;
     let tr_kk_est = estimate_tr_k(&geno_arr, num_rand_z);
     println!("tr_kk_est: {}", tr_kk_est);
     let xy = geno_arr.t().dot(&pheno_arr);
