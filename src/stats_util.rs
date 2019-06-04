@@ -3,7 +3,7 @@ use std::ops::Deref;
 use num_traits::ToPrimitive;
 
 pub fn n_choose_2(n: usize) -> usize {
-n * (n - 1) / 2
+    n * (n - 1) / 2
 }
 
 pub fn kahan_sigma<'a, A, T: Iterator<Item=&'a A>>(element_iterator: T, op: Box<dyn Fn(A) -> f64>) -> f64
@@ -54,6 +54,12 @@ pub fn kahan_sigma_return_counter<'a, A, T: Iterator<Item=&'a A>>(element_iterat
 pub fn sum<'a, A, T: Iterator<Item=&'a A>>(element_iterator: T) -> f64
     where A: Copy + ToPrimitive + 'a, &'a A: Deref {
     kahan_sigma(element_iterator, Box::new(|a| a.to_f64().unwrap()))
+}
+
+#[inline]
+pub fn sum_f32<'a, A, T: Iterator<Item=&'a A>>(element_iterator: T) -> f32
+    where A: Copy + ToPrimitive + 'a, &'a A: Deref {
+    kahan_sigma_f32(element_iterator, Box::new(|a| a.to_f32().unwrap()))
 }
 
 pub fn sum_of_squares<'a, A, T: Iterator<Item=&'a A>>(element_iterator: T) -> f64
