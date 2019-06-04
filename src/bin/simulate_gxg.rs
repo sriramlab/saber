@@ -13,16 +13,7 @@ use saber::trace_estimators::{estimate_gxg_gram_trace, estimate_gxg_kk_trace};
 use saber::heritability_estimator::{estimate_heritability, estimate_gxg_heritability};
 use saber::stats_util::{sum_of_squares, mean};
 use saber::matrix_util::{matrix_ir_to_ndarray, normalize_matrix_row_wise_inplace, mean_center_vector};
-
-fn extract_filename_arg(matches: &ArgMatches, arg_name: &str) -> String {
-    match matches.value_of(arg_name) {
-        Some(filename) => filename.to_string(),
-        None => {
-            eprintln!("the argument {} is required", arg_name);
-            std::process::exit(1);
-        }
-    }
-}
+use saber::util::extract_str_arg;
 
 fn main() {
     let matches = clap_app!(Saber =>
@@ -36,27 +27,27 @@ fn main() {
         (@arg num_random_vecs: -n +takes_value "number of random vectors; required")
     ).get_matches();
 
-    let num_people = extract_filename_arg(&matches, "num_people")
+    let num_people = extract_str_arg(&matches, "num_people")
         .parse::<usize>()
         .unwrap_or_exit(Some("failed to parse num_people"));
 
-    let num_snps = extract_filename_arg(&matches, "num_snps")
+    let num_snps = extract_str_arg(&matches, "num_snps")
         .parse::<usize>()
         .unwrap_or_exit(Some("failed to parse num_snps"));
 
-    let g_var = extract_filename_arg(&matches, "g_var")
+    let g_var = extract_str_arg(&matches, "g_var")
         .parse::<f64>()
         .unwrap_or_exit(Some("failed to parse g_var"));
 
-    let gxg_var = extract_filename_arg(&matches, "gxg_var")
+    let gxg_var = extract_str_arg(&matches, "gxg_var")
         .parse::<f64>()
         .unwrap_or_exit(Some("failed to parse gxg_var"));
 
-    let noise_var = extract_filename_arg(&matches, "noise_var")
+    let noise_var = extract_str_arg(&matches, "noise_var")
         .parse::<f64>()
         .unwrap_or_exit(Some("failed to parse noise_var"));
 
-    let num_random_vecs = extract_filename_arg(&matches, "num_random_vecs")
+    let num_random_vecs = extract_str_arg(&matches, "num_random_vecs")
         .parse::<usize>()
         .unwrap_or_exit(Some("failed to parse num_random_vecs"));
 
@@ -72,7 +63,6 @@ fn main() {
 //    println!("=> getting slice");
 //    g = g.slice(s![..num_snps, ..num_people]).t().to_owned();
     let mut g = generate_g_matrix(num_people, num_snps, 0.64, 0.04).unwrap().mapv(|e| e as f32);
-
 
     println!("\n=> creating gxg");
     let gxg = get_gxg_arr(&g);

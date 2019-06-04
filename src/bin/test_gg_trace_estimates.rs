@@ -1,37 +1,21 @@
+#[macro_use]
+extern crate clap;
+#[macro_use]
+extern crate ndarray;
 extern crate ndarray_parallel;
 extern crate saber;
 
-#[macro_use]
-extern crate clap;
-
-use clap::ArgMatches;
-
-#[macro_use]
-extern crate ndarray;
-
+use ndarray::Array;
 use ndarray_parallel::prelude::*;
 use ndarray_rand::RandomExt;
-use ndarray::{Array, Ix1};
-use rand::distributions::{Uniform, Normal};
-#[cfg(feature = "cuda")]
-use estimate_heritability_cublas as estimate_heritability;
+use rand::distributions::{Normal, Uniform};
+
 use saber::program_flow::OrExit;
-use saber::timer::Timer;
 use saber::simulation::simulation::get_gxg_arr;
-
-use saber::trace_estimators::{estimate_gxg_gram_trace, estimate_gxg_kk_trace, estimate_tr_k_gxg_k,
-                              estimate_gxg_dot_y_norm_sq};
-use saber::stats_util::n_choose_2;
-
-fn extract_filename_arg(matches: &ArgMatches, arg_name: &str) -> String {
-    match matches.value_of(arg_name) {
-        Some(filename) => filename.to_string(),
-        None => {
-            eprintln!("the argument {} is required", arg_name);
-            std::process::exit(1);
-        }
-    }
-}
+use saber::timer::Timer;
+use saber::trace_estimators::{estimate_gxg_dot_y_norm_sq, estimate_gxg_gram_trace, estimate_gxg_kk_trace,
+                              estimate_tr_k_gxg_k};
+use saber::util::extract_str_arg;
 
 fn main() {
     let matches = clap_app!(Saber =>
@@ -41,11 +25,11 @@ fn main() {
         (@arg num_cols: -c +takes_value "number of columns, i.e. SNPs; required")
         (@arg num_random_vecs: -n +takes_value "number of random vectors; required")
     ).get_matches();
-    let num_rows = extract_filename_arg(&matches, "num_rows")
+    let num_rows = extract_str_arg(&matches, "num_rows")
         .parse::<usize>().unwrap_or_exit(Some("failed to parse num_rows"));
-    let num_cols = extract_filename_arg(&matches, "num_cols")
+    let num_cols = extract_str_arg(&matches, "num_cols")
         .parse::<usize>().unwrap_or_exit(Some("failed to parse num_cols"));
-    let num_random_vecs = extract_filename_arg(&matches, "num_random_vecs")
+    let num_random_vecs = extract_str_arg(&matches, "num_random_vecs")
         .parse::<usize>().unwrap_or_exit(Some("failed to parse num_random_vecs"));
     println!("num_rows: {}\nnum_cols: {}\nnum_random_vecs: {}", num_rows, num_cols, num_random_vecs);
 

@@ -1,32 +1,15 @@
-extern crate saber;
-
 #[macro_use]
 extern crate clap;
-
-use clap::ArgMatches;
-
 #[macro_use]
 extern crate ndarray;
+extern crate saber;
 
-use ndarray::{Array, Ix1};
-
-use std::io::{BufRead, BufReader};
-
-use bio_file_reader::plink_bed::{MatrixIR, PlinkBed};
+use bio_file_reader::plink_bed::PlinkBed;
 use saber::heritability_estimator::estimate_joint_heritability;
+use saber::matrix_util::normalize_matrix_columns_inplace;
 use saber::program_flow::OrExit;
 use saber::simulation::simulation::{generate_gxg_pheno_arr_from_gxg_basis, generate_pheno_arr};
-use saber::matrix_util::normalize_matrix_columns_inplace;
-
-fn extract_filename_arg(matches: &ArgMatches, arg_name: &str) -> String {
-    match matches.value_of(arg_name) {
-        Some(filename) => filename.to_string(),
-        None => {
-            eprintln!("the argument {} is required", arg_name);
-            std::process::exit(1);
-        }
-    }
-}
+use saber::util::extract_str_arg;
 
 fn main() {
     let matches = clap_app!(Saber =>
@@ -40,8 +23,8 @@ fn main() {
         (@arg num_random_vecs: --nrv +takes_value "number of random vectors used to estimate traces; required")
     ).get_matches();
 
-    let plink_filename_prefix = extract_filename_arg(&matches, "plink_filename_prefix");
-    let le_snps_filename = extract_filename_arg(&matches, "le_snps_filename");
+    let plink_filename_prefix = extract_str_arg(&matches, "plink_filename_prefix");
+    let le_snps_filename = extract_str_arg(&matches, "le_snps_filename");
 
     let plink_bed_path = format!("{}.bed", plink_filename_prefix);
     let plink_bim_path = format!("{}.bim", plink_filename_prefix);
@@ -51,19 +34,19 @@ fn main() {
     let le_snps_bim_path = format!("{}.bim", le_snps_filename);
     let le_snps_fam_path = format!("{}.fam", le_snps_filename);
 
-    let num_le_snps_to_use = extract_filename_arg(&matches, "num_le_snps_to_use")
+    let num_le_snps_to_use = extract_str_arg(&matches, "num_le_snps_to_use")
         .parse::<usize>()
         .unwrap_or_exit(Some("failed to parse num_le_snps_to_use"));
 
-    let g_var = extract_filename_arg(&matches, "g_var")
+    let g_var = extract_str_arg(&matches, "g_var")
         .parse::<f64>()
         .unwrap_or_exit(Some("failed to parse g_var"));
 
-    let gxg_var = extract_filename_arg(&matches, "gxg_var")
+    let gxg_var = extract_str_arg(&matches, "gxg_var")
         .parse::<f64>()
         .unwrap_or_exit(Some("failed to parse gxg_var"));
 
-    let num_random_vecs = extract_filename_arg(&matches, "num_random_vecs")
+    let num_random_vecs = extract_str_arg(&matches, "num_random_vecs")
         .parse::<usize>()
         .unwrap_or_exit(Some("failed to parse num_random_vecs"));
 
