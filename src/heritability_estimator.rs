@@ -169,6 +169,7 @@ pub fn estimate_multi_gxg_heritability(mut geno_arr: Array<f32, Ix2>, mut le_snp
 
     println!("\n=> estimating traces related to the GxG components");
     for i in 0..num_gxg_components {
+        println!("\nGXG component {}", i + 1);
         let mm = n_choose_2(le_snps_arr[i].dim().1) as f64;
 
         let gxg_tr_kk_est = estimate_gxg_kk_trace(&le_snps_arr[i], num_random_vecs)?;
@@ -185,7 +186,8 @@ pub fn estimate_multi_gxg_heritability(mut geno_arr: Array<f32, Ix2>, mut le_snp
         a[[1 + i, 0]] = tr_gk_est;
         println!("tr_gk{}_est: {}", i, tr_gk_est);
 
-        let gxg_yky = estimate_gxg_dot_y_norm_sq(&le_snps_arr[i], &pheno_arr, num_random_vecs) / mm;
+        println!("estimate_gxg_dot_y_norm_sq using {} random vectors", num_random_vecs * 2);
+        let gxg_yky = estimate_gxg_dot_y_norm_sq(&le_snps_arr[i], &pheno_arr, num_random_vecs * 2) / mm;
         b[1 + i] = gxg_yky;
         println!("gxg{}_yky_est: {}", i, gxg_yky);
     }
@@ -207,30 +209,13 @@ pub fn estimate_multi_gxg_heritability(mut geno_arr: Array<f32, Ix2>, mut le_snp
 
 pub fn estimate_gxg_heritability(geno_arr: Array<f32, Ix2>, mut pheno_arr: Array<f32, Ix1>, num_random_vecs: usize) -> Result<f64, String> {
     println!("\n=> estimate_gxg_heritability");
-//    println!("\n=> creating the genotype ndarray and starting the timer for profiling");
-//    let mut timer = Timer::new();
-    // geno_arr is num_people x num_snps
     let (num_people, num_snps) = geno_arr.dim();
-    println!("geno_arr dim: {:?}", geno_arr.dim());
-
-    let num_snp_pairs = num_snps * (num_snps - 1) / 2;
-    let mm = num_snp_pairs as f64;
+    println!("num_people: {}\nnum_snps: {}", num_people, num_snps);
+    let mm = n_choose_2(num_snps) as f64;
 
     println!("\n=> normalizing the phenotype vector");
     pheno_arr = mean_center_vector(pheno_arr);
     pheno_arr /= std(pheno_arr.iter(), 0) as f32;
-    //////
-//    let gxg = get_gxg_arr(&geno_arr);
-//    println!("GxG dim: {:?}", gxg.dim());
-//    println!("\n=> calculating tr_k_true");
-//    let tr_k_true = (&gxg * &gxg).dot(&Array::<f32, Ix1>::ones(gxg.dim().1)).sum() as f64 / mm;
-//    println!("tr_k_true: {}", tr_k_true);
-//    println!("\n=> calculating tr_kk_true");
-//    let k = gxg.dot(&gxg.t());
-//    let yky = pheno_arr.dot(&k.dot(&pheno_arr)) as f64 / mm;
-//    let tr_kk_true = (&k * &k).dot(&Array::<f32, Ix1>::ones(k.dim().1)).sum() as f64 / (mm * mm);
-//    println!("tr_kk_true: {}", tr_kk_true);
-    //////
 
     let gxg_kk_trace_est = estimate_gxg_kk_trace(&geno_arr, num_random_vecs)?;
     let gxg_k_trace_est = estimate_gxg_gram_trace(&geno_arr, num_random_vecs)? / mm;
