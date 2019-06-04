@@ -1,12 +1,8 @@
 extern crate saber;
 
-use std::fs::OpenOptions;
-use std::io::{BufRead, BufReader};
-
 #[macro_use]
 extern crate clap;
 
-use clap::ArgMatches;
 #[cfg(feature = "cuda")]
 use co_blas::transpose::Transpose;
 
@@ -27,6 +23,7 @@ use saber::matrix_util::{generate_plus_minus_one_bernoulli_matrix, mean_center_v
 use saber::program_flow::OrExit;
 use saber::stats_util::sum_of_squares;
 use saber::timer::Timer;
+use saber::util::{extract_str_arg, get_pheno_arr};
 
 #[cfg(feature = "cuda")]
 use saber::cublas::linalg::mul_xtxz_f32;
@@ -91,25 +88,6 @@ fn estimate_heritability_cublas(mut geno_arr: Array<f32, Ix2>, mut pheno_arr: Ar
     Ok(heritability)
 }
 
-fn extract_filename_arg(matches: &ArgMatches, arg_name: &str) -> String {
-    match matches.value_of(arg_name) {
-        Some(filename) => filename.to_string(),
-        None => {
-            eprintln!("the argument {} is required", arg_name);
-            std::process::exit(1);
-        }
-    }
-}
-
-fn get_pheno_arr(pheno_filename: &String) -> Result<Array<f32, Ix1>, String> {
-    let buf = match OpenOptions::new().read(true).open(pheno_filename.as_str()) {
-        Err(why) => return Err(format!("failed to open {}: {}", pheno_filename, why)),
-        Ok(f) => BufReader::new(f)
-    };
-    let pheno_vec: Vec<f32> = buf.lines().map(|l| l.unwrap().parse::<f32>().unwrap()).collect();
-    Ok(Array::from_vec(pheno_vec))
-}
-
 fn main() {
     let matches = clap_app!(Saber =>
         (version: "0.1")
@@ -121,9 +99,9 @@ fn main() {
         (@arg num_random_vecs: --nrv +takes_value "number of random vectors used to estimate traces; required")
     ).get_matches();
 
-    let plink_filename_prefix = extract_filename_arg(&matches, "plink_filename_prefix");
-    let le_snps_filename = extract_filename_arg(&matches, "le_snps_filename");
-    let pheno_filename = extract_filename_arg(&matches, "pheno_filename");
+    let plink_filename_prefix = extract_str_arg(&matches, "plink_filename_prefix");
+    let le_snps_filename = extract_str_arg(&matches, "le_snps_filename");
+    let pheno_filename = extract_str_arg(&matches, "pheno_filename");
 
     let plink_bed_path = format!("{}.bed", plink_filename_prefix);
     let plink_bim_path = format!("{}.bim", plink_filename_prefix);
@@ -133,11 +111,11 @@ fn main() {
     let le_snps_bim_path = format!("{}.bim", le_snps_filename);
     let le_snps_fam_path = format!("{}.fam", le_snps_filename);
 
-    let num_le_snps_to_use = extract_filename_arg(&matches, "num_le_snps_to_use")
+    let num_le_snps_to_use = extract_str_arg(&matches, "num_le_snps_to_use")
         .parse::<usize>()
         .unwrap_or_exit(Some("failed to parse num_le_snps_to_use"));
 
-    let num_random_vecs = extract_filename_arg(&matches, "num_random_vecs")
+    let num_random_vecs = extract_str_arg(&matches, "num_random_vecs")
         .parse::<usize>()
         .unwrap_or_exit(Some("failed to parse num_random_vecs"));
 

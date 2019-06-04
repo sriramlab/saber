@@ -24,5 +24,6 @@ pub mod sparsity_stats;
 pub mod timer;
 pub mod simulation;
 pub mod stats_util;
+pub mod util;
 #[cfg(feature = "cuda")]
 pub mod cublas;
