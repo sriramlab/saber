@@ -4,7 +4,7 @@ use ndarray_parallel::prelude::*;
 
 use ndarray::{Array, Axis, Ix1, Ix2};
 use crate::matrix_util::generate_plus_minus_one_bernoulli_matrix;
-use crate::stats_util::{sum_of_squares, sum_of_squares_f32, n_choose_2};
+use crate::stats_util::{sum_f32, sum_of_squares, sum_of_squares_f32, n_choose_2};
 
 /// geno_arr has shape num_people x num_snps
 pub fn estimate_tr_kk(geno_arr: &Array<f32, Ix2>, num_random_vecs: usize) -> f64 {
@@ -76,57 +76,59 @@ pub fn estimate_tr_gxg_i_gxg_j(arr_i: &Array<f32, Ix2>, arr_j: &Array<f32, Ix2>,
 
 pub fn estimate_gxg_gram_trace(geno_arr: &Array<f32, Ix2>, num_random_vecs: usize) -> Result<f64, String> {
     let (_num_rows, num_cols) = geno_arr.dim();
-    let u_arr = generate_plus_minus_one_bernoulli_matrix(num_cols, num_random_vecs);
-    let ones = Array::<f32, Ix1>::ones(num_cols);
 
-    let geno_ssq = (geno_arr * geno_arr).dot(&ones);
+    let mut row_sums = Vec::new();
+    geno_arr.axis_iter(Axis(0))
+            .into_par_iter()
+            .map(|row| sum_of_squares_f32(row.iter()))
+            .collect_into_vec(&mut row_sums);
+    let geno_ssq = Array::from_shape_vec((row_sums.len(), 1), row_sums).unwrap();
+
+    let u_arr = generate_plus_minus_one_bernoulli_matrix(num_cols, num_random_vecs);
     let mut squashed = geno_arr.dot(&u_arr);
     squashed.par_iter_mut().for_each(|x| *x = (*x) * (*x));
+    squashed = (squashed - &geno_ssq) / 2.;
 
     let mut sums = Vec::new();
     squashed.axis_iter(Axis(1))
             .into_par_iter()
-            .map(|col| {
-                let uugg = (&col - &geno_ssq) / 2.;
+            .map(|uugg| {
                 sum_of_squares(uugg.iter())
             })
             .collect_into_vec(&mut sums);
     Ok(sums.into_iter().sum::<f64>() / num_random_vecs as f64)
-
-//    let mut sum = 0f64;
-//    for col in squashed_squared.gencolumns() {
-//        let uugg = (&col - &geno_ssq) / 2.;
-//        sum += sum_of_squares(uugg.iter());
-//    }
-//    let avg = sum / num_random_vecs as f64;
-//    Ok(avg)
 }
 
 pub fn estimate_gxg_kk_trace(geno_arr: &Array<f32, Ix2>, num_random_vecs: usize) -> Result<f64, String> {
     let (_num_rows, num_le_snps) = geno_arr.dim();
     let u_arr = generate_plus_minus_one_bernoulli_matrix(num_le_snps, num_random_vecs);
-    let ones = Array::<f32, Ix1>::ones(num_le_snps);
 
-    let gg_sq = geno_arr * geno_arr;
-    let geno_ssq = gg_sq.dot(&ones);
-    let mut squashed = geno_arr.dot(&u_arr);
-    squashed.par_iter_mut().for_each(|x| *x = (*x) * (*x));
+    let geno_sq = geno_arr * geno_arr;
+    let mut row_sums = Vec::new();
+    geno_sq.axis_iter(Axis(0))
+           .into_par_iter()
+           .map(|row| sum_f32(row.iter()))
+           .collect_into_vec(&mut row_sums);
+    let geno_ssq = Array::from_shape_vec((row_sums.len(), 1), row_sums).unwrap();
+
+    let mut uugg_sum_matrix = geno_arr.dot(&u_arr);
+    uugg_sum_matrix.par_iter_mut().for_each(|x| *x = (*x) * (*x));
+    uugg_sum_matrix = (uugg_sum_matrix - &geno_ssq) / 2.;
     let num_rand_z_vecs = 100;
     println!("num_rand_z_vecs: {}\nnum_random_vecs: {}", num_rand_z_vecs, num_random_vecs);
 
     let mut sums = Vec::new();
-    squashed.axis_iter(Axis(1))
-            .into_par_iter()
-            .map(|col| {
-                let uugg_sum = (&col - &geno_ssq) / 2.;
-                let wg = &geno_arr.t() * &uugg_sum;
-                let s = (&gg_sq.t() * &uugg_sum).sum();
-                let rand_vecs = generate_plus_minus_one_bernoulli_matrix(num_le_snps, num_rand_z_vecs);
-                let geno_arr_dot_rand_vecs = geno_arr.dot(&rand_vecs);
-                let ggz = wg.dot(&geno_arr_dot_rand_vecs);
-                (((&ggz * &ggz).sum() / num_rand_z_vecs as f32 - s) / 2.) as f64
-            })
-            .collect_into_vec(&mut sums);
+    uugg_sum_matrix.axis_iter(Axis(1))
+                   .into_par_iter()
+                   .map(|uugg_sum| {
+                       let wg = &geno_arr.t() * &uugg_sum;
+                       let s = (&geno_sq.t() * &uugg_sum).sum();
+                       let rand_vecs = generate_plus_minus_one_bernoulli_matrix(num_le_snps, num_rand_z_vecs);
+                       let geno_arr_dot_rand_vecs = geno_arr.dot(&rand_vecs);
+                       let ggz = wg.dot(&geno_arr_dot_rand_vecs);
+                       (((&ggz * &ggz).sum() / num_rand_z_vecs as f32 - s) / 2.) as f64
+                   })
+                   .collect_into_vec(&mut sums);
     let mm = n_choose_2(num_le_snps) as f64;
     Ok(sums.into_iter().sum::<f64>() / (num_random_vecs as f64 * mm * mm))
 
