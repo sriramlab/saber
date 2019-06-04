@@ -53,7 +53,8 @@ fn main() {
              plink_bed_path, plink_bim_path, plink_fam_path);
     println!("LE SNPs bed path: {}\nLE SNPs bim path: {}\nLE SNPs fam path: {}",
              le_snps_bed_path, le_snps_bim_path, le_snps_fam_path);
-    println!("pheno_filepath: {}\nnum_random_vecs: {}", pheno_filename, num_random_vecs);
+    println!("pheno_filepath: {}\ngxg_component_count_filename: {}\nnum_random_vecs: {}",
+             pheno_filename, gxg_component_count_filename, num_random_vecs);
 
     println!("\n=> generating the phenotype array and the genotype matrix");
 
@@ -70,15 +71,12 @@ fn main() {
     let le_snps_arr = le_snps_bed.get_genotype_matrix().unwrap_or_exit(Some("failed to get the le_snps genotype matrix"));
     let counts = get_le_snp_counts(&gxg_component_count_filename).unwrap_or_exit(Some("failed to get GxG component LE SNP counts"));
 
-    println!("{} specification:", gxg_component_count_filename);
-    for (i, c) in counts.iter().enumerate() {
-        println!("GxG component {} expects {} LE SNPs", i + 1, c);
-    }
-    let le_snps_arr_vec = Vec::new();
+    let mut le_snps_arr_vec = Vec::new();
     let mut acc = 0usize;
-    for i in counts.into_iter() {
-        le_snps_arr.slice(s![..,acc..acc+i]).to_owned();
-        acc += i;
+    for c in counts.into_iter() {
+        println!("GxG component {} expects {} LE SNPs", le_snps_arr_vec.len() + 1, c);
+        le_snps_arr_vec.push(le_snps_arr.slice(s![..,acc..acc+c]).to_owned());
+        acc += c;
     }
 
     match estimate_multi_gxg_heritability(geno_arr,
