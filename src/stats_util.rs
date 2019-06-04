@@ -2,6 +2,10 @@ use std::ops::Deref;
 
 use num_traits::ToPrimitive;
 
+pub fn n_choose_2(n: usize) -> usize {
+n * (n - 1) / 2
+}
+
 pub fn kahan_sigma<'a, A, T: Iterator<Item=&'a A>>(element_iterator: T, op: Box<dyn Fn(A) -> f64>) -> f64
     where A: Copy + 'a, &'a A: Deref {
     // Kahan summation algorithm

@@ -21,6 +21,7 @@ use saber::simulation::simulation::get_gxg_arr;
 
 use saber::trace_estimators::{estimate_gxg_gram_trace, estimate_gxg_kk_trace, estimate_tr_k_gxg_k,
                               estimate_gxg_dot_y_norm_sq};
+use saber::stats_util::n_choose_2;
 
 fn extract_filename_arg(matches: &ArgMatches, arg_name: &str) -> String {
     match matches.value_of(arg_name) {
@@ -82,15 +83,15 @@ fn main() {
     println!("\nabs_ratio_avg: {}%\nabs_ratio_std: {}%", abs_k_err_avg * 100., abs_k_err_std * 100.);
 
     println!("\n=> calculating tr_kk_true");
-    let k = gxg.dot(&gxg.t());
+    let k = gxg.dot(&gxg.t()) / gxg.dim().1 as f32;
     println!("k dim: {:?}", k.dim());
-    let tr_kk_true = (&k * &k).dot(&Array::<f32, Ix1>::ones(k.dim().1)).sum() as f64;
+    let tr_kk_true = (&k * &k).sum() as f64;
     println!("tr_kk_true: {}", tr_kk_true);
     timer.print();
 
     println!("\n=> computing tr_kk_est");
     let mut kk_abs_ratio_list = Vec::new();
-    for iter in 0..2 {
+    for iter in 0..5 {
         let tr_kk_est = match estimate_gxg_kk_trace(&geno_arr, num_random_vecs) {
             Ok(t) => t,
             Err(why) => {
@@ -115,7 +116,7 @@ fn main() {
     println!("tr_k_gxg_k_est: {}", tr_k_gxg_k_est);
 
     let k_gxg_k = geno_arr.t().dot(&gxg);
-    let tr_k_gxg_k_true = (&k_gxg_k * &k_gxg_k).sum();
+    let tr_k_gxg_k_true = (&k_gxg_k * &k_gxg_k).sum() / (gxg.dim().1 * geno_arr.dim().1) as f32;
     println!("tr_k_gxg_k_true: {}", tr_k_gxg_k_true);
     println!("error ratio: {:.5}%", (tr_k_gxg_k_est as f32 - tr_k_gxg_k_true) / tr_k_gxg_k_true * 100.);
 
