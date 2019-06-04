@@ -100,6 +100,8 @@ pub fn estimate_gxg_gram_trace(geno_arr: &Array<f32, Ix2>, num_random_vecs: usiz
 }
 
 pub fn estimate_gxg_kk_trace(geno_arr: &Array<f32, Ix2>, num_random_vecs: usize) -> Result<f64, String> {
+    let num_rand_z_vecs = 100;
+    println!("estimate_gxg_kk_trace\nnum_random_vecs: {}\nnum_rand_z_vecs: {}", num_random_vecs, num_rand_z_vecs);
     let (_num_rows, num_le_snps) = geno_arr.dim();
     let u_arr = generate_plus_minus_one_bernoulli_matrix(num_le_snps, num_random_vecs);
 
@@ -114,8 +116,6 @@ pub fn estimate_gxg_kk_trace(geno_arr: &Array<f32, Ix2>, num_random_vecs: usize)
     let mut uugg_sum_matrix = geno_arr.dot(&u_arr);
     uugg_sum_matrix.par_iter_mut().for_each(|x| *x = (*x) * (*x));
     uugg_sum_matrix = (uugg_sum_matrix - &geno_ssq) / 2.;
-    let num_rand_z_vecs = 100;
-    println!("num_rand_z_vecs: {}\nnum_random_vecs: {}", num_rand_z_vecs, num_random_vecs);
 
     let mut sums = Vec::new();
     uugg_sum_matrix.axis_iter(Axis(1))
@@ -148,7 +148,6 @@ pub fn estimate_gxg_kk_trace(geno_arr: &Array<f32, Ix2>, num_random_vecs: usize)
 
 pub fn estimate_gxg_dot_y_norm_sq(gxg_basis_arr: &Array<f32, Ix2>, y: &Array<f32, Ix1>, num_random_vecs: usize) -> f64 {
     let (_num_rows, num_cols) = gxg_basis_arr.dim();
-    println!("estimate_gxg_dot_y using {} random vectors", num_random_vecs);
     let wg = &gxg_basis_arr.t() * y;
     let gg_sq = gxg_basis_arr * gxg_basis_arr;
     let s = (&gg_sq.t() * y).sum();
