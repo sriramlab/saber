@@ -112,7 +112,7 @@ impl PlinkBed {
         let mut vi = 0usize;
 
         let mut snp_bytes = vec![0u8; self.num_bytes_per_snp];
-        for j in 0..self.num_snps {
+        for _ in 0..self.num_snps {
             self.bed_buf.read_exact(&mut snp_bytes)?;
             for i in 0..last_byte_index {
                 v[vi] = lowest_two_bits_to_geno(snp_bytes[i]) as f32;
@@ -120,23 +120,11 @@ impl PlinkBed {
                 v[vi + 2] = lowest_two_bits_to_geno(snp_bytes[i] >> 4) as f32;
                 v[vi + 3] = lowest_two_bits_to_geno(snp_bytes[i] >> 6) as f32;
                 vi += 4;
-                /*
-                // 4 people per byte, so we use i << 2 to get i * 4
-                let offset = i << 2;
-                geno_arr[[offset, j]] = lowest_two_bits_to_geno(snp_bytes[i]) as f32;
-                geno_arr[[offset + 1, j]] = lowest_two_bits_to_geno(snp_bytes[i] >> 2) as f32;
-                geno_arr[[offset + 2, j]] = lowest_two_bits_to_geno(snp_bytes[i] >> 4) as f32;
-                geno_arr[[offset + 3, j]] = lowest_two_bits_to_geno(snp_bytes[i] >> 6) as f32;
-                */
             }
             // last byte
             for k in 0..num_people_last_byte {
                 v[vi] = lowest_two_bits_to_geno(snp_bytes[last_byte_index] >> (k << 1)) as f32;
                 vi += 1;
-                /*
-                // two bits per person, so we use k << 1 to get k * 2
-                geno_arr[[last_byte_index * 4 + k, j]] = lowest_two_bits_to_geno(snp_bytes[last_byte_index] >> (k << 1)) as f32;
-                */
             }
         }
         let geno_arr = Array::from_shape_vec((self.num_people, self.num_snps)
