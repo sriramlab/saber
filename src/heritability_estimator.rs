@@ -106,7 +106,8 @@ pub fn estimate_joint_heritability(mut geno_arr: Array<f32, Ix2>, mut le_snps_ar
     println!("gxg_tr_k_est: {}", gxg_tr_k_est);
     println!("gxg_tr_kk_est: {}", gxg_tr_kk_est);
 
-    let gxg_yky = estimate_gxg_dot_y_norm_sq(&le_snps_arr, &pheno_arr, num_random_vecs) / mm;
+    println!("estimate_gxg_dot_y_norm_sq using {} random vectors", num_random_vecs * 10);
+    let gxg_yky = estimate_gxg_dot_y_norm_sq(&le_snps_arr, &pheno_arr, num_random_vecs * 10) / mm;
     println!("gxg_yky: {}", gxg_yky);
 
     let tr_gk_est = estimate_tr_k_gxg_k(&geno_arr, &le_snps_arr, num_random_vecs);
@@ -186,8 +187,8 @@ pub fn estimate_multi_gxg_heritability(mut geno_arr: Array<f32, Ix2>, mut le_snp
         a[[1 + i, 0]] = tr_gk_est;
         println!("tr_gk{}_est: {}", i, tr_gk_est);
 
-        println!("estimate_gxg_dot_y_norm_sq using {} random vectors", num_random_vecs * 2);
-        let gxg_yky = estimate_gxg_dot_y_norm_sq(&le_snps_arr[i], &pheno_arr, num_random_vecs * 2) / mm;
+        println!("estimate_gxg_dot_y_norm_sq using {} random vectors", num_random_vecs * 10);
+        let gxg_yky = estimate_gxg_dot_y_norm_sq(&le_snps_arr[i], &pheno_arr, num_random_vecs * 10) / mm;
         b[1 + i] = gxg_yky;
         println!("gxg{}_yky_est: {}", i, gxg_yky);
     }
