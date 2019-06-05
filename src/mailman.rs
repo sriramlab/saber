@@ -103,10 +103,4 @@ mod tests {
             mailman_zero_one_two(&indicator_vec, &vecs);
         })
     }
-
-    #[bench]
-    fn bench_regular_matvec(b: &mut Bencher) {
-        let (matrix, vecs) = generate_mailman_mat_vec::<f32, f32>(100);
-        b.iter(|| matrix.dot(&vecs))
-    }
 }
