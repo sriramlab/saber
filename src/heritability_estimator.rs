@@ -66,8 +66,7 @@ pub fn estimate_joint_heritability(mut geno_arr: Array<f32, Ix2>, mut le_snps_ar
     normalize_matrix_columns_inplace(&mut le_snps_arr, 0);
 
     println!("\n=> normalizing the phenotype vector");
-    mean_center_vector(&mut pheno_arr);
-    pheno_arr /= std(pheno_arr.iter(), 0) as f32;
+    normalize_vector_inplace(&mut pheno_arr, 0);
 
     println!("\n=> estimating traces related to the G matrix");
     let num_rand_z = 100usize;
@@ -122,8 +121,7 @@ pub fn estimate_multi_gxg_heritability(mut geno_arr: Array<f32, Ix2>, mut le_snp
     }
 
     println!("\n=> normalizing the phenotype vector");
-    mean_center_vector(&mut pheno_arr);
-    pheno_arr /= std(pheno_arr.iter(), 0) as f32;
+    normalize_vector_inplace(&mut pheno_arr, 0);
 
     let mut a = Array::<f64, Ix2>::zeros((num_gxg_components + 2, num_gxg_components + 2));
     let mut b = Array::<f64, Ix1>::zeros(num_gxg_components + 2);
@@ -195,8 +193,7 @@ pub fn estimate_gxg_heritability(geno_arr: Array<f32, Ix2>, mut pheno_arr: Array
     let mm = n_choose_2(num_snps) as f64;
 
     println!("\n=> normalizing the phenotype vector");
-    mean_center_vector(&mut pheno_arr);
-    pheno_arr /= std(pheno_arr.iter(), 0) as f32;
+    normalize_vector_inplace(&mut pheno_arr, 0);
 
     let gxg_kk_trace_est = estimate_gxg_kk_trace(&geno_arr, num_random_vecs)?;
     let gxg_k_trace_est = estimate_gxg_gram_trace(&geno_arr, num_random_vecs)? / mm;
