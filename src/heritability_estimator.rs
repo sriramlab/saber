@@ -1,8 +1,7 @@
 use ndarray::{Array, Ix1, Ix2};
 use ndarray_linalg::Solve;
-use crate::timer::Timer;
-use crate::matrix_util::{generate_plus_minus_one_bernoulli_matrix, mean_center_vector,
-                         normalize_matrix_row_wise_inplace, normalize_matrix_columns_inplace};
+use crate::matrix_util::{generate_plus_minus_one_bernoulli_matrix, mean_center_vector, normalize_vector_inplace,
+                         normalize_matrix_columns_inplace};
 use crate::stats_util::{sum_of_squares, std, n_choose_2};
 use crate::trace_estimators::{estimate_gxg_kk_trace, estimate_gxg_gram_trace, estimate_gxg_dot_y_norm_sq,
                               estimate_tr_k_gxg_k, estimate_tr_kk, estimate_tr_gxg_i_gxg_j};
@@ -13,62 +12,43 @@ fn bold_print(msg: &String) {
 }
 
 pub fn estimate_heritability(mut geno_arr: Array<f32, Ix2>, mut pheno_arr: Array<f32, Ix1>, num_random_vecs: usize) -> Result<f64, String> {
-    println!("\n=> creating the genotype ndarray and starting the timer for profiling");
-    let mut timer = Timer::new();
-    // geno_arr is num_snps x num_people
-    let (num_rows, num_cols) = geno_arr.dim();
-    println!("geno_arr dim: {:?}", geno_arr.dim());
-    timer.print();
+    let (num_people, num_snps) = geno_arr.dim();
+    println!("num_people: {}\nnum_snps: {}", num_people, num_snps);
 
-    println!("\n=> normalizing the genotype matrix row-wise");
-    geno_arr = normalize_matrix_row_wise_inplace(geno_arr, 1);
-    timer.print();
+    println!("\n=> normalizing the genotype matrix column-wise");
+    normalize_matrix_columns_inplace(&mut geno_arr, 0);
 
-    println!("\n=> mean centering the phenotype vector");
-    pheno_arr = mean_center_vector(pheno_arr);
-    timer.print();
+    println!("\n=> normalizing the phenotype vector");
+    normalize_vector_inplace(&mut pheno_arr, 0);
 
     println!("\n=> generating random estimators");
-    let rand_mat = generate_plus_minus_one_bernoulli_matrix(num_cols, num_random_vecs);
-    timer.print();
+    let rand_vecs = generate_plus_minus_one_bernoulli_matrix(num_people, num_random_vecs);
 
-    println!("\n=> MatMul geno_arr{:?} with rand_mat{:?}", geno_arr.dim(), rand_mat.dim());
-    let xz_arr = geno_arr.dot(&rand_mat);
-    println!("xz_arr: {:?}", xz_arr.dim());
-    timer.print();
+    println!("\n=> MatMul geno_arr{:?} with rand_mat{:?}", geno_arr.dim(), rand_vecs.dim());
+    let xz_arr = geno_arr.t().dot(&rand_vecs);
 
     println!("\n=> MatMul geno_arr{:?}.T with xz_arr{:?}", geno_arr.dim(), xz_arr.dim());
-    let xxz = geno_arr.t().dot(&xz_arr);
-    println!("xxz dim: {:?}", xxz.dim());
-    timer.print();
+    let xxz = geno_arr.dot(&xz_arr);
 
     println!("\n=> calculating trace estimate through L2 squared");
-    let trace_kk_est = sum_of_squares(xxz.iter()) / (num_rows * num_rows * num_random_vecs) as f64;
+    let trace_kk_est = sum_of_squares(xxz.iter()) / (num_snps * num_snps * num_random_vecs) as f64;
     println!("trace_kk_est: {}", trace_kk_est);
-    timer.print();
-
-    println!("\n=> calculating Xy");
-    let xy = geno_arr.dot(&pheno_arr);
-    timer.print();
 
     println!("\n=> calculating yKy and yy");
-    let yky = sum_of_squares(xy.iter()) / num_rows as f64;
+    let yky = sum_of_squares(pheno_arr.dot(&geno_arr).iter()) / num_snps as f64;
     let yy = sum_of_squares(pheno_arr.iter());
-    timer.print();
 
-    println!("\n=> solving for heritability");
-    let a = array![[trace_kk_est, (num_cols - 1) as f64],[(num_cols - 1) as f64, num_cols as f64]];
+    let n = num_people as f64;
+    let a = array![[trace_kk_est, n],[n, n]];
     let b = array![yky, yy];
     println!("solving ax=b\na = {:?}\nb = {:?}", a, b);
     let sig_sq = a.solve_into(b).unwrap();
-
     println!("sig_sq: {:?}", sig_sq);
-    let s_y_sq = yy / (num_cols - 1) as f64;
-    let heritability = sig_sq[0] as f64 / s_y_sq;
-    println!("heritability: {}  s_y^2: {}", heritability, s_y_sq);
 
-    let standard_error = (2. / (trace_kk_est - num_cols as f64)).sqrt();
-    println!("standard error: {}", standard_error);
+    let g_var = sig_sq[0] as f64;
+    let noise_var = sig_sq[1] as f64;
+    let heritability = g_var / (g_var + noise_var);
+    println!("heritability: {}", heritability);
 
     Ok(heritability)
 }
@@ -86,7 +66,7 @@ pub fn estimate_joint_heritability(mut geno_arr: Array<f32, Ix2>, mut le_snps_ar
     normalize_matrix_columns_inplace(&mut le_snps_arr, 0);
 
     println!("\n=> normalizing the phenotype vector");
-    pheno_arr = mean_center_vector(pheno_arr);
+    mean_center_vector(&mut pheno_arr);
     pheno_arr /= std(pheno_arr.iter(), 0) as f32;
 
     println!("\n=> estimating traces related to the G matrix");
@@ -142,7 +122,7 @@ pub fn estimate_multi_gxg_heritability(mut geno_arr: Array<f32, Ix2>, mut le_snp
     }
 
     println!("\n=> normalizing the phenotype vector");
-    pheno_arr = mean_center_vector(pheno_arr);
+    mean_center_vector(&mut pheno_arr);
     pheno_arr /= std(pheno_arr.iter(), 0) as f32;
 
     let mut a = Array::<f64, Ix2>::zeros((num_gxg_components + 2, num_gxg_components + 2));
@@ -215,7 +195,7 @@ pub fn estimate_gxg_heritability(geno_arr: Array<f32, Ix2>, mut pheno_arr: Array
     let mm = n_choose_2(num_snps) as f64;
 
     println!("\n=> normalizing the phenotype vector");
-    pheno_arr = mean_center_vector(pheno_arr);
+    mean_center_vector(&mut pheno_arr);
     pheno_arr /= std(pheno_arr.iter(), 0) as f32;
 
     let gxg_kk_trace_est = estimate_gxg_kk_trace(&geno_arr, num_random_vecs)?;

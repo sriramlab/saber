@@ -89,7 +89,7 @@ fn main() {
         let pheno_mean = mean(pheno_arr.iter());
         println!("pheno_mean: {}", pheno_mean);
         println!("=> centering pheno_arr");
-        pheno_arr = mean_center_vector(pheno_arr);
+        mean_center_vector(&mut pheno_arr);
 
 //        let gxg_heritability_est = estimate_gxg_heritability(g.clone(), pheno_arr.clone(), num_random_vecs).unwrap();
 //        let gxg_heritability_est = estimate_gxg_heritability(g.clone(), pheno_arr.clone(), num_random_vecs).unwrap();

@@ -66,10 +66,15 @@ pub fn normalize_matrix_columns_inplace<A>(matrix: &mut Array<A, Ix2>, ddof: usi
           });
 }
 
-pub fn mean_center_vector<A>(mut vector: Array<A, Ix1>) -> Array<A, Ix1>
+pub fn normalize_vector_inplace<A>(vec: &mut Array<A, Ix1>, ddof: usize)
+    where A: ToPrimitive + FromPrimitive + NumAssign + Float + ScalarOperand + Send + Sync {
+    *vec -= A::from(mean(vec.iter())).unwrap();
+    *vec /= A::from(std(vec.iter(), ddof)).unwrap();
+}
+
+pub fn mean_center_vector<A>(vector: &mut Array<A, Ix1>)
     where A: ToPrimitive + FromPrimitive + NumAssign + Float + ScalarOperand {
-    vector -= A::from(mean(vector.iter())).unwrap();
-    vector
+    *vector -= A::from(mean(vector.iter())).unwrap();
 }
 
 pub fn row_mean_vec<A, T>(matrix: &Array<A, Ix2>) -> Array<T, Ix1>
@@ -98,7 +103,8 @@ mod tests {
 
     use crate::stats_util::{mean, std};
 
-    use super::{mean_center_vector, normalize_matrix_row_wise_inplace, normalize_matrix_columns_inplace};
+    use super::{mean_center_vector, normalize_matrix_row_wise_inplace, normalize_matrix_columns_inplace,
+                normalize_vector_inplace};
 
     #[test]
     fn test_normalize_matrix_row_wise() {
@@ -129,10 +135,23 @@ mod tests {
     }
 
     #[test]
+    fn test_normalize_vector_inplace() {
+        let num_elements = 1000;
+        let ddof = 0;
+        let mut vec = Array::random(num_elements, Uniform::new(-10f32, 50f32));
+        assert!(mean(vec.iter()).abs() > 1e-3, "the randomly generated vector should have a large non-zero mean");
+        assert!((std(vec.iter(), ddof) - 1.).abs() > 2., "the randomly generated vector should have a large std");
+        normalize_vector_inplace(&mut vec, ddof);
+        assert!(mean(vec.iter()).abs() < 1e-6);
+        assert!((std(vec.iter(), ddof) - 1.).abs() < 1e-6);
+    }
+
+    #[test]
     fn test_mean_center_vector() {
         let size = 100;
         let mut vec = Array::random(size, Uniform::new(-10f32, 50f32));
-        vec = mean_center_vector(vec);
+        assert!(mean(vec.iter()).abs() > 1e-3, "the randomly generated vector should have a large non-zero mean");
+        mean_center_vector(&mut vec);
         assert!(mean(vec.iter()).abs() < 1e-6);
     }
     // TODO: test row_mean_vec and row_std_vec
