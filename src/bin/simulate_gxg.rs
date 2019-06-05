@@ -4,8 +4,6 @@ extern crate clap;
 #[macro_use]
 extern crate ndarray;
 
-use clap::ArgMatches;
-
 use bio_file_reader::plink_bed::PlinkBed;
 use saber::program_flow::OrExit;
 use saber::simulation::simulation::{generate_g_matrix, generate_gxg_pheno_arr, get_gxg_arr, generate_pheno_arr};
