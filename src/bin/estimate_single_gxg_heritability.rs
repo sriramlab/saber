@@ -43,7 +43,7 @@ fn estimate_heritability_cublas(mut geno_arr: Array<f32, Ix2>, mut pheno_arr: Ar
     timer.print();
 
     println!("\n=> mean centering the phenotype vector");
-    pheno_arr = mean_center_vector(pheno_arr);
+    mean_center_vector(&mut pheno_arr);
     timer.print();
 
     println!("\n=> generating random estimators");
