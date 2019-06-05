@@ -86,7 +86,7 @@ mod tests {
     }
 
     fn generate_mailman_mat_vec<A, B>(num_vectors: usize) -> (Array<A, Ix2>, Array<B, Ix2>) where A: NumCast, B: Float + SampleUniform {
-        let num_rows = 10usize;
+        let num_rows = 5usize;
         let num_cols = 3usize.pow(num_rows as u32);
         let matrix = Array::random(
             (num_rows, num_cols), Uniform::<u8>::new(0, 3)).mapv(|e| A::from(e).unwrap());
@@ -102,5 +102,11 @@ mod tests {
         b.iter(|| {
             mailman_zero_one_two(&indicator_vec, &vecs);
         })
+    }
+
+    #[bench]
+    fn bench_regular_matvec(b: &mut Bencher) {
+        let (matrix, vecs) = generate_mailman_mat_vec::<f32, f32>(100);
+        b.iter(|| matrix.dot(&vecs))
     }
 }

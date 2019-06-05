@@ -5,12 +5,12 @@ extern crate ndarray;
 extern crate saber;
 
 use std::fs::OpenOptions;
-use std::io::{Write, BufWriter};
+use std::io::{BufWriter, Write};
 
 use ndarray_linalg::Solve;
 
+use saber::matrix_util::normalize_vector_inplace;
 use saber::program_flow::OrExit;
-use saber::stats_util::{mean, std};
 use saber::util::{extract_str_arg, get_pheno_arr, get_plink_covariate_arr};
 
 fn main() {
@@ -38,8 +38,7 @@ fn main() {
         .unwrap_or_exit(Some("failed to get the phenotype array"));
     println!("pheno_arr.dim: {:?}", pheno_arr.dim());
     println!("\n=> normalizing the phenotypes");
-    pheno_arr -= mean(pheno_arr.iter()) as f32;
-    pheno_arr /= std(pheno_arr.iter(), 0) as f32;
+    normalize_vector_inplace(&mut pheno_arr, 0);
 
     println!("\n=> calculating the residual phenotype array");
     let ay = cov_arr.t().dot(&pheno_arr);
