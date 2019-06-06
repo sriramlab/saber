@@ -95,16 +95,27 @@ pub fn row_std_vec<A, T>(matrix: &Array<A, Ix2>, ddof: usize) -> Array<T, Ix1>
     Array::from_vec(std_vec)
 }
 
+pub fn get_correlation<A>(arr1: &Array<A, Ix1>, arr2: &Array<A, Ix1>) -> f64
+    where A: Copy + ToPrimitive + FromPrimitive + NumAssign + ScalarOperand {
+    let mut a = arr1.clone() - A::from_f64(mean(arr1.iter())).unwrap();
+    a /= A::from_f64(std(arr1.iter(), 0)).unwrap();
+
+    let mut b = arr2.clone() - A::from_f64(mean(arr2.iter())).unwrap();
+    b /= A::from_f64(std(arr2.iter(), 0)).unwrap();
+
+    a.dot(&b).to_f64().unwrap() / arr1.dim() as f64
+}
+
 #[cfg(test)]
 mod tests {
     use ndarray::Array;
     use ndarray_rand::RandomExt;
-    use rand::distributions::Uniform;
+    use rand::distributions::{Uniform, Normal};
 
     use crate::stats_util::{mean, std};
 
     use super::{mean_center_vector, normalize_matrix_row_wise_inplace, normalize_matrix_columns_inplace,
-                normalize_vector_inplace};
+                normalize_vector_inplace, get_correlation};
 
     #[test]
     fn test_normalize_matrix_row_wise() {
@@ -153,6 +164,14 @@ mod tests {
         assert!(mean(vec.iter()).abs() > 1e-3, "the randomly generated vector should have a large non-zero mean");
         mean_center_vector(&mut vec);
         assert!(mean(vec.iter()).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_get_correlation() {
+        let size = 500;
+        let v1 = Array::random(size, Uniform::new(-10f32, 50f32));
+        let v1_clone = v1.clone();
+        assert!((get_correlation(&v1, &v1_clone) - 1.).abs() < 1e-6);
     }
     // TODO: test row_mean_vec and row_std_vec
 }
