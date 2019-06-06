@@ -14,6 +14,7 @@ use ndarray_parallel::prelude::*;
 use bio_file_reader::plink_bed::PlinkBed;
 use saber::matrix_util::get_correlation;
 use saber::program_flow::OrExit;
+use saber::stats_util::n_choose_2;
 use saber::util::extract_str_arg;
 
 fn main() {
@@ -22,6 +23,7 @@ fn main() {
         (author: "Aaron Zhou")
         (@arg plink_filename_prefix: --bfile <BFILE> "required; the prefix for x.bed, x.bim, x.fam is x")
         (@arg out_path: --out <OUT> "required; output path")
+        (@arg threshold: --threshold [THRESHOLD] "if provided, will only report correlations higher than the threshold")
     ).get_matches();
 
     let out_path = extract_str_arg(&matches, "out_path");
@@ -29,6 +31,17 @@ fn main() {
     let plink_bed_path = format!("{}.bed", plink_filename_prefix);
     let plink_bim_path = format!("{}.bim", plink_filename_prefix);
     let plink_fam_path = format!("{}.fam", plink_filename_prefix);
+
+    let threshold = match matches.is_present("threshold") {
+        false => None,
+        true => {
+            let t = extract_str_arg(&matches, "threshold")
+                .parse::<f64>()
+                .unwrap_or_exit(Some("failed to parse the threshold value"));
+            println!("\ncorrelation report threshold: {}\n", t);
+            Some(t)
+        }
+    };
 
     println!("PLINK bed path: {}\nPLINK bim path: {}\nPLINK fam path: {}\nout_path: {}",
              plink_bed_path, plink_bim_path, plink_fam_path, out_path);
@@ -46,6 +59,11 @@ fn main() {
                               .unwrap_or_exit(Some(format!("failed to create file {}", out_path)));
     let mut buf = BufWriter::new(f);
 
+    let num_pairs = n_choose_2(num_snps) as isize;
+    let print_increment = num_pairs / 100;
+    let mut num_processed = 0isize;
+    let mut print_index = -1isize;
+
     for i in 0..num_snps - 1 {
         let snp_i = geno_arr.slice(s![.., i]);
         let rest = geno_arr.slice(s![.., i+1..]);
@@ -55,9 +73,29 @@ fn main() {
             .into_par_iter()
             .map(|col| get_correlation(&snp_i.to_owned(), &col.to_owned()))
             .collect_into_vec(&mut cor_vec);
-        for val in cor_vec.into_iter() {
-            buf.write_fmt(format_args!("{}\n", val))
-               .unwrap_or_exit(Some("failed to write to the output file"));
+
+        num_processed += cor_vec.len() as isize;
+
+        match threshold {
+            None => {
+                for (j, val) in cor_vec.into_iter().enumerate() {
+                    buf.write_fmt(format_args!("[{}] [{}] {:.5}\n", i, j, val))
+                       .unwrap_or_exit(Some("failed to write to the output file"));
+                }
+            }
+            Some(t) => {
+                for (j, val) in cor_vec.into_iter().enumerate() {
+                    if val >= t {
+                        buf.write_fmt(format_args!("[{}] [{}] {:.5}\n", i, j, val))
+                           .unwrap_or_exit(Some("failed to write to the output file"));
+                    }
+                }
+            }
+        }
+
+        if num_processed / print_increment > print_index {
+            println!("{}/{}", num_processed, num_pairs);
+            print_index = num_processed / print_increment;
         }
     }
 }
