@@ -70,6 +70,7 @@ fn main() {
                                         &le_snps_fam_path).unwrap_or_exit(None::<String>);
     let le_snps_arr = le_snps_bed.get_genotype_matrix().unwrap_or_exit(Some("failed to get the le_snps genotype matrix"));
     let counts = get_le_snp_counts(&gxg_component_count_filename).unwrap_or_exit(Some("failed to get GxG component LE SNP counts"));
+    let num_gxg_components = counts.len();
 
     let mut le_snps_arr_vec = Vec::new();
     let mut acc = 0usize;
@@ -83,7 +84,13 @@ fn main() {
                                           le_snps_arr_vec,
                                           pheno_arr,
                                           num_random_vecs) {
-        Ok(h) => h,
+        Ok(h) => {
+            println!("\nvariance estimates on the normalized phenotype:\nG variance: {}", h[0]);
+            for i in 1..=num_gxg_components {
+                println!("GxG component {} variance: {}", i, h[i]);
+            }
+            println!("noise variance: {}", h[num_gxg_components + 1]);
+        }
         Err(why) => {
             eprintln!("{}", why);
             return ();
