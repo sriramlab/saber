@@ -145,7 +145,10 @@ fn main() {
                                       le_snps_arr,
                                       pheno_arr,
                                       num_random_vecs) {
-        Ok(h) => h,
+        Ok(h) => {
+            println!("\nvariance estimates on the normalized phenotype:\nG variance: {}\nGxG variance: {}\nnoise variance: {}",
+                     h.0, h.1, h.2);
+        }
         Err(why) => {
             eprintln!("{}", why);
             return ();

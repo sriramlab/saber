@@ -47,7 +47,9 @@ fn main() {
     match estimate_heritability(geno_arr,
                                 pheno_arr,
                                 num_random_vecs) {
-        Ok(h) => h,
+        Ok(h) => {
+            println!("\nheritability estimate: {}", h);
+        }
         Err(why) => {
             eprintln!("{}", why);
             return ();
