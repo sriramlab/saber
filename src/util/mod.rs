@@ -1,8 +1,12 @@
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader};
-use clap::ArgMatches;
 
+use clap::ArgMatches;
 use ndarray::{Array, Ix1, Ix2};
+
+pub mod histogram;
+pub mod matrix_util;
+pub mod stats_util;
 
 pub fn get_line_count(filepath: &String) -> Result<usize, String> {
     let buf = match OpenOptions::new().read(true).open(filepath.as_str()) {
@@ -40,6 +44,10 @@ fn read_and_validate_plink_header(buf: &mut BufReader<File>) -> Result<String, S
     Ok(header)
 }
 
+/// The first line of the file is FID IID pheno
+/// Each of the remaining lines have the three corresponding fields
+///
+/// returns an array containing only the phenotype values in the order listed in the file
 pub fn get_pheno_arr(pheno_path: &String) -> Result<Array<f32, Ix1>, String> {
     let mut buf = match OpenOptions::new().read(true).open(pheno_path.as_str()) {
         Err(why) => return Err(format!("failed to open {}: {}", pheno_path, why)),
@@ -59,10 +67,10 @@ pub fn get_pheno_arr(pheno_path: &String) -> Result<Array<f32, Ix1>, String> {
     Ok(Array::from_vec(pheno_vec))
 }
 
+/// The first line of the file is FID IID pheno
+/// Each of the remaining lines have the three corresponding fields
 ///
-/// the header is FID IID pheno
-/// each of the remaining lines have the three corresponding fields
-/// returns (header, FID vector, IID vector, pheno vector)
+/// returns (header, FID vector, IID vector, pheno vector) where the vectors are in the order listed in the file
 pub fn get_plink_pheno_data(pheno_path: &String) -> Result<(String, Vec<String>, Vec<String>, Array<f32, Ix1>), String> {
     let mut buf = match OpenOptions::new().read(true).open(pheno_path.as_str()) {
         Err(why) => return Err(format!("failed to open {}: {}", pheno_path, why)),
@@ -84,6 +92,8 @@ pub fn get_plink_pheno_data(pheno_path: &String) -> Result<(String, Vec<String>,
     Ok((header, fid_vec, iid_vec, Array::from_vec(pheno_vec)))
 }
 
+/// The first line of the file starts with FID IID, followed by any number of covariate names.
+/// Each of the remaining lines of the file has the corresponding fields.
 pub fn get_plink_covariate_arr(covariate_path: &String) -> Result<Array<f32, Ix2>, String> {
     let num_people = get_line_count(covariate_path)? - 1;
     println!("\n{} contains {} people", covariate_path, num_people);
@@ -123,3 +133,4 @@ mod tests {
         assert!(validate_header(&"".to_string(), Vec::new()).is_ok());
     }
 }
+

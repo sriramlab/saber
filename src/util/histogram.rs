@@ -1,8 +1,9 @@
-use num_traits::{NumOps, NumAssign};
-use num_traits::cast::{ToPrimitive, FromPrimitive};
-use std::fmt;
 use std::cmp;
+use std::fmt;
 use std::ops::Deref;
+
+use num_traits::{NumAssign, NumOps};
+use num_traits::cast::{FromPrimitive, ToPrimitive};
 
 pub struct Histogram<T> where T: PartialOrd + NumAssign + NumOps + FromPrimitive + ToPrimitive + Copy + fmt::Display {
     num_intervals: usize,

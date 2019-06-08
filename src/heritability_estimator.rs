@@ -1,8 +1,8 @@
 use ndarray::{Array, Ix1, Ix2};
 use ndarray_linalg::Solve;
-use crate::matrix_util::{generate_plus_minus_one_bernoulli_matrix, normalize_vector_inplace,
+use crate::util::matrix_util::{generate_plus_minus_one_bernoulli_matrix, normalize_vector_inplace,
                          normalize_matrix_columns_inplace};
-use crate::stats_util::{sum_of_squares, n_choose_2};
+use crate::util::stats_util::{sum_of_squares, n_choose_2};
 use crate::trace_estimators::{estimate_gxg_kk_trace, estimate_gxg_gram_trace, estimate_gxg_dot_y_norm_sq,
                               estimate_tr_k_gxg_k, estimate_tr_kk, estimate_tr_gxg_i_gxg_j};
 use colored::Colorize;

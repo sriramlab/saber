@@ -7,7 +7,7 @@ use ndarray_rand::RandomExt;
 use num_traits::{Float, FromPrimitive, NumAssign, ToPrimitive};
 use rand::distributions::{Bernoulli, StandardNormal};
 
-use crate::stats_util::{mean, std};
+use crate::util::stats_util::{mean, std};
 use bio_file_reader::plink_bed::MatrixIR;
 
 pub fn matrix_ir_to_ndarray<T>(matrix_ir: MatrixIR<T>) -> Result<Array<T, Ix2>, String> {
@@ -112,7 +112,7 @@ mod tests {
     use ndarray_rand::RandomExt;
     use rand::distributions::Uniform;
 
-    use crate::stats_util::{mean, std};
+    use crate::util::stats_util::{mean, std};
 
     use super::{mean_center_vector, normalize_matrix_row_wise_inplace, normalize_matrix_columns_inplace,
                 normalize_vector_inplace, get_correlation};
