@@ -22,7 +22,7 @@ use saber::util::matrix_util::{generate_plus_minus_one_bernoulli_matrix, mean_ce
                          normalize_matrix_row_wise_inplace, row_mean_vec, row_std_vec};
 use saber::program_flow::OrExit;
 use saber::util::stats_util::sum_of_squares;
-use saber::timer::Timer;
+use saber::util::timer::Timer;
 use saber::util::{extract_str_arg, get_pheno_arr};
 
 #[cfg(feature = "cuda")]

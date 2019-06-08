@@ -14,12 +14,11 @@ extern crate num_traits;
 extern crate rand;
 extern crate time;
 
-pub mod trace_estimators;
+pub mod trace_estimator;
 pub mod heritability_estimator;
 pub mod mailman;
 pub mod util;
 pub mod program_flow;
-pub mod timer;
 pub mod simulation;
 #[cfg(feature = "cuda")]
 pub mod cublas;
