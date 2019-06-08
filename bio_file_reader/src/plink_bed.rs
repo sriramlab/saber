@@ -87,13 +87,6 @@ impl PlinkBed {
             x => x
         };
 
-        /*
-        let mut geno_arr;
-        unsafe {
-            geno_arr = Array::<f32, Ix2>::uninitialized((self.num_people, self.num_snps));
-        }
-        */
-
         let mut v = Vec::with_capacity(self.num_people * self.num_snps);
         unsafe {
             v.set_len(self.num_people * self.num_snps);
