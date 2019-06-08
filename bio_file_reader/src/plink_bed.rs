@@ -1,19 +1,8 @@
 use std::{fmt, io};
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
+
 use ndarray::{Array, Ix2, ShapeBuilder};
-
-pub struct MatrixIR<T> {
-    pub data: Vec<T>,
-    pub num_rows: usize,
-    pub num_columns: usize,
-}
-
-impl<T> MatrixIR<T> {
-    pub fn dim(&self) -> (usize, usize) {
-        (self.num_rows, self.num_columns)
-    }
-}
 
 pub enum Error {
     IO { why: String, io_error: io::Error },
