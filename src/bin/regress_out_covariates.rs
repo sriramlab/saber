@@ -11,22 +11,23 @@ use ndarray_linalg::Solve;
 
 use saber::matrix_util::normalize_vector_inplace;
 use saber::program_flow::OrExit;
-use saber::util::{extract_str_arg, get_pheno_arr, get_plink_covariate_arr};
+use saber::util::{extract_str_arg, get_plink_pheno_arr, get_plink_covariate_arr};
 
 fn main() {
     let matches = clap_app!(Saber =>
         (version: "0.1")
         (author: "Aaron Zhou")
         (@arg covariate_path: --covariate <BFILE> "required; covariate PLINK file path")
-        (@arg pheno_filename: --pheno <PHENO> "required; each row is one individual containing one phenotype value")
+        (@arg pheno_path: --pheno <PHENO> "required; each row has three fields FID IID pheno")
         (@arg out_path: --out <PHENO> "required; output file path")
     ).get_matches();
 
-    let pheno_filename = extract_str_arg(&matches, "pheno_filename");
-    let out_path = extract_str_arg(&matches, "out_path");
+    let pheno_path = extract_str_arg(&matches, "pheno_path");
     let covariate_path = extract_str_arg(&matches, "covariate_path");
+    let out_path = extract_str_arg(&matches, "out_path");
 
-    println!("pheno_filepath: {}\nout_path: {}\ncovariate_path: {}", pheno_filename, out_path, covariate_path);
+    println!("phenotype filepath: {}\ncovariate filepath: {}\noutput filepath: {}",
+             pheno_path, covariate_path, out_path);
 
     println!("\n=> generating the covariate array");
     let cov_arr = get_plink_covariate_arr(&covariate_path)
@@ -34,7 +35,7 @@ fn main() {
     println!("covariate_arr.dim: {:?}", cov_arr.dim());
 
     println!("\n=> generating the phenotype array");
-    let mut pheno_arr = get_pheno_arr(&pheno_filename)
+    let (header, fid_vec, iid_vec, mut pheno_arr) = get_plink_pheno_arr(&pheno_path)
         .unwrap_or_exit(Some("failed to get the phenotype array"));
     println!("pheno_arr.dim: {:?}", pheno_arr.dim());
     println!("\n=> normalizing the phenotypes");
@@ -50,8 +51,10 @@ fn main() {
     let f = OpenOptions::new().truncate(true).create(true).write(true).open(out_path.as_str())
                               .unwrap_or_exit(Some(format!("failed to create file {}", out_path)));
     let mut buf = BufWriter::new(f);
-    for val in residual.iter() {
-        buf.write_fmt(format_args!("{}\n", val))
+    buf.write_fmt(format_args!("{}\n", header))
+       .unwrap_or_exit(Some("failed to write to the output file"));
+    for (i, val) in residual.iter().enumerate() {
+        buf.write_fmt(format_args!("{} {} {}\n", fid_vec[i], iid_vec[i], val))
            .unwrap_or_exit(Some("failed to write to the output file"));
     }
 }

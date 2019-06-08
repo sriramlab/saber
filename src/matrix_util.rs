@@ -110,7 +110,7 @@ pub fn get_correlation<A>(arr1: &Array<A, Ix1>, arr2: &Array<A, Ix1>) -> f64
 mod tests {
     use ndarray::Array;
     use ndarray_rand::RandomExt;
-    use rand::distributions::{Uniform, Normal};
+    use rand::distributions::Uniform;
 
     use crate::stats_util::{mean, std};
 
