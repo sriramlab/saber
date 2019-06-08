@@ -12,10 +12,10 @@ use ndarray::Axis;
 use ndarray_parallel::prelude::*;
 
 use bio_file_reader::plink_bed::PlinkBed;
-use saber::matrix_util::get_correlation;
 use saber::program_flow::OrExit;
-use saber::stats_util::n_choose_2;
 use saber::util::extract_str_arg;
+use saber::util::matrix_util::get_correlation;
+use saber::util::stats_util::n_choose_2;
 
 fn main() {
     let matches = clap_app!(Saber =>

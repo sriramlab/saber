@@ -18,10 +18,10 @@ use estimate_heritability_cublas as estimate_heritability;
 #[cfg(not(feature = "cuda"))]
 use saber::heritability_estimator::estimate_joint_heritability;
 
-use saber::matrix_util::{generate_plus_minus_one_bernoulli_matrix, mean_center_vector,
+use saber::util::matrix_util::{generate_plus_minus_one_bernoulli_matrix, mean_center_vector,
                          normalize_matrix_row_wise_inplace, row_mean_vec, row_std_vec};
 use saber::program_flow::OrExit;
-use saber::stats_util::sum_of_squares;
+use saber::util::stats_util::sum_of_squares;
 use saber::timer::Timer;
 use saber::util::{extract_str_arg, get_pheno_arr};
 
@@ -167,7 +167,7 @@ mod tests {
     use rand::distributions::StandardNormal;
 
     use crate::generate_plus_minus_one_bernoulli_matrix;
-    use saber::stats_util::sum_of_squares;
+    use saber::util::stats_util::sum_of_squares;
 
     #[test]
     fn test_trace_estimator() {

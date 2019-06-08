@@ -1,10 +1,10 @@
 extern crate ndarray_parallel;
 
+use ndarray::{Array, Axis, Ix1, Ix2};
 use ndarray_parallel::prelude::*;
 
-use ndarray::{Array, Axis, Ix1, Ix2};
-use crate::matrix_util::generate_plus_minus_one_bernoulli_matrix;
-use crate::stats_util::{sum_f32, sum_of_squares, sum_of_squares_f32, n_choose_2};
+use crate::util::matrix_util::generate_plus_minus_one_bernoulli_matrix;
+use crate::util::stats_util::{n_choose_2, sum_f32, sum_of_squares, sum_of_squares_f32};
 
 /// geno_arr has shape num_people x num_snps
 pub fn estimate_tr_kk(geno_arr: &Array<f32, Ix2>, num_random_vecs: usize) -> f64 {

@@ -1,7 +1,7 @@
 use ndarray::{Array, Ix1, Ix2};
 use ndarray_rand::RandomExt;
 use rand::distributions::{Normal, WeightedIndex};
-use crate::stats_util::{mean, variance};
+use crate::util::stats_util::{mean, variance};
 
 /// generate a G matrix with elements drawn independently from {0, 1, 2}
 /// `zero_prob` is the probability of an element being 0

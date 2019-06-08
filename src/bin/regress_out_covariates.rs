@@ -9,7 +9,7 @@ use std::io::{BufWriter, Write};
 
 use ndarray_linalg::Solve;
 
-use saber::matrix_util::normalize_vector_inplace;
+use saber::util::matrix_util::normalize_vector_inplace;
 use saber::program_flow::OrExit;
 use saber::util::{extract_str_arg, get_plink_pheno_data, get_plink_covariate_arr};
 
