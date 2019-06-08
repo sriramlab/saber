@@ -11,7 +11,7 @@ use ndarray_linalg::Solve;
 
 use saber::matrix_util::normalize_vector_inplace;
 use saber::program_flow::OrExit;
-use saber::util::{extract_str_arg, get_plink_pheno_arr, get_plink_covariate_arr};
+use saber::util::{extract_str_arg, get_plink_pheno_data, get_plink_covariate_arr};
 
 fn main() {
     let matches = clap_app!(Saber =>
@@ -35,7 +35,7 @@ fn main() {
     println!("covariate_arr.dim: {:?}", cov_arr.dim());
 
     println!("\n=> generating the phenotype array");
-    let (header, fid_vec, iid_vec, mut pheno_arr) = get_plink_pheno_arr(&pheno_path)
+    let (header, fid_vec, iid_vec, mut pheno_arr) = get_plink_pheno_data(&pheno_path)
         .unwrap_or_exit(Some("failed to get the phenotype array"));
     println!("pheno_arr.dim: {:?}", pheno_arr.dim());
     println!("\n=> normalizing the phenotypes");

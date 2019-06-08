@@ -1,8 +1,16 @@
-use std::fs::OpenOptions;
+use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader};
 use clap::ArgMatches;
 
 use ndarray::{Array, Ix1, Ix2};
+
+pub fn get_line_count(filepath: &String) -> Result<usize, String> {
+    let buf = match OpenOptions::new().read(true).open(filepath.as_str()) {
+        Err(why) => return Err(format!("failed to open {}: {}", filepath, why)),
+        Ok(f) => BufReader::new(f)
+    };
+    Ok(buf.lines().count())
+}
 
 pub fn extract_str_arg(matches: &ArgMatches, arg_name: &str) -> String {
     match matches.value_of(arg_name) {
@@ -12,15 +20,6 @@ pub fn extract_str_arg(matches: &ArgMatches, arg_name: &str) -> String {
             std::process::exit(1);
         }
     }
-}
-
-pub fn get_pheno_arr(pheno_filename: &String) -> Result<Array<f32, Ix1>, String> {
-    let buf = match OpenOptions::new().read(true).open(pheno_filename.as_str()) {
-        Err(why) => return Err(format!("failed to open {}: {}", pheno_filename, why)),
-        Ok(f) => BufReader::new(f)
-    };
-    let pheno_vec: Vec<f32> = buf.lines().map(|l| l.unwrap().parse::<f32>().unwrap()).collect();
-    Ok(Array::from_vec(pheno_vec))
 }
 
 fn validate_header(header: &String, expected_first_n_tokens: Vec<String>) -> Result<(), String> {
@@ -33,22 +32,45 @@ fn validate_header(header: &String, expected_first_n_tokens: Vec<String>) -> Res
     Ok(())
 }
 
+fn read_and_validate_plink_header(buf: &mut BufReader<File>) -> Result<String, String> {
+    let mut header = String::new();
+    let _ = buf.read_line(&mut header);
+    header = header.trim_end().to_string();
+    validate_header(&header, vec!["FID".to_string(), "IID".to_string()])?;
+    Ok(header)
+}
+
+pub fn get_pheno_arr(pheno_path: &String) -> Result<Array<f32, Ix1>, String> {
+    let mut buf = match OpenOptions::new().read(true).open(pheno_path.as_str()) {
+        Err(why) => return Err(format!("failed to open {}: {}", pheno_path, why)),
+        Ok(f) => BufReader::new(f)
+    };
+
+    let header = read_and_validate_plink_header(&mut buf)?;
+    println!("\n{} header:\n{}", pheno_path, header);
+
+    let pheno_vec = buf.lines().map(|l|
+        l.unwrap()
+         .split_whitespace()
+         .nth(2).unwrap()
+         .parse::<f32>().unwrap()
+    ).collect();
+
+    Ok(Array::from_vec(pheno_vec))
+}
+
 ///
 /// the header is FID IID pheno
 /// each of the remaining lines have the three corresponding fields
 /// returns (header, FID vector, IID vector, pheno vector)
-pub fn get_plink_pheno_arr(pheno_filename: &String) -> Result<(String, Vec<String>, Vec<String>, Array<f32, Ix1>), String> {
-    let mut buf = match OpenOptions::new().read(true).open(pheno_filename.as_str()) {
-        Err(why) => return Err(format!("failed to open {}: {}", pheno_filename, why)),
+pub fn get_plink_pheno_data(pheno_path: &String) -> Result<(String, Vec<String>, Vec<String>, Array<f32, Ix1>), String> {
+    let mut buf = match OpenOptions::new().read(true).open(pheno_path.as_str()) {
+        Err(why) => return Err(format!("failed to open {}: {}", pheno_path, why)),
         Ok(f) => BufReader::new(f)
     };
 
-    // get rid of the header
-    let mut header = String::new();
-    let _ = buf.read_line(&mut header);
-    header = header.trim_end().to_string();
-    println!("\n{} header:\n{}", pheno_filename, header);
-    validate_header(&header, vec!["FID".to_string(), "IID".to_string()])?;
+    let header = read_and_validate_plink_header(&mut buf)?;
+    println!("\n{} header:\n{}", pheno_path, header);
 
     let mut pheno_vec = Vec::new();
     let mut fid_vec = Vec::new();
@@ -62,29 +84,17 @@ pub fn get_plink_pheno_arr(pheno_filename: &String) -> Result<(String, Vec<Strin
     Ok((header, fid_vec, iid_vec, Array::from_vec(pheno_vec)))
 }
 
-pub fn get_line_count(filepath: &String) -> Result<usize, String> {
-    let buf = match OpenOptions::new().read(true).open(filepath.as_str()) {
-        Err(why) => return Err(format!("failed to open {}: {}", filepath, why)),
-        Ok(f) => BufReader::new(f)
-    };
-    Ok(buf.lines().count())
-}
+pub fn get_plink_covariate_arr(covariate_path: &String) -> Result<Array<f32, Ix2>, String> {
+    let num_people = get_line_count(covariate_path)? - 1;
+    println!("\n{} contains {} people", covariate_path, num_people);
 
-pub fn get_plink_covariate_arr(covariate_filepath: &String) -> Result<Array<f32, Ix2>, String> {
-    let num_people = get_line_count(covariate_filepath)? - 1;
-    println!("\n{} contains {} people", covariate_filepath, num_people);
-
-    let mut buf = match OpenOptions::new().read(true).open(covariate_filepath.as_str()) {
-        Err(why) => return Err(format!("failed to open {}: {}", covariate_filepath, why)),
+    let mut buf = match OpenOptions::new().read(true).open(covariate_path.as_str()) {
+        Err(why) => return Err(format!("failed to open {}: {}", covariate_path, why)),
         Ok(f) => BufReader::new(f)
     };
 
-    // get rid of the header
-    let mut header = String::new();
-    let _ = buf.read_line(&mut header);
-    header = header.trim_end().to_string();
-    println!("{} header:\n{}", covariate_filepath, header);
-    validate_header(&header, vec!["FID".to_string(), "IID".to_string()])?;
+    let header = read_and_validate_plink_header(&mut buf)?;
+    println!("\n{} header:\n{}", covariate_path, header);
 
     let covariate_vec: Vec<f32> = buf.lines().flat_map(|l| {
         l.unwrap()
