@@ -7,6 +7,7 @@ use ndarray::{Array, Ix1, Ix2};
 pub mod histogram;
 pub mod matrix_util;
 pub mod stats_util;
+pub mod timer;
 
 pub fn get_line_count(filepath: &String) -> Result<usize, String> {
     let buf = match OpenOptions::new().read(true).open(filepath.as_str()) {

@@ -12,9 +12,9 @@ use rand::distributions::{Normal, Uniform};
 
 use saber::program_flow::OrExit;
 use saber::simulation::sim_geno::get_gxg_arr;
-use saber::timer::Timer;
-use saber::trace_estimators::{estimate_gxg_dot_y_norm_sq, estimate_gxg_gram_trace, estimate_gxg_kk_trace,
-                              estimate_tr_k_gxg_k};
+use saber::util::timer::Timer;
+use saber::trace_estimator::{estimate_gxg_dot_y_norm_sq, estimate_gxg_gram_trace, estimate_gxg_kk_trace,
+                             estimate_tr_k_gxg_k};
 use saber::util::extract_str_arg;
 
 fn main() {
