@@ -11,7 +11,7 @@ use saber::simulation::sim_pheno::{generate_gxg_pheno_arr, generate_pheno_arr};
 use saber::trace_estimators::{estimate_gxg_gram_trace, estimate_gxg_kk_trace};
 use saber::heritability_estimator::{estimate_heritability, estimate_gxg_heritability};
 use saber::util::stats_util::{sum_of_squares, mean};
-use saber::util::matrix_util::{matrix_ir_to_ndarray, normalize_matrix_row_wise_inplace, mean_center_vector};
+use saber::util::matrix_util::{normalize_matrix_row_wise_inplace, mean_center_vector};
 use saber::util::extract_str_arg;
 
 fn main() {
@@ -53,14 +53,6 @@ fn main() {
     println!("num_people: {}\nnum_snps: {}\ng_var: {}\ngxg_var: {}\nnoise_var: {}\nnum_random_vecs: {}",
              num_people, num_snps, g_var, gxg_var, noise_var, num_random_vecs);
 
-//    let mut bed = PlinkBed::new(&"../saber-data/nfbc/NFBC_20091001.bed".to_string(),
-//                                &"../saber-data/nfbc/NFBC_20091001.bim".to_string(),
-//                                &"../saber-data/nfbc/NFBC_20091001.fam".to_string()).unwrap_or_exit(None::<String>);
-//
-//    let genotype_matrix = bed.get_genotype_matrix().unwrap_or_exit(Some("failed to get the genotype matrix"));
-//    let mut g = matrix_ir_to_ndarray(genotype_matrix).unwrap().mapv(|e| e as f32);
-//    println!("=> getting slice");
-//    g = g.slice(s![..num_snps, ..num_people]).t().to_owned();
     let mut g = generate_g_matrix(num_people, num_snps, 0.64, 0.04).unwrap().mapv(|e| e as f32);
 
     println!("\n=> creating gxg");

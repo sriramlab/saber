@@ -1,21 +1,12 @@
 extern crate ndarray_parallel;
 
-use ndarray_parallel::prelude::*;
-
 use ndarray::{Array, Axis, Ix1, Ix2, ScalarOperand};
+use ndarray_parallel::prelude::*;
 use ndarray_rand::RandomExt;
 use num_traits::{Float, FromPrimitive, NumAssign, ToPrimitive};
 use rand::distributions::{Bernoulli, StandardNormal};
 
 use crate::util::stats_util::{mean, std};
-use bio_file_reader::plink_bed::MatrixIR;
-
-pub fn matrix_ir_to_ndarray<T>(matrix_ir: MatrixIR<T>) -> Result<Array<T, Ix2>, String> {
-    match Array::from_shape_vec((matrix_ir.num_rows, matrix_ir.num_columns), matrix_ir.data) {
-        Err(why) => Err(format!("{}", why)),
-        Ok(arr) => Ok(arr)
-    }
-}
 
 pub fn generate_plus_minus_one_bernoulli_matrix(num_rows: usize, num_cols: usize) -> Array<f32, Ix2> {
     Array::random((num_rows, num_cols), Bernoulli::new(0.5)).mapv(|e| (e as i32 * 2 - 1) as f32)
@@ -114,8 +105,8 @@ mod tests {
 
     use crate::util::stats_util::{mean, std};
 
-    use super::{mean_center_vector, normalize_matrix_row_wise_inplace, normalize_matrix_columns_inplace,
-                normalize_vector_inplace, get_correlation};
+    use super::{get_correlation, mean_center_vector, normalize_matrix_columns_inplace,
+                normalize_matrix_row_wise_inplace, normalize_vector_inplace};
 
     #[test]
     fn test_normalize_matrix_row_wise() {
