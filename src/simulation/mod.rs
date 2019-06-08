@@ -1,1 +1,2 @@
-pub mod simulation;
+pub mod sim_geno;
+pub mod sim_pheno;

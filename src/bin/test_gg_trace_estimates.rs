@@ -11,7 +11,7 @@ use ndarray_rand::RandomExt;
 use rand::distributions::{Normal, Uniform};
 
 use saber::program_flow::OrExit;
-use saber::simulation::simulation::get_gxg_arr;
+use saber::simulation::sim_geno::get_gxg_arr;
 use saber::timer::Timer;
 use saber::trace_estimators::{estimate_gxg_dot_y_norm_sq, estimate_gxg_gram_trace, estimate_gxg_kk_trace,
                               estimate_tr_k_gxg_k};

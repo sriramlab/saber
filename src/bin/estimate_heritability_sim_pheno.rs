@@ -7,7 +7,7 @@ extern crate saber;
 use bio_file_reader::plink_bed::PlinkBed;
 use saber::heritability_estimator::estimate_joint_heritability;
 use saber::program_flow::OrExit;
-use saber::simulation::simulation::{generate_gxg_pheno_arr_from_gxg_basis, generate_pheno_arr};
+use saber::simulation::sim_pheno::{generate_gxg_pheno_arr_from_gxg_basis, generate_pheno_arr};
 use saber::util::extract_str_arg;
 use saber::util::matrix_util::normalize_matrix_columns_inplace;
 
