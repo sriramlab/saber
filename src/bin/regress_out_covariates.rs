@@ -7,24 +7,39 @@ extern crate saber;
 use std::fs::OpenOptions;
 use std::io::{BufWriter, Write};
 
+use clap::Arg;
 use ndarray_linalg::Solve;
 
-use saber::util::matrix_util::normalize_vector_inplace;
 use saber::program_flow::OrExit;
-use saber::util::{extract_str_arg, get_plink_pheno_data, get_plink_covariate_arr};
+use saber::util::{extract_str_arg, get_plink_covariate_arr, get_plink_pheno_data, get_plink_pheno_data_replace_missing_with_mean};
+use saber::util::matrix_util::normalize_vector_inplace;
 
 fn main() {
-    let matches = clap_app!(Saber =>
+    let mut app = clap_app!(regress_out_covariates =>
         (version: "0.1")
         (author: "Aaron Zhou")
         (@arg covariate_path: --covariate <BFILE> "required; covariate PLINK file path")
         (@arg pheno_path: --pheno <PHENO> "required; each row has three fields FID IID pheno")
         (@arg out_path: --out <PHENO> "required; output file path")
-    ).get_matches();
+    );
+    app = app.arg(
+        Arg::with_name("missing_rep")
+            .long("miss-coding").short("m").takes_value(true).allow_hyphen_values(true)
+            .help("coding of the missing value; if provided, will replace the missing value with the mean"));
+    let matches = app.get_matches();
 
     let pheno_path = extract_str_arg(&matches, "pheno_path");
     let covariate_path = extract_str_arg(&matches, "covariate_path");
     let out_path = extract_str_arg(&matches, "out_path");
+
+    let missing_rep = match matches.is_present("missing_rep") {
+        false => None,
+        true => {
+            let r = extract_str_arg(&matches, "missing_rep");
+            println!("\nmissing phenotype representation: {}\n", r);
+            Some(r)
+        }
+    };
 
     println!("phenotype filepath: {}\ncovariate filepath: {}\noutput filepath: {}",
              pheno_path, covariate_path, out_path);
@@ -35,9 +50,16 @@ fn main() {
     println!("covariate_arr.dim: {:?}", cov_arr.dim());
 
     println!("\n=> generating the phenotype array");
-    let (header, fid_vec, iid_vec, mut pheno_arr) = get_plink_pheno_data(&pheno_path)
-        .unwrap_or_exit(Some("failed to get the phenotype array"));
+    let (header, fid_vec, iid_vec, mut pheno_arr) =
+        match missing_rep {
+            None => get_plink_pheno_data(&pheno_path)
+                .unwrap_or_exit(Some("failed to get the phenotype array"))
+            ,
+            Some(r) => get_plink_pheno_data_replace_missing_with_mean(&pheno_path, &r)
+                .unwrap_or_exit(Some("failed to get the phenotype array"))
+        };
     println!("pheno_arr.dim: {:?}", pheno_arr.dim());
+
     println!("\n=> normalizing the phenotypes");
     normalize_vector_inplace(&mut pheno_arr, 0);
 
