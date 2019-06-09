@@ -93,6 +93,56 @@ pub fn get_plink_pheno_data(pheno_path: &String) -> Result<(String, Vec<String>,
     Ok((header, fid_vec, iid_vec, Array::from_vec(pheno_vec)))
 }
 
+enum PhenoVal<T> {
+    Missing,
+    Present(T),
+}
+
+/// The first line of the file is FID IID pheno
+/// Each of the remaining lines have the three corresponding fields
+///
+/// returns (header, FID vector, IID vector, pheno vector) where the vectors are in the order listed in the file
+/// and the missing phenotype values are replaced with the mean for the returned phenotype vector
+pub fn get_plink_pheno_data_replace_missing_with_mean(pheno_path: &String, missing_val_encoding: &String)
+    -> Result<(String, Vec<String>, Vec<String>, Array<f32, Ix1>), String> {
+    let mut buf = match OpenOptions::new().read(true).open(pheno_path.as_str()) {
+        Err(why) => return Err(format!("failed to open {}: {}", pheno_path, why)),
+        Ok(f) => BufReader::new(f)
+    };
+
+    let header = read_and_validate_plink_header(&mut buf)?;
+    println!("\n{} header:\n{}", pheno_path, header);
+
+    let mut pheno = Vec::new();
+    let mut fid_vec = Vec::new();
+    let mut iid_vec = Vec::new();
+    for l in buf.lines() {
+        let toks: Vec<String> = l.unwrap().split_whitespace().map(|t| t.to_string()).collect();
+        fid_vec.push(toks[0].to_owned());
+        iid_vec.push(toks[1].to_owned());
+        if &toks[2] == missing_val_encoding {
+            pheno.push(PhenoVal::Missing);
+        } else {
+            pheno.push(PhenoVal::Present(toks[2].parse::<f32>().unwrap()));
+        }
+    }
+    let non_missing_count_sum = pheno.iter().fold((0usize, 0.), |(count, sum), val| {
+        match val {
+            PhenoVal::Missing => (count, sum),
+            PhenoVal::Present(val) => (count + 1, sum + *val)
+        }
+    });
+
+    let pheno_mean = non_missing_count_sum.1 / non_missing_count_sum.0 as f32;
+    println!("\n[{}/{}] non-missing phenotype values, with mean: {}", non_missing_count_sum.0, pheno.len(), pheno_mean);
+    let pheno_vec = pheno.iter().map(|v| match v {
+        PhenoVal::Missing => pheno_mean,
+        PhenoVal::Present(v) => *v
+    }).collect();
+
+    Ok((header, fid_vec, iid_vec, Array::from_vec(pheno_vec)))
+}
+
 /// The first line of the file starts with FID IID, followed by any number of covariate names.
 /// Each of the remaining lines of the file has the corresponding fields.
 pub fn get_plink_covariate_arr(covariate_path: &String) -> Result<Array<f32, Ix2>, String> {
