@@ -1,5 +1,6 @@
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader};
+use std::collections::HashSet;
 
 use clap::ArgMatches;
 use ndarray::{Array, Ix1, Ix2};
@@ -24,6 +25,13 @@ pub fn extract_str_arg(matches: &ArgMatches, arg_name: &str) -> String {
             eprintln!("the argument {} is required", arg_name);
             std::process::exit(1);
         }
+    }
+}
+
+pub fn extract_str_vec_arg(matches: &ArgMatches, arg_name: &str) -> Option<Vec<String>> {
+    match matches.values_of(arg_name) {
+        None => None,
+        Some(v) => Some(v.map(|s| s.to_string()).collect())
     }
 }
 
@@ -103,8 +111,10 @@ enum PhenoVal<T> {
 ///
 /// returns (header, FID vector, IID vector, pheno vector) where the vectors are in the order listed in the file
 /// and the missing phenotype values are replaced with the mean for the returned phenotype vector
-pub fn get_plink_pheno_data_replace_missing_with_mean(pheno_path: &String, missing_val_encoding: &String)
+pub fn get_plink_pheno_data_replace_missing_with_mean(pheno_path: &String, missing_reps_vec: &Vec<String>)
     -> Result<(String, Vec<String>, Vec<String>, Array<f32, Ix1>), String> {
+    let missing_reps: HashSet<String> = missing_reps_vec.iter().cloned().collect();
+
     let mut buf = match OpenOptions::new().read(true).open(pheno_path.as_str()) {
         Err(why) => return Err(format!("failed to open {}: {}", pheno_path, why)),
         Ok(f) => BufReader::new(f)
@@ -120,7 +130,8 @@ pub fn get_plink_pheno_data_replace_missing_with_mean(pheno_path: &String, missi
         let toks: Vec<String> = l.unwrap().split_whitespace().map(|t| t.to_string()).collect();
         fid_vec.push(toks[0].to_owned());
         iid_vec.push(toks[1].to_owned());
-        if &toks[2] == missing_val_encoding {
+//        if &toks[2] == missing_val_encoding {
+        if missing_reps.contains(&toks[2]) {
             pheno.push(PhenoVal::Missing);
         } else {
             pheno.push(PhenoVal::Present(toks[2].parse::<f32>().unwrap()));

@@ -11,7 +11,8 @@ use clap::Arg;
 use ndarray_linalg::Solve;
 
 use saber::program_flow::OrExit;
-use saber::util::{extract_str_arg, get_plink_covariate_arr, get_plink_pheno_data, get_plink_pheno_data_replace_missing_with_mean};
+use saber::util::{extract_str_arg, extract_str_vec_arg, get_plink_covariate_arr, get_plink_pheno_data,
+                  get_plink_pheno_data_replace_missing_with_mean};
 use saber::util::matrix_util::normalize_vector_inplace;
 
 fn main() {
@@ -25,21 +26,16 @@ fn main() {
     app = app.arg(
         Arg::with_name("missing_rep")
             .long("miss-coding").short("m").takes_value(true).allow_hyphen_values(true)
-            .help("coding of the missing value; if provided, will replace the missing value with the mean"));
+            .multiple(true).number_of_values(1)
+            .help("Missing value representation. If provided, will replace the missing value with the mean. \
+            If there are multiple missing value representations, say REP1 and REP2, pass the representations one by one \
+            as follows: -m REP1 -m REP2"));
     let matches = app.get_matches();
 
     let pheno_path = extract_str_arg(&matches, "pheno_path");
     let covariate_path = extract_str_arg(&matches, "covariate_path");
     let out_path = extract_str_arg(&matches, "out_path");
-
-    let missing_rep = match matches.is_present("missing_rep") {
-        false => None,
-        true => {
-            let r = extract_str_arg(&matches, "missing_rep");
-            println!("\nmissing phenotype representation: {}\n", r);
-            Some(r)
-        }
-    };
+    let missing_rep = extract_str_vec_arg(&matches, "missing_rep");
 
     println!("phenotype filepath: {}\ncovariate filepath: {}\noutput filepath: {}",
              pheno_path, covariate_path, out_path);
@@ -55,8 +51,11 @@ fn main() {
             None => get_plink_pheno_data(&pheno_path)
                 .unwrap_or_exit(Some("failed to get the phenotype array"))
             ,
-            Some(r) => get_plink_pheno_data_replace_missing_with_mean(&pheno_path, &r)
-                .unwrap_or_exit(Some("failed to get the phenotype array"))
+            Some(r) => {
+                println!("\nmissing phenotype representation: {:?}", r);
+                get_plink_pheno_data_replace_missing_with_mean(&pheno_path, &r)
+                    .unwrap_or_exit(Some("failed to get the phenotype array"))
+            }
         };
     println!("pheno_arr.dim: {:?}", pheno_arr.dim());
 
