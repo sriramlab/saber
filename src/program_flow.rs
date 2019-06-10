@@ -18,3 +18,18 @@ impl<T, E: fmt::Display> OrExit<T> for Result<T, E> {
         }
     }
 }
+
+impl<T> OrExit<T> for Option<T> {
+    fn unwrap_or_exit<M: fmt::Display>(self, with_msg_prefix: Option<M>) -> T {
+        match self {
+            None => {
+                match with_msg_prefix {
+                    None => eprintln!("expected the Option to have some value"),
+                    Some(msg) => eprintln!("{}", msg)
+                };
+                std::process::exit(1);
+            }
+            Some(value) => value
+        }
+    }
+}
