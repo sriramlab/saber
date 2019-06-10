@@ -142,7 +142,7 @@ pub fn estimate_multi_gxg_heritability(mut geno_arr: Array<f32, Ix2>, mut le_snp
         for j in i + 1..num_gxg_components {
             a[[1 + i, 1 + j]] = estimate_tr_gxg_i_gxg_j(&le_snps_arr[i], &le_snps_arr[j], num_random_vecs);
             a[[1 + j, 1 + i]] = a[[1 + i, 1 + j]];
-            println!("tr(gxg_k{} gxg_k{}) est: {}", i, j, a[[1 + i, 1 + j]]);
+            println!("tr(gxg_k{} gxg_k{}) est: {}", i + 1, j + 1, a[[1 + i, 1 + j]]);
         }
     }
 
@@ -153,22 +153,22 @@ pub fn estimate_multi_gxg_heritability(mut geno_arr: Array<f32, Ix2>, mut le_snp
 
         let gxg_tr_kk_est = estimate_gxg_kk_trace(&le_snps_arr[i], num_random_vecs)?;
         a[[1 + i, 1 + i]] = gxg_tr_kk_est;
-        println!("gxg_tr_kk{}_est: {}", i, gxg_tr_kk_est);
+        println!("gxg_tr_kk{}_est: {}", i + 1, gxg_tr_kk_est);
 
         let gxg_tr_k_est = estimate_gxg_gram_trace(&le_snps_arr[i], num_random_vecs)? / mm;
         a[[num_gxg_components + 1, 1 + i]] = gxg_tr_k_est;
         a[[1 + i, num_gxg_components + 1]] = gxg_tr_k_est;
-        println!("gxg_tr_k{}_est: {}", i, gxg_tr_k_est);
+        println!("gxg_tr_k{}_est: {}", i + 1, gxg_tr_k_est);
 
         let tr_gk_est = estimate_tr_k_gxg_k(&geno_arr, &le_snps_arr[i], num_random_vecs);
         a[[0, 1 + i]] = tr_gk_est;
         a[[1 + i, 0]] = tr_gk_est;
-        println!("tr_gk{}_est: {}", i, tr_gk_est);
+        println!("tr_gk{}_est: {}", i + 1, tr_gk_est);
 
         println!("estimate_gxg_dot_y_norm_sq using {} random vectors", num_random_vecs * 10);
         let gxg_yky = estimate_gxg_dot_y_norm_sq(&le_snps_arr[i], &pheno_arr, num_random_vecs * 10) / mm;
         b[1 + i] = gxg_yky;
-        println!("gxg{}_yky_est: {}", i, gxg_yky);
+        println!("gxg{}_yky_est: {}", i + 1, gxg_yky);
     }
 
     let n = num_people as f64;
