@@ -45,7 +45,7 @@ pub fn estimate_tr_k_gxg_k(geno_arr: &Array<f32, Ix2>, le_snps_arr: &Array<f32, 
 }
 
 // TODO: test
-pub fn estimate_tr_gxg_i_gxg_j(arr_i: &Array<f32, Ix2>, arr_j: &Array<f32, Ix2>, num_random_vecs: usize) -> f64 {
+pub fn estimate_tr_gxg_ki_gxg_kj(arr_i: &Array<f32, Ix2>, arr_j: &Array<f32, Ix2>, num_random_vecs: usize) -> f64 {
     let u_arr = generate_plus_minus_one_bernoulli_matrix(arr_i.dim().1, num_random_vecs);
     let mut arr_i_sums = Vec::new();
     arr_i.axis_iter(Axis(0))
