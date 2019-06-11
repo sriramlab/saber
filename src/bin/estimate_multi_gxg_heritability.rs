@@ -28,7 +28,7 @@ fn main() {
     let mut app = clap_app!(Saber =>
         (version: "0.1")
         (author: "Aaron Zhou")
-        (@arg plink_filename_prefix: --bfile <BFILE> "required; the prefix for x.bed, x.bim, x.fam is x")
+        (@arg bfile: --bfile <BFILE> "required; the PLINK prefix for x.bed, x.bim, x.fam is x")
         (@arg le_snps_filename: --le <LE_SNPS> "required; plink file prefix to the SNPs in linkage equilibrium")
         (@arg pheno_filename: --pheno <PHENO> "required; each row is one individual containing one phenotype value")
         (@arg gxg_component_count_filename: --counts <PHENO> "required; a file where each line is the number of LE SNPs for the corresponding GxG component")
@@ -46,15 +46,15 @@ fn main() {
         );
     let matches = app.get_matches();
 
-    let plink_filename_prefix = extract_str_arg(&matches, "plink_filename_prefix");
+    let bfile = extract_str_arg(&matches, "bfile");
     let le_snps_filename = extract_str_arg(&matches, "le_snps_filename");
     let pheno_filename = extract_str_arg(&matches, "pheno_filename");
     let trace_outpath = extract_optional_str_arg(&matches, "trace_outpath");
     let load_trace = extract_optional_str_arg(&matches, "load_trace");
 
-    let plink_bed_path = format!("{}.bed", plink_filename_prefix);
-    let plink_bim_path = format!("{}.bim", plink_filename_prefix);
-    let plink_fam_path = format!("{}.fam", plink_filename_prefix);
+    let bed_path = format!("{}.bed", bfile);
+    let bim_path = format!("{}.bim", bfile);
+    let fam_path = format!("{}.fam", bfile);
 
     let le_snps_bed_path = format!("{}.bed", le_snps_filename);
     let le_snps_bim_path = format!("{}.bim", le_snps_filename);
@@ -65,8 +65,7 @@ fn main() {
         .unwrap_or_exit(Some("failed to parse num_random_vecs"));
     let gxg_component_count_filename = extract_str_arg(&matches, "gxg_component_count_filename");
 
-    println!("PLINK bed path: {}\nPLINK bim path: {}\nPLINK fam path: {}",
-             plink_bed_path, plink_bim_path, plink_fam_path);
+    println!("PLINK bed path: {}\nPLINK bim path: {}\nPLINK fam path: {}", bed_path, bim_path, fam_path);
     println!("LE SNPs bed path: {}\nLE SNPs bim path: {}\nLE SNPs fam path: {}",
              le_snps_bed_path, le_snps_bim_path, le_snps_fam_path);
     println!("pheno_filepath: {}\ngxg_component_count_filename: {}\nnum_random_vecs: {}",
@@ -74,18 +73,21 @@ fn main() {
 
     println!("\n=> generating the phenotype array and the genotype matrix");
 
-    let pheno_arr = get_pheno_arr(&pheno_filename).unwrap_or_exit(None::<String>);
+    let pheno_arr = get_pheno_arr(&pheno_filename)
+        .unwrap_or_exit(None::<String>);
 
-    let mut bed = PlinkBed::new(&plink_bed_path,
-                                &plink_bim_path,
-                                &plink_fam_path).unwrap_or_exit(None::<String>);
-    let geno_arr = bed.get_genotype_matrix().unwrap_or_exit(Some("failed to get the genotype matrix"));
+    let mut bed = PlinkBed::new(&bed_path, &bim_path, &fam_path)
+        .unwrap_or_exit(None::<String>);
+    let geno_arr = bed.get_genotype_matrix()
+                      .unwrap_or_exit(Some("failed to get the genotype matrix"));
 
-    let mut le_snps_bed = PlinkBed::new(&le_snps_bed_path,
-                                        &le_snps_bim_path,
-                                        &le_snps_fam_path).unwrap_or_exit(None::<String>);
-    let le_snps_arr = le_snps_bed.get_genotype_matrix().unwrap_or_exit(Some("failed to get the le_snps genotype matrix"));
-    let counts = get_le_snp_counts(&gxg_component_count_filename).unwrap_or_exit(Some("failed to get GxG component LE SNP counts"));
+    let mut le_snps_bed = PlinkBed::new(&le_snps_bed_path, &le_snps_bim_path, &le_snps_fam_path)
+        .unwrap_or_exit(None::<String>);
+    let le_snps_arr = le_snps_bed.get_genotype_matrix()
+                                 .unwrap_or_exit(Some("failed to get the le_snps genotype matrix"));
+
+    let counts = get_le_snp_counts(&gxg_component_count_filename)
+        .unwrap_or_exit(Some("failed to get GxG component LE SNP counts"));
     let num_gxg_components = counts.len();
 
     let mut le_snps_arr_vec = Vec::new();
