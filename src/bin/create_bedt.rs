@@ -24,5 +24,7 @@ fn main() {
     println!("PLINK bed path: {}\nPLINK bim path: {}\nPLINK fam path: {}\nout_path: {}", bed_path, bim_path, fam_path, out_path);
     let mut bed = PlinkBed::new(&bed_path, &bim_path, &fam_path)
         .unwrap_or_exit(None::<String>);
+
+    println!("\n=> writing the BED transpose to {}", out_path);
     bed.create_bed_t(&out_path).unwrap_or_exit(Some("failed to create bedt"));
 }

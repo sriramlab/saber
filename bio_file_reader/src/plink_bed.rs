@@ -38,6 +38,10 @@ impl PlinkBed {
         Ok(fam_buf.lines().count())
     }
 
+    fn usize_div_ceil(a: usize, divisor: usize) -> usize {
+        a / divisor + (a % divisor != 0) as usize
+    }
+
     pub fn new(bed_filename: &String, bim_filename: &String, fam_filename: &String) -> Result<PlinkBed, Error> {
         let mut bed_buf = PlinkBed::get_buf(bed_filename)?;
 
@@ -126,33 +130,35 @@ impl PlinkBed {
     /// wherein the n-th sequence of bytes corresponds to the SNPs for the n-th person
     pub fn create_bed_t(&mut self, out_path: &str) -> Result<(), io::Error> {
         let mut buf_writer = BufWriter::new(OpenOptions::new().create(true).truncate(true).write(true).open(out_path)?);
-        let num_bytes_per_person = self.num_snps / 4 + (self.num_snps % 4 != 0) as usize;
-        let mut snp_byte = [0u8];
+        let num_bytes_per_person = PlinkBed::usize_div_ceil(self.num_snps, 4);
 
-        // write 4 people at a time
-        for j in (0..self.num_people).step_by(4) {
-            let mut quartet_buf = [vec![0u8; num_bytes_per_person],
-                vec![0u8; num_bytes_per_person],
-                vec![0u8; num_bytes_per_person],
-                vec![0u8; num_bytes_per_person]];
+        let people_stride = 2048;
+        assert_eq!(people_stride % 4, 0);
+        let mut snp_bytes = vec![0u8; people_stride / 4];
 
-            // read 4 SNPs to the buffer at a time
-            for (s4, k) in (0..self.num_snps).step_by(4).enumerate() {
-                let mut quartet_byte = [0u8, 0u8, 0u8, 0u8];
-                for (snp_offset, i) in (k..min(k + 4, self.num_snps)).enumerate() {
-                    self.seek_to_byte_containing_snp_i_person_j(i, j)?;
-                    self.bed_buf.read_exact(&mut snp_byte)?;
-                    quartet_byte[0] |= (snp_byte[0] & 0b11) << (snp_offset << 1);
-                    quartet_byte[1] |= ((snp_byte[0] >> 2) & 0b11) << (snp_offset << 1);
-                    quartet_byte[2] |= ((snp_byte[0] >> 4) & 0b11) << (snp_offset << 1);
-                    quartet_byte[3] |= ((snp_byte[0] >> 6) & 0b11) << (snp_offset << 1);
-                }
-                quartet_buf[0][s4] = quartet_byte[0];
-                quartet_buf[1][s4] = quartet_byte[1];
-                quartet_buf[2][s4] = quartet_byte[2];
-                quartet_buf[3][s4] = quartet_byte[3];
+        // write people_stride people at a time
+        for j in (0..self.num_people).step_by(people_stride) {
+            let mut people_buf = vec![vec![0u8; num_bytes_per_person]; people_stride];
+            if self.num_people - j < people_stride {
+                let remaining_people = self.num_people % people_stride;
+                snp_bytes = vec![0u8; PlinkBed::usize_div_ceil(remaining_people, 4)];
             }
-            for (p, buf) in quartet_buf.iter().enumerate() {
+            let relative_seek_offset = (self.num_bytes_per_snp - snp_bytes.len()) as i64;
+            // read 4 SNPs to the buffers at a time
+            self.seek_to_byte_containing_snp_i_person_j(0, j)?;
+            for (s4, k) in (0..self.num_snps).step_by(4).enumerate() {
+                for (snp_offset, _) in (k..min(k + 4, self.num_snps)).enumerate() {
+                    self.bed_buf.read_exact(&mut snp_bytes)?;
+                    for w in 0..snp_bytes.len() {
+                        people_buf[w + 0][s4] |= (snp_bytes[w] & 0b11) << (snp_offset << 1);
+                        people_buf[w + 1][s4] |= ((snp_bytes[w] >> 2) & 0b11) << (snp_offset << 1);
+                        people_buf[w + 2][s4] |= ((snp_bytes[w] >> 4) & 0b11) << (snp_offset << 1);
+                        people_buf[w + 3][s4] |= ((snp_bytes[w] >> 6) & 0b11) << (snp_offset << 1);
+                    }
+                    self.bed_buf.seek_relative(relative_seek_offset)?;
+                }
+            }
+            for (p, buf) in people_buf.iter().enumerate() {
                 if j + p < self.num_people {
                     buf_writer.write(buf.as_slice())?;
                 }
