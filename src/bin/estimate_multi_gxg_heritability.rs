@@ -129,7 +129,7 @@ fn main() {
                 None => (),
                 Some(outpath) => {
                     println!("\n=> writing the trace estimates to {}", outpath);
-                    write_trace_estimates(&a, &outpath);
+                    write_trace_estimates(&a, &outpath).unwrap_or_exit(None::<String>);
                 }
             };
         }
