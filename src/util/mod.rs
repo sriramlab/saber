@@ -171,7 +171,6 @@ pub fn get_plink_pheno_data_replace_missing_with_mean(pheno_path: &String, missi
         let toks: Vec<String> = l.unwrap().split_whitespace().map(|t| t.to_string()).collect();
         fid_vec.push(toks[0].to_owned());
         iid_vec.push(toks[1].to_owned());
-//        if &toks[2] == missing_val_encoding {
         if missing_reps.contains(&toks[2]) {
             pheno.push(PhenoVal::Missing);
         } else {
@@ -225,7 +224,14 @@ pub fn get_plink_covariate_arr(covariate_path: &String) -> Result<Array<f32, Ix2
 
 #[cfg(test)]
 mod tests {
-    use super::validate_header;
+    extern crate ndarray;
+    extern crate tempfile;
+
+    use ndarray::Array;
+
+    use crate::util::{load_trace_estimates, validate_header, write_trace_estimates};
+    use tempfile::NamedTempFile;
+    use std::io::Write;
 
     #[test]
     fn test_validate_header() {
@@ -234,6 +240,39 @@ mod tests {
         assert!(validate_header(&"FID WRONG pheno".to_string(), vec!["FID".to_string(), "IID".to_string()]).is_err());
         assert!(validate_header(&"FID IID".to_string(), Vec::new()).is_ok());
         assert!(validate_header(&"".to_string(), Vec::new()).is_ok());
+    }
+
+    #[test]
+    fn test_load_trace_estimates() {
+        let mut file = NamedTempFile::new().unwrap();
+        let arr = vec![vec![2., 123., 0.003, 23., -409.], vec![-0., 1.23, -2.43, 0., -9.]];
+        for row in arr.iter() {
+            for val in row.iter() {
+                write!(file, "{} ", val).unwrap();
+            }
+            write!(file, "\n").unwrap();
+        }
+        let estimates = load_trace_estimates(
+            &file.path().as_os_str().to_str().unwrap().to_string()).unwrap();
+        let true_estimates = Array::from_shape_vec(
+            (2, 5),
+            arr.into_iter().flat_map(|a| a).collect::<Vec<f64>>()).unwrap();
+        assert_eq!(estimates, true_estimates);
+    }
+
+    #[test]
+    fn test_write_trace_estimates() {
+        let file = NamedTempFile::new().unwrap();
+        let path = file.into_temp_path();
+        let estimates = Array::from_shape_vec((2, 5),
+                                              vec![2., 123., 0.003, 23., -409.,
+                                                   -0., 1.23, -2.43, 0., -9.]).unwrap();
+        write_trace_estimates(&estimates, &path.to_str().unwrap().to_string()).unwrap();
+
+        let loaded_estimates = load_trace_estimates(
+            &path.to_str().unwrap().to_string()).unwrap();
+
+        assert_eq!(loaded_estimates, estimates);
     }
 }
 

@@ -24,6 +24,9 @@ collenchyma = {version = "0.0.8", default-features = false, features = ["native"
 collenchyma-blas = {version = "0.2.0", default-features = false, features = ["native", "cuda"], optional = true}
 rblas = {version = "0.0.13", optional=true}
 
+[dev-dependencies]
+tempfile = "3.0.8"
+
 [features]
 cuda = ["collenchyma", "collenchyma-blas", "rblas"]
 
