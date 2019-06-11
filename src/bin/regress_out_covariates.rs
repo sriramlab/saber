@@ -11,7 +11,7 @@ use clap::Arg;
 use ndarray_linalg::Solve;
 
 use saber::program_flow::OrExit;
-use saber::util::{extract_str_arg, extract_str_vec_arg, get_plink_covariate_arr, get_plink_pheno_data,
+use saber::util::{extract_str_arg, extract_optional_str_vec_arg, get_plink_covariate_arr, get_plink_pheno_data,
                   get_plink_pheno_data_replace_missing_with_mean};
 use saber::util::matrix_util::normalize_vector_inplace;
 
@@ -35,7 +35,7 @@ fn main() {
     let pheno_path = extract_str_arg(&matches, "pheno_path");
     let covariate_path = extract_str_arg(&matches, "covariate_path");
     let out_path = extract_str_arg(&matches, "out_path");
-    let missing_rep = extract_str_vec_arg(&matches, "missing_rep");
+    let missing_rep = extract_optional_str_vec_arg(&matches, "missing_rep");
 
     println!("phenotype filepath: {}\ncovariate filepath: {}\noutput filepath: {}",
              pheno_path, covariate_path, out_path);

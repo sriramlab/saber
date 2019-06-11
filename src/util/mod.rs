@@ -28,7 +28,7 @@ pub fn extract_str_arg(matches: &ArgMatches, arg_name: &str) -> String {
     }
 }
 
-pub fn extract_str_vec_arg(matches: &ArgMatches, arg_name: &str) -> Option<Vec<String>> {
+pub fn extract_optional_str_vec_arg(matches: &ArgMatches, arg_name: &str) -> Option<Vec<String>> {
     match matches.values_of(arg_name) {
         None => None,
         Some(v) => Some(v.map(|s| s.to_string()).collect())
