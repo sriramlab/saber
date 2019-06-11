@@ -10,7 +10,7 @@ use std::io::{BufWriter, Write};
 use clap::Arg;
 
 use saber::program_flow::OrExit;
-use saber::util::{extract_str_arg, extract_str_vec_arg, get_plink_pheno_data_replace_missing_with_mean};
+use saber::util::{extract_str_arg, extract_optional_str_vec_arg, get_plink_pheno_data_replace_missing_with_mean};
 use saber::util::matrix_util::normalize_vector_inplace;
 
 fn main() {
@@ -33,7 +33,7 @@ fn main() {
     let pheno_path = extract_str_arg(&matches, "pheno_path");
     let out_path = extract_str_arg(&matches, "out_path");
     let normalize = matches.is_present("normalize");
-    let missing_rep: Vec<String> = extract_str_vec_arg(&matches, "missing_rep")
+    let missing_rep: Vec<String> = extract_optional_str_vec_arg(&matches, "missing_rep")
         .unwrap_or_exit(Some("failed to parse the missing representations"));
 
     println!("phenotype filepath: {}\noutput filepath: {}\nmissing_rep: {:?}\nnormalize: {}",
