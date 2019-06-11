@@ -1,9 +1,9 @@
-use std::fs::{File, OpenOptions};
-use std::io::{BufRead, BufReader};
 use std::collections::HashSet;
+use std::fs::{File, OpenOptions};
+use std::io::{BufRead, BufReader, BufWriter, Write};
 
 use clap::ArgMatches;
-use ndarray::{Array, Ix1, Ix2};
+use ndarray::{Array, Ix1, Ix2, ShapeBuilder};
 
 pub mod histogram;
 pub mod matrix_util;
@@ -33,6 +33,47 @@ pub fn extract_str_vec_arg(matches: &ArgMatches, arg_name: &str) -> Option<Vec<S
         None => None,
         Some(v) => Some(v.map(|s| s.to_string()).collect())
     }
+}
+
+pub fn extract_optional_str_arg(matches: &ArgMatches, arg_name: &str) -> Option<String> {
+    match matches.value_of(arg_name) {
+        None => None,
+        Some(v) => Some(v.to_string())
+    }
+}
+
+pub fn load_trace_estimates(load_path: &String) -> Result<Array<f64, Ix2>, String> {
+    let num_rows = get_line_count(load_path)?;
+    let buf = match OpenOptions::new().read(true).open(load_path) {
+        Err(why) => return Err(format!("failed to read the trace estimates from file {}: {}", load_path, why)),
+        Ok(f) => BufReader::new(f)
+    };
+    let trace_vec: Vec<f64> = buf.lines().flat_map(|l|
+        l.unwrap()
+         .split_whitespace()
+         .map(|val| val.parse::<f64>().unwrap())
+         .collect::<Vec<f64>>()
+    ).collect();
+    let num_cols = trace_vec.len() / num_rows;
+    Ok(Array::from_shape_vec((num_rows, num_cols).strides((num_cols, 1)), trace_vec).unwrap())
+}
+
+pub fn write_trace_estimates(trace_estimates: &Array<f64, Ix2>, out_path: &String) -> Result<(), String> {
+    let mut buf = match OpenOptions::new().truncate(true).create(true).write(true).open(out_path.as_str()) {
+        Err(why) => return Err(format!("failed to write the trace estimates to file {}: {}", out_path, why)),
+        Ok(f) => BufWriter::new(f)
+    };
+    for row in trace_estimates.genrows() {
+        for val in row.iter() {
+            if let Err(why) = buf.write_fmt(format_args!("{} ", val)) {
+                return Err(format!("failed to write the trace estimates to file {}: {}", out_path, why));
+            }
+        }
+        if let Err(why) = buf.write_fmt(format_args!("\n")) {
+            return Err(format!("failed to write the trace estimates to file {}: {}", out_path, why));
+        }
+    }
+    Ok(())
 }
 
 fn validate_header(header: &String, expected_first_n_tokens: Vec<String>) -> Result<(), String> {
