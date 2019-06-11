@@ -128,12 +128,12 @@ impl PlinkBed {
 
     /// save the transpose of the BED file into `out_path`, which should have an extension of .bedt
     /// wherein the n-th sequence of bytes corresponds to the SNPs for the n-th person
-    pub fn create_bed_t(&mut self, out_path: &str) -> Result<(), io::Error> {
+    /// larger values of `snp_byte_chunk_size` lead to faster performance, at the cost of higher memory requirement
+    pub fn create_bed_t(&mut self, out_path: &str, snp_byte_chunk_size: usize) -> Result<(), io::Error> {
         let mut buf_writer = BufWriter::new(OpenOptions::new().create(true).truncate(true).write(true).open(out_path)?);
         let num_bytes_per_person = PlinkBed::usize_div_ceil(self.num_snps, 4);
 
-        let people_stride = 2048;
-        assert_eq!(people_stride % 4, 0);
+        let people_stride = snp_byte_chunk_size * 4;
         let mut snp_bytes = vec![0u8; people_stride / 4];
 
         // write people_stride people at a time
