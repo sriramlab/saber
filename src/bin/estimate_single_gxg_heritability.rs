@@ -92,20 +92,20 @@ fn main() {
     let matches = clap_app!(Saber =>
         (version: "0.1")
         (author: "Aaron Zhou")
-        (@arg plink_filename_prefix: --bfile <BFILE> "required; the prefix for x.bed, x.bim, x.fam is x")
+        (@arg bfile: --bfile <BFILE> "required; the prefix for x.bed, x.bim, x.fam is x")
         (@arg le_snps_filename: --le <LE_SNPS> "required; plink file prefix to the SNPs in linkage equilibrium")
         (@arg pheno_filename: --pheno <PHENO> "required; each row is one individual containing one phenotype value")
         (@arg num_le_snps_to_use: -n +takes_value "number of independent SNPs to use; required")
         (@arg num_random_vecs: --nrv +takes_value "number of random vectors used to estimate traces; required")
     ).get_matches();
 
-    let plink_filename_prefix = extract_str_arg(&matches, "plink_filename_prefix");
+    let bfile = extract_str_arg(&matches, "bfile");
     let le_snps_filename = extract_str_arg(&matches, "le_snps_filename");
     let pheno_filename = extract_str_arg(&matches, "pheno_filename");
 
-    let plink_bed_path = format!("{}.bed", plink_filename_prefix);
-    let plink_bim_path = format!("{}.bim", plink_filename_prefix);
-    let plink_fam_path = format!("{}.fam", plink_filename_prefix);
+    let bed_path = format!("{}.bed", bfile);
+    let bim_path = format!("{}.bim", bfile);
+    let fam_path = format!("{}.fam", bfile);
 
     let le_snps_bed_path = format!("{}.bed", le_snps_filename);
     let le_snps_bim_path = format!("{}.bim", le_snps_filename);
@@ -120,7 +120,7 @@ fn main() {
         .unwrap_or_exit(Some("failed to parse num_random_vecs"));
 
     println!("PLINK bed path: {}\nPLINK bim path: {}\nPLINK fam path: {}",
-             plink_bed_path, plink_bim_path, plink_fam_path);
+             bed_path, bim_path, fam_path);
     println!("LE SNPs bed path: {}\nLE SNPs bim path: {}\nLE SNPs fam path: {}",
              le_snps_bed_path, le_snps_bim_path, le_snps_fam_path);
     println!("pheno_filepath: {}", pheno_filename);
@@ -128,17 +128,18 @@ fn main() {
 
     println!("\n=> generating the phenotype array and the genotype matrix");
 
-    let pheno_arr = get_pheno_arr(&pheno_filename).unwrap_or_exit(None::<String>);
+    let pheno_arr = get_pheno_arr(&pheno_filename)
+        .unwrap_or_exit(None::<String>);
 
-    let mut bed = PlinkBed::new(&plink_bed_path,
-                                &plink_bim_path,
-                                &plink_fam_path).unwrap_or_exit(None::<String>);
-    let geno_arr = bed.get_genotype_matrix().unwrap_or_exit(Some("failed to get the genotype matrix"));
+    let mut bed = PlinkBed::new(&bed_path, &bim_path, &fam_path)
+        .unwrap_or_exit(None::<String>);
+    let geno_arr = bed.get_genotype_matrix()
+                      .unwrap_or_exit(Some("failed to get the genotype matrix"));
 
-    let mut le_snps_bed = PlinkBed::new(&le_snps_bed_path,
-                                        &le_snps_bim_path,
-                                        &le_snps_fam_path).unwrap_or_exit(None::<String>);
-    let mut le_snps_arr = le_snps_bed.get_genotype_matrix().unwrap_or_exit(Some("failed to get the le_snps genotype matrix"));
+    let mut le_snps_bed = PlinkBed::new(&le_snps_bed_path, &le_snps_bim_path, &le_snps_fam_path)
+        .unwrap_or_exit(None::<String>);
+    let mut le_snps_arr = le_snps_bed.get_genotype_matrix()
+                                     .unwrap_or_exit(Some("failed to get the le_snps genotype matrix"));
     le_snps_arr = le_snps_arr.slice(s![.., ..num_le_snps_to_use]).to_owned();
 
     match estimate_g_and_multi_gxg_heritability(geno_arr,

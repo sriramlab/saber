@@ -1,7 +1,7 @@
 use std::{fmt, io};
 use std::fs::{File, OpenOptions};
-use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
-
+use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, BufWriter, Write};
+use std::cmp::min;
 use ndarray::{Array, Ix2, ShapeBuilder};
 
 pub enum Error {
@@ -69,6 +69,14 @@ impl PlinkBed {
         Ok(())
     }
 
+    /// makes the BufReader point to the start of the byte containing the SNP i individual j
+    /// 0-indexing
+    fn seek_to_byte_containing_snp_i_person_j(&mut self, snp_i: usize, person_j: usize) -> Result<(), io::Error> {
+        // the first three bytes are the file signature
+        self.bed_buf.seek(SeekFrom::Start((3 + self.num_bytes_per_snp * snp_i + person_j / 4) as u64))?;
+        Ok(())
+    }
+
     pub fn get_genotype_matrix(&mut self) -> Result<Array<f32, Ix2>, io::Error> {
         fn lowest_two_bits_to_geno(byte: u8) -> u8 {
             // 00 -> 2 homozygous for the first allele in the .bim file (usually the minor allele)
@@ -112,5 +120,44 @@ impl PlinkBed {
         let geno_arr = Array::from_shape_vec((self.num_people, self.num_snps)
                                                  .strides((1, self.num_people)), v).unwrap();
         Ok(geno_arr)
+    }
+
+    /// save the transpose of the BED file into `out_path`, which should have an extension of .bedt
+    /// wherein the n-th sequence of bytes corresponds to the SNPs for the n-th person
+    pub fn create_bed_t(&mut self, out_path: &str) -> Result<(), io::Error> {
+        let mut buf_writer = BufWriter::new(OpenOptions::new().create(true).truncate(true).write(true).open(out_path)?);
+        let num_bytes_per_person = self.num_snps / 4 + (self.num_snps % 4 != 0) as usize;
+        let mut snp_byte = [0u8];
+
+        // write 4 people at a time
+        for j in (0..self.num_people).step_by(4) {
+            let mut quartet_buf = [vec![0u8; num_bytes_per_person],
+                vec![0u8; num_bytes_per_person],
+                vec![0u8; num_bytes_per_person],
+                vec![0u8; num_bytes_per_person]];
+
+            // read 4 SNPs to the buffer at a time
+            for (s4, k) in (0..self.num_snps).step_by(4).enumerate() {
+                let mut quartet_byte = [0u8, 0u8, 0u8, 0u8];
+                for (snp_offset, i) in (k..min(k + 4, self.num_snps)).enumerate() {
+                    self.seek_to_byte_containing_snp_i_person_j(i, j)?;
+                    self.bed_buf.read_exact(&mut snp_byte)?;
+                    quartet_byte[0] |= (snp_byte[0] & 0b11) << (snp_offset << 1);
+                    quartet_byte[1] |= ((snp_byte[0] >> 2) & 0b11) << (snp_offset << 1);
+                    quartet_byte[2] |= ((snp_byte[0] >> 4) & 0b11) << (snp_offset << 1);
+                    quartet_byte[3] |= ((snp_byte[0] >> 6) & 0b11) << (snp_offset << 1);
+                }
+                quartet_buf[0][s4] = quartet_byte[0];
+                quartet_buf[1][s4] = quartet_byte[1];
+                quartet_buf[2][s4] = quartet_byte[2];
+                quartet_buf[3][s4] = quartet_byte[3];
+            }
+            for (p, buf) in quartet_buf.iter().enumerate() {
+                if j + p < self.num_people {
+                    buf_writer.write(buf.as_slice())?;
+                }
+            }
+        }
+        Ok(())
     }
 }

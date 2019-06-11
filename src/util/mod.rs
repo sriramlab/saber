@@ -42,6 +42,10 @@ pub fn extract_optional_str_arg(matches: &ArgMatches, arg_name: &str) -> Option<
     }
 }
 
+pub fn get_bed_bim_fam_path(bfile: &str) -> [String; 3] {
+    [format!("{}.bed", bfile), format!("{}.bim", bfile), format!("{}.fam", bfile)]
+}
+
 pub fn load_trace_estimates(load_path: &String) -> Result<Array<f64, Ix2>, String> {
     let num_rows = get_line_count(load_path)?;
     let buf = match OpenOptions::new().read(true).open(load_path) {
