@@ -17,14 +17,14 @@ fn main() {
     let mut app = clap_app!(replace_missing_pheno_with_mean =>
         (version: "0.1")
         (author: "Aaron Zhou")
-        (@arg pheno_path: --pheno <PHENO> "required; each row has three fields FID IID pheno")
-        (@arg out_path: --out <OUT> "required; output file path")
+        (@arg pheno_path: --pheno -p <PHENO> "required; each row has three fields FID IID pheno")
+        (@arg out_path: --out -o <OUT> "required; output file path")
         (@arg normalize: --normalize "if provided, the output phenotypes will be normalized")
     );
     app = app.arg(
         Arg::with_name("missing_rep")
             .long("miss-coding").short("m").takes_value(true).allow_hyphen_values(true)
-            .multiple(true).number_of_values(1)
+            .multiple(true).number_of_values(1).required(true)
             .help("Missing value representation. If provided, will replace the missing value with the mean. \
             If there are multiple missing value representations, say REP1 and REP2, pass the representations one by one \
             as follows: -m REP1 -m REP2"));

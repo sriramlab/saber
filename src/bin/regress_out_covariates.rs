@@ -19,9 +19,9 @@ fn main() {
     let mut app = clap_app!(regress_out_covariates =>
         (version: "0.1")
         (author: "Aaron Zhou")
-        (@arg covariate_path: --covariate <BFILE> "required; covariate PLINK file path")
-        (@arg pheno_path: --pheno <PHENO> "required; each row has three fields FID IID pheno")
-        (@arg out_path: --out <PHENO> "required; output file path")
+        (@arg covariate_path: --covariate -c <BFILE> "required; covariate PLINK file path")
+        (@arg pheno_path: --pheno -p <PHENO> "required; each row has three fields FID IID pheno")
+        (@arg out_path: --out -o <PHENO> "required; output file path")
     );
     app = app.arg(
         Arg::with_name("missing_rep")
