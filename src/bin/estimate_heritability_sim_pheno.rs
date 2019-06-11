@@ -5,7 +5,7 @@ extern crate ndarray;
 extern crate saber;
 
 use bio_file_reader::plink_bed::PlinkBed;
-use saber::heritability_estimator::estimate_joint_heritability;
+use saber::heritability_estimator::estimate_g_and_multi_gxg_heritability;
 use saber::program_flow::OrExit;
 use saber::simulation::sim_pheno::{generate_gxg_pheno_arr_from_gxg_basis, generate_pheno_arr};
 use saber::util::extract_str_arg;
@@ -88,13 +88,13 @@ fn main() {
                                                           g_var, gxg_var, 1. - g_var - gxg_var);
     }
 
-    match estimate_joint_heritability(geno_arr,
-                                      le_snps_arr,
-                                      pheno_arr,
-                                      num_random_vecs) {
-        Ok(h) => {
+    match estimate_g_and_multi_gxg_heritability(geno_arr,
+                                                vec![le_snps_arr],
+                                                pheno_arr,
+                                                num_random_vecs) {
+        Ok((_a, _b, h)) => {
             println!("\nvariance estimates on the normalized phenotype:\nG variance: {}\nGxG variance: {}\nnoise variance: {}",
-                     h.0, h.1, h.2);
+                     h[0], h[1], h[2]);
         }
         Err(why) => {
             eprintln!("{}", why);

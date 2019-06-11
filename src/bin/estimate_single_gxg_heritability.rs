@@ -16,10 +16,10 @@ use bio_file_reader::plink_bed::PlinkBed;
 #[cfg(feature = "cuda")]
 use estimate_heritability_cublas as estimate_heritability;
 #[cfg(not(feature = "cuda"))]
-use saber::heritability_estimator::estimate_joint_heritability;
+use saber::heritability_estimator::estimate_g_and_multi_gxg_heritability;
 
 use saber::util::matrix_util::{generate_plus_minus_one_bernoulli_matrix, mean_center_vector,
-                         normalize_matrix_row_wise_inplace, row_mean_vec, row_std_vec};
+                               normalize_matrix_row_wise_inplace, row_mean_vec, row_std_vec};
 use saber::program_flow::OrExit;
 use saber::util::stats_util::sum_of_squares;
 use saber::util::timer::Timer;
@@ -141,13 +141,13 @@ fn main() {
     let mut le_snps_arr = le_snps_bed.get_genotype_matrix().unwrap_or_exit(Some("failed to get the le_snps genotype matrix"));
     le_snps_arr = le_snps_arr.slice(s![.., ..num_le_snps_to_use]).to_owned();
 
-    match estimate_joint_heritability(geno_arr,
-                                      le_snps_arr,
-                                      pheno_arr,
-                                      num_random_vecs) {
-        Ok(h) => {
+    match estimate_g_and_multi_gxg_heritability(geno_arr,
+                                                vec![le_snps_arr],
+                                                pheno_arr,
+                                                num_random_vecs) {
+        Ok((_a, _b, h)) => {
             println!("\nvariance estimates on the normalized phenotype:\nG variance: {}\nGxG variance: {}\nnoise variance: {}",
-                     h.0, h.1, h.2);
+                     h[0], h[1], h[2]);
         }
         Err(why) => {
             eprintln!("{}", why);
