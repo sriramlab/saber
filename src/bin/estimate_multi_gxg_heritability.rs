@@ -122,10 +122,13 @@ fn main() {
     match heritability_estimate_result {
         Ok((a, _b, h)) => {
             println!("\nvariance estimates on the normalized phenotype:\nG variance: {}", h[0]);
+            let mut gxg_var_sum = 0.;
             for i in 1..=num_gxg_components {
                 println!("GxG component {} variance: {}", i, h[i]);
+                gxg_var_sum += h[i];
             }
             println!("noise variance: {}", h[num_gxg_components + 1]);
+            println!("total GxG variance: {}", gxg_var_sum);
 
             match trace_outpath {
                 None => (),
