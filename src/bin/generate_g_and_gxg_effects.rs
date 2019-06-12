@@ -57,7 +57,7 @@ fn main() {
         (@arg le_snps_bfile: --le [LE_SNPS] "plink file prefix to the SNPs in linkage equilibrium")
         (@arg gxg_component_count_filename: --counts -c [COUNTS]
         "If provided, will generate GxG effects; this is a file where each line is the number of LE SNPs for the corresponding GxG component, a whitespace, and the variance due to that component")
-        (@arg g_var: --g [G_VAR] "G variance")
+        (@arg g_var: --g [G_VAR] "G variance; If provided, will generate G effects")
         (@arg out_path_prefix: --out -o <OUT> "required; output file path prefix; output will be named OUT.gxg0.effects etc.")
     );
     let matches = app.get_matches();

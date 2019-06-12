@@ -35,6 +35,8 @@ pub fn generate_g_contribution(mut geno_arr: Array<f32, Ix2>, g_var: f64) -> Arr
 
     println!("\n=> normalizing geno_arr");
     normalize_matrix_columns_inplace(&mut geno_arr, 0);
+
+    println!("\n=> creating G effects");
     let effect_size_matrix = Array::random(
         num_snps, Normal::new(0f64, (g_var / num_snps as f64).sqrt()))
         .mapv(|e| e as f32);
@@ -73,6 +75,7 @@ pub fn generate_gxg_contribution_from_gxg_basis(mut gxg_basis: Array<f32, Ix2>, 
     println!("\n=> normalizing the gxg_basis");
     normalize_matrix_columns_inplace(&mut gxg_basis, 0);
 
+    println!("\n=> creating GxG effects");
     let gxg_single_std_dev = (gxg_variance / num_gxg_pairs as f64).sqrt();
     let mut gxg_effects = Array::zeros(num_people);
     for i in 0..num_basis - 1 {
