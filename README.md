@@ -1,2 +1,2 @@
 # saber
-ScAlaBle Estimate Regressor
+ScAlaBle Estimator Regressor
