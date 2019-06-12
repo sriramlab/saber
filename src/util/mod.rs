@@ -4,6 +4,7 @@ use std::io::{BufRead, BufReader, BufWriter, Write};
 
 use clap::ArgMatches;
 use ndarray::{Array, Ix1, Ix2, ShapeBuilder};
+use std::str::FromStr;
 
 pub mod histogram;
 pub mod matrix_util;
@@ -25,6 +26,17 @@ pub fn extract_str_arg(matches: &ArgMatches, arg_name: &str) -> String {
             eprintln!("the argument {} is required", arg_name);
             std::process::exit(1);
         }
+    }
+}
+
+pub fn extract_optional_numeric_arg<T: FromStr>(matches: &ArgMatches, arg_name: &str) -> Result<Option<T>, String>
+    where <T as std::str::FromStr>::Err: std::fmt::Display {
+    match matches.value_of(arg_name) {
+        Some(s) => match s.parse::<T>() {
+            Ok(val) => Ok(Some(val)),
+            Err(why) => Err(format!("failed to parse {}: {}", arg_name, why))
+        },
+        None => Ok(None)
     }
 }
 

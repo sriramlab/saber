@@ -7,11 +7,10 @@ extern crate ndarray;
 use bio_file_reader::plink_bed::PlinkBed;
 use saber::program_flow::OrExit;
 use saber::simulation::sim_geno::{generate_g_matrix, get_gxg_arr};
-use saber::simulation::sim_pheno::{generate_gxg_pheno_arr, generate_pheno_arr};
-use saber::trace_estimator::{estimate_gxg_gram_trace, estimate_gxg_kk_trace};
-use saber::heritability_estimator::{estimate_heritability, estimate_gxg_heritability};
+use saber::simulation::sim_pheno::generate_pheno_arr;
+use saber::heritability_estimator::estimate_gxg_heritability;
 use saber::util::stats_util::{sum_of_squares, mean};
-use saber::util::matrix_util::{normalize_matrix_row_wise_inplace, mean_center_vector};
+use saber::util::matrix_util:: mean_center_vector;
 use saber::util::extract_str_arg;
 
 fn main() {

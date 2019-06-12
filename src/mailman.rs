@@ -100,7 +100,7 @@ mod tests {
         let (matrix, vecs) = generate_mailman_mat_vec::<u8, f32>(100);
         let indicator_vec = zero_one_two_matrix_to_indicator_vec(&matrix);
         b.iter(|| {
-            mailman_zero_one_two(&indicator_vec, &vecs);
+            mailman_zero_one_two(&indicator_vec, &vecs).unwrap();
         })
     }
 
