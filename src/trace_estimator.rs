@@ -67,7 +67,7 @@ pub fn estimate_tr_gxg_ki_gxg_kj(arr_i: &Array<f32, Ix2>, arr_j: &Array<f32, Ix2
                        let arr_j_dot_rand_vecs = arr_j.dot(&rand_vecs);
                        let wg = &arr_j.t() * &uugg_sum;
                        let ggz = wg.dot(&arr_j_dot_rand_vecs);
-                       let s = (&arr_j_sq.t() * &uugg_sum).sum();
+                       let s = (&arr_j_sq.t().dot(&uugg_sum)).sum();
                        (((&ggz * &ggz).sum() / num_rand_z_vecs as f32 - s) / 2.)
                    })
                    .collect_into_vec(&mut sums);
@@ -122,7 +122,7 @@ pub fn estimate_gxg_kk_trace(geno_arr: &Array<f32, Ix2>, num_random_vecs: usize)
                    .into_par_iter()
                    .map(|uugg_sum| {
                        let wg = &geno_arr.t() * &uugg_sum;
-                       let s = (&geno_sq.t() * &uugg_sum).sum();
+                       let s = (&geno_sq.t().dot(&uugg_sum)).sum();
                        let rand_vecs = generate_plus_minus_one_bernoulli_matrix(num_le_snps, num_rand_z_vecs);
                        let geno_arr_dot_rand_vecs = geno_arr.dot(&rand_vecs);
                        let ggz = wg.dot(&geno_arr_dot_rand_vecs);
