@@ -150,7 +150,7 @@ pub fn estimate_gxg_dot_y_norm_sq(gxg_basis_arr: &Array<f32, Ix2>, y: &Array<f32
     let (_num_rows, num_cols) = gxg_basis_arr.dim();
     let wg = &gxg_basis_arr.t() * y;
     let gg_sq = gxg_basis_arr * gxg_basis_arr;
-    let s = (&gg_sq.t() * y).sum();
+    let s = (&gg_sq.t().dot(y)).sum();
     let rand_vecs = generate_plus_minus_one_bernoulli_matrix(num_cols, num_random_vecs);
     let geno_arr_dot_rand_vecs = gxg_basis_arr.dot(&rand_vecs);
     let mut ggz = wg.dot(&geno_arr_dot_rand_vecs);
