@@ -10,7 +10,7 @@ use std::io::{BufRead, BufReader, BufWriter, Write};
 use bio_file_reader::plink_bed::PlinkBed;
 use ndarray::{Array, Ix1};
 use saber::program_flow::OrExit;
-use saber::util::{extract_str_arg, extract_optional_str_arg, extract_optional_numeric_arg};
+use saber::util::{extract_str_arg, extract_optional_str_arg, extract_optional_numeric_arg, get_bed_bim_fam_path};
 use saber::simulation::sim_pheno::{generate_gxg_contribution_from_gxg_basis, generate_g_contribution};
 
 fn get_le_snp_counts_and_effect_sizes(count_filename: &String) -> Result<Vec<(usize, f64)>, String> {
@@ -74,9 +74,7 @@ fn main() {
             println!("\n=> generating G effects");
             let bfile = extract_optional_str_arg(&matches, "bfile")
                 .unwrap_or_exit(Some(format!("must provide --bfile as g_var: {} > 0.", g_var)));
-            let bed_path = format!("{}.bed", bfile);
-            let bim_path = format!("{}.bim", bfile);
-            let fam_path = format!("{}.fam", bfile);
+            let [bed_path, bim_path, fam_path] = get_bed_bim_fam_path(&bfile);
             println!("\nPLINK bed path: {}\nPLINK bim path: {}\nPLINK fam path: {}", bed_path, bim_path, fam_path);
             let mut bed = PlinkBed::new(&bed_path, &bim_path, &fam_path)
                 .unwrap_or_exit(None::<String>);
@@ -93,9 +91,7 @@ fn main() {
 
     if let Some(le_snps_bfile) = extract_optional_str_arg(&matches, "le_snps_bfile") {
         println!("\n=> generating GxG effects");
-        let le_snps_bed_path = format!("{}.bed", le_snps_bfile);
-        let le_snps_bim_path = format!("{}.bim", le_snps_bfile);
-        let le_snps_fam_path = format!("{}.fam", le_snps_bfile);
+        let [le_snps_bed_path, le_snps_bim_path, le_snps_fam_path] = get_bed_bim_fam_path(&le_snps_bfile);
         let gxg_component_count_filename = extract_optional_str_arg(&matches, "gxg_component_count_filename")
             .unwrap_or_exit(Some("must provide --counts as le_snps_bfile is specified"));
         println!("\nLE SNPs bed path: {}\nLE SNPs bim path: {}\nLE SNPs fam path: {}", le_snps_bed_path, le_snps_bim_path, le_snps_fam_path);

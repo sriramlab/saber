@@ -23,7 +23,7 @@ use saber::util::matrix_util::{generate_plus_minus_one_bernoulli_matrix, mean_ce
 use saber::program_flow::OrExit;
 use saber::util::stats_util::sum_of_squares;
 use saber::util::timer::Timer;
-use saber::util::{extract_str_arg, get_pheno_arr};
+use saber::util::{extract_str_arg, get_pheno_arr, get_bed_bim_fam_path, extract_numeric_arg};
 
 #[cfg(feature = "cuda")]
 use saber::cublas::linalg::mul_xtxz_f32;
@@ -93,42 +93,35 @@ fn main() {
         (version: "0.1")
         (author: "Aaron Zhou")
         (@arg bfile: --bfile <BFILE> "required; the prefix for x.bed, x.bim, x.fam is x")
-        (@arg le_snps_filename: --le <LE_SNPS> "required; plink file prefix to the SNPs in linkage equilibrium")
-        (@arg pheno_filename: --pheno <PHENO> "required; each row is one individual containing one phenotype value")
+        (@arg le_snps_path: --le <LE_SNPS> "required; plink file prefix to the SNPs in linkage equilibrium")
+        (@arg pheno_path: --pheno <PHENO> "required; each row is one individual containing one phenotype value")
         (@arg num_le_snps_to_use: -n +takes_value "number of independent SNPs to use; required")
         (@arg num_random_vecs: --nrv +takes_value "number of random vectors used to estimate traces; required")
     ).get_matches();
 
     let bfile = extract_str_arg(&matches, "bfile");
-    let le_snps_filename = extract_str_arg(&matches, "le_snps_filename");
-    let pheno_filename = extract_str_arg(&matches, "pheno_filename");
+    let le_snps_path = extract_str_arg(&matches, "le_snps_path");
+    let pheno_path = extract_str_arg(&matches, "pheno_path");
 
-    let bed_path = format!("{}.bed", bfile);
-    let bim_path = format!("{}.bim", bfile);
-    let fam_path = format!("{}.fam", bfile);
+    let [bed_path, bim_path, fam_path] = get_bed_bim_fam_path(&bfile);
+    let [le_snps_bed_path, le_snps_bim_path, le_snps_fam_path] = get_bed_bim_fam_path(&le_snps_path);
 
-    let le_snps_bed_path = format!("{}.bed", le_snps_filename);
-    let le_snps_bim_path = format!("{}.bim", le_snps_filename);
-    let le_snps_fam_path = format!("{}.fam", le_snps_filename);
-
-    let num_le_snps_to_use = extract_str_arg(&matches, "num_le_snps_to_use")
-        .parse::<usize>()
+    let num_le_snps_to_use = extract_numeric_arg::<usize>(&matches, "num_le_snps_to_use")
         .unwrap_or_exit(Some("failed to parse num_le_snps_to_use"));
 
-    let num_random_vecs = extract_str_arg(&matches, "num_random_vecs")
-        .parse::<usize>()
+    let num_random_vecs = extract_numeric_arg::<usize>(&matches, "num_random_vecs")
         .unwrap_or_exit(Some("failed to parse num_random_vecs"));
 
     println!("PLINK bed path: {}\nPLINK bim path: {}\nPLINK fam path: {}",
              bed_path, bim_path, fam_path);
     println!("LE SNPs bed path: {}\nLE SNPs bim path: {}\nLE SNPs fam path: {}",
              le_snps_bed_path, le_snps_bim_path, le_snps_fam_path);
-    println!("pheno_filepath: {}", pheno_filename);
+    println!("pheno_filepath: {}", pheno_path);
     println!("num_le_snps_to_use: {}\nnum_random_vecs: {}", num_le_snps_to_use, num_random_vecs);
 
     println!("\n=> generating the phenotype array and the genotype matrix");
 
-    let pheno_arr = get_pheno_arr(&pheno_filename)
+    let pheno_arr = get_pheno_arr(&pheno_path)
         .unwrap_or_exit(None::<String>);
 
     let mut bed = PlinkBed::new(&bed_path, &bim_path, &fam_path)
