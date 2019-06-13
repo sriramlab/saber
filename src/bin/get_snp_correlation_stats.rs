@@ -18,7 +18,7 @@ use saber::util::matrix_util::get_correlation;
 use saber::util::stats_util::n_choose_2;
 
 fn main() {
-    let matches = clap_app!(Saber =>
+    let matches = clap_app!(get_snp_correlation_stats =>
         (version: "0.1")
         (author: "Aaron Zhou")
         (@arg plink_filename_prefix: --bfile <BFILE> "required; the prefix for x.bed, x.bim, x.fam is x")

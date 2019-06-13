@@ -89,7 +89,7 @@ fn estimate_heritability_cublas(mut geno_arr: Array<f32, Ix2>, mut pheno_arr: Ar
 }
 
 fn main() {
-    let matches = clap_app!(Saber =>
+    let matches = clap_app!(estimate_single_gxg_heritability =>
         (version: "0.1")
         (author: "Aaron Zhou")
         (@arg bfile: --bfile <BFILE> "required; the prefix for x.bed, x.bim, x.fam is x")

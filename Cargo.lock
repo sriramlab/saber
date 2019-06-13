@@ -52,6 +52,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 name = "blas-src"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "blas-src"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "openblas-src 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -643,7 +648,7 @@ name = "saber"
 version = "0.1.0"
 dependencies = [
  "bio_file_reader 0.1.0",
- "blas-src 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "blas-src 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "clap 2.32.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "collenchyma 0.0.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "collenchyma-blas 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -772,6 +777,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum bitflags 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)" = "32866f4d103c4e438b1db1158aa1b1a80ee078e5d77a59a2f906fd62a577389c"
 "checksum bitflags 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)" = "228047a76f468627ca71776ecdebd732a3423081fcf5125585bcd7c49886ce12"
 "checksum blas-src 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "a6e87a9e19deb9d03bc4a4d04a5809d4df6bd69191ba8c4d3977eed49ab455c9"
+"checksum blas-src 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "46fff4479d0099bbf7d7a093d095aea3cce49986642f3c9cb27375fed6b1b433"
 "checksum byteorder 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)" = "96c8b41881888cc08af32d47ac4edd52bc7fa27fef774be47a92443756451304"
 "checksum cblas-sys 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)" = "b6feecd82cce51b0204cf063f0041d69f24ce83f680d87514b004248e7b0fa65"
 "checksum cfg-if 0.1.9 (registry+https://github.com/rust-lang/crates.io-index)" = "b486ce3ccf7ffd79fdeb678eac06a9e6c09fc88d33836340becb8fffe87c5e33"
