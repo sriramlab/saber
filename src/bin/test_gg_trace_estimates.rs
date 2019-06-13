@@ -33,11 +33,11 @@ fn main() {
         .parse::<usize>().unwrap_or_exit(Some("failed to parse num_random_vecs"));
     println!("num_rows: {}\nnum_cols: {}\nnum_random_vecs: {}", num_rows, num_cols, num_random_vecs);
 
-    let geno_arr = Array::random((num_rows, num_cols), Uniform::from(0..3))
+    let gxg_basis = Array::random((num_rows, num_cols), Uniform::from(0..3))
         .mapv(|e| e as f32);
 
     println!("\n=> generating the GxG matrix");
-    let gxg = get_gxg_arr(&geno_arr);
+    let gxg = get_gxg_arr(&gxg_basis);
     println!("GxG dim: {:?}", gxg.dim());
 
     let mut timer = Timer::new();
@@ -49,7 +49,7 @@ fn main() {
     println!("\n=> estimating the trace of GxG.dot(GxG.T)");
     let mut ratio_list = Vec::new();
     for iter in 0..50 {
-        let tr_k_est = match estimate_gxg_gram_trace(&geno_arr, num_random_vecs) {
+        let tr_k_est = match estimate_gxg_gram_trace(&gxg_basis, num_random_vecs) {
             Ok(t) => t,
             Err(why) => {
                 eprintln!("{}", why);
@@ -76,7 +76,7 @@ fn main() {
     println!("\n=> computing tr_kk_est");
     let mut kk_abs_ratio_list = Vec::new();
     for iter in 0..5 {
-        let tr_kk_est = match estimate_gxg_kk_trace(&geno_arr, num_random_vecs) {
+        let tr_kk_est = match estimate_gxg_kk_trace(&gxg_basis, num_random_vecs) {
             Ok(t) => t,
             Err(why) => {
                 eprintln!("{}", why);
@@ -96,18 +96,20 @@ fn main() {
     println!("\nkk_abs_ratio_avg: {}%\nkk_abs_ratio_std: {}%", kk_abs_ratio_avg * 100., kk_abs_ratio_std * 100.);
 
     println!("\n=> test estimate_tr_k_gxg_k");
-    let tr_k_gxg_k_est = estimate_tr_k_gxg_k(&geno_arr, &geno_arr, num_random_vecs);
+    let rand_geno = Array::random((num_rows, num_cols), Uniform::from(4..7))
+        .mapv(|e| e as f32);
+    let tr_k_gxg_k_est = estimate_tr_k_gxg_k(&rand_geno, &gxg_basis, num_random_vecs);
     println!("tr_k_gxg_k_est: {}", tr_k_gxg_k_est);
 
-    let k_gxg_k = geno_arr.t().dot(&gxg);
-    let tr_k_gxg_k_true = (&k_gxg_k * &k_gxg_k).sum() / (gxg.dim().1 * geno_arr.dim().1) as f32;
+    let k_gxg_k = rand_geno.t().dot(&gxg);
+    let tr_k_gxg_k_true = (&k_gxg_k * &k_gxg_k).sum() / (gxg.dim().1 * rand_geno.dim().1) as f32;
     println!("tr_k_gxg_k_true: {}", tr_k_gxg_k_true);
     println!("error ratio: {:.5}%", (tr_k_gxg_k_est as f32 - tr_k_gxg_k_true) / tr_k_gxg_k_true * 100.);
 
     println!("\n=> test estimate_gxg_dot_y_norm_sq");
     let y = Array::random(num_rows, Normal::new(0., 1.))
         .mapv(|e| e as f32);
-    let gxg_dot_y_norm_sq_est = estimate_gxg_dot_y_norm_sq(&geno_arr, &y, 1000);
+    let gxg_dot_y_norm_sq_est = estimate_gxg_dot_y_norm_sq(&gxg_basis, &y, 1000);
     println!("gxg_dot_y_norm_sq_est: {}", gxg_dot_y_norm_sq_est);
     let mut gxg_dot_y = gxg.t().dot(&y);
     gxg_dot_y.par_iter_mut().for_each(|x| *x = (*x) * (*x));
