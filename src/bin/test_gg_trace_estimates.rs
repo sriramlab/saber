@@ -5,18 +5,18 @@ extern crate ndarray;
 extern crate ndarray_parallel;
 extern crate saber;
 
+use clap::Arg;
 use ndarray::Array;
 use ndarray_parallel::prelude::*;
 use ndarray_rand::RandomExt;
 use num_traits::Float;
 use rand::distributions::{Normal, Uniform};
-use clap::Arg;
 
 use saber::program_flow::OrExit;
 use saber::simulation::sim_geno::get_gxg_arr;
 use saber::trace_estimator::{estimate_gxg_dot_y_norm_sq, estimate_gxg_gram_trace, estimate_gxg_kk_trace,
                              estimate_tr_k_gxg_k};
-use saber::util::{extract_str_arg, extract_optional_numeric_arg};
+use saber::util::{extract_numeric_arg, extract_optional_numeric_arg};
 use saber::util::stats_util::{mean, std, sum_of_squares_f32};
 use saber::util::timer::Timer;
 use std::fmt;
@@ -92,14 +92,14 @@ fn main() {
     );
     let matches = app.get_matches();
 
-    let num_rows = extract_str_arg(&matches, "num_rows")
-        .parse::<usize>().unwrap_or_exit(Some("failed to parse num_rows"));
+    let num_rows = extract_numeric_arg::<usize>(&matches, "num_rows")
+        .unwrap_or_exit(Some("failed to parse num_rows"));
 
-    let num_cols = extract_str_arg(&matches, "num_cols")
-        .parse::<usize>().unwrap_or_exit(Some("failed to parse num_cols"));
+    let num_cols = extract_numeric_arg::<usize>(&matches, "num_cols")
+        .unwrap_or_exit(Some("failed to parse num_cols"));
 
-    let num_random_vecs = extract_str_arg(&matches, "num_random_vecs")
-        .parse::<usize>().unwrap_or_exit(Some("failed to parse num_random_vecs"));
+    let num_random_vecs = extract_numeric_arg::<usize>(&matches, "num_random_vecs")
+        .unwrap_or_exit(Some("failed to parse num_random_vecs"));
 
     let num_iter = extract_optional_numeric_arg(&matches, "num_iter")
         .unwrap_or_exit(Some("failed to parse num_iter"))

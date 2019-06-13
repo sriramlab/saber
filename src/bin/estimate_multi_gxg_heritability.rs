@@ -12,8 +12,7 @@ use clap::Arg;
 use saber::heritability_estimator::{estimate_g_and_multi_gxg_heritability,
                                     estimate_g_and_multi_gxg_heritability_from_saved_traces};
 use saber::program_flow::OrExit;
-use saber::util::{extract_str_arg, extract_optional_str_arg, get_pheno_arr,
-                  write_trace_estimates, load_trace_estimates};
+use saber::util::{extract_str_arg, extract_optional_str_arg, get_pheno_arr, write_trace_estimates, load_trace_estimates, get_bed_bim_fam_path};
 
 fn get_le_snp_counts(count_filename: &String) -> Result<Vec<usize>, String> {
     let buf = match OpenOptions::new().read(true).open(count_filename.as_str()) {
@@ -29,7 +28,7 @@ fn main() {
         (version: "0.1")
         (author: "Aaron Zhou")
         (@arg bfile: --bfile <BFILE> "required; the PLINK prefix for x.bed, x.bim, x.fam is x")
-        (@arg le_snps_filename: --le <LE_SNPS> "required; plink file prefix to the SNPs in linkage equilibrium")
+        (@arg le_snps_path: --le <LE_SNPS> "required; plink file prefix to the SNPs in linkage equilibrium")
         (@arg pheno_filename: --pheno <PHENO> "required; each row is one individual containing one phenotype value")
         (@arg gxg_component_count_filename: --counts -c <COUNTS> "required; a file where each line is the number of LE SNPs for the corresponding GxG component")
         (@arg num_random_vecs: --nrv <NUM_RAND_VECS> "number of random vectors used to estimate traces; required")
@@ -47,18 +46,13 @@ fn main() {
     let matches = app.get_matches();
 
     let bfile = extract_str_arg(&matches, "bfile");
-    let le_snps_filename = extract_str_arg(&matches, "le_snps_filename");
+    let le_snps_path = extract_str_arg(&matches, "le_snps_path");
     let pheno_filename = extract_str_arg(&matches, "pheno_filename");
     let trace_outpath = extract_optional_str_arg(&matches, "trace_outpath");
     let load_trace = extract_optional_str_arg(&matches, "load_trace");
 
-    let bed_path = format!("{}.bed", bfile);
-    let bim_path = format!("{}.bim", bfile);
-    let fam_path = format!("{}.fam", bfile);
-
-    let le_snps_bed_path = format!("{}.bed", le_snps_filename);
-    let le_snps_bim_path = format!("{}.bim", le_snps_filename);
-    let le_snps_fam_path = format!("{}.fam", le_snps_filename);
+    let [bed_path, bim_path, fam_path] = get_bed_bim_fam_path(&bfile);
+    let [le_snps_bed_path, le_snps_bim_path, le_snps_fam_path] = get_bed_bim_fam_path(&le_snps_path);
 
     let num_random_vecs = extract_str_arg(&matches, "num_random_vecs")
         .parse::<usize>()
