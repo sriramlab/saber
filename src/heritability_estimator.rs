@@ -118,8 +118,8 @@ pub fn estimate_g_and_multi_gxg_heritability(mut geno_arr: Array<f32, Ix2>, mut 
         a[[1 + i, 0]] = tr_gk_est;
         println!("tr_gk{}_est: {}", i + 1, tr_gk_est);
 
-        println!("estimate_gxg_dot_y_norm_sq using {} random vectors", num_random_vecs * 10);
-        let gxg_yky = estimate_gxg_dot_y_norm_sq(&le_snps_arr[i], &pheno_arr, num_random_vecs * 10) / mm;
+        println!("estimate_gxg_dot_y_norm_sq using {} random vectors", num_random_vecs * 100);
+        let gxg_yky = estimate_gxg_dot_y_norm_sq(&le_snps_arr[i], &pheno_arr, num_random_vecs * 100) / mm;
         b[1 + i] = gxg_yky;
         println!("gxg{}_yky_est: {}", i + 1, gxg_yky);
     }
@@ -175,8 +175,8 @@ pub fn estimate_g_and_multi_gxg_heritability_from_saved_traces(mut geno_arr: Arr
     for i in 0..num_gxg_components {
         println!("\nGXG component {}", i + 1);
         let mm = n_choose_2(le_snps_arr[i].dim().1) as f64;
-        println!("estimate_gxg_dot_y_norm_sq using {} random vectors", num_random_vecs * 10);
-        let gxg_yky = estimate_gxg_dot_y_norm_sq(&le_snps_arr[i], &pheno_arr, num_random_vecs * 10) / mm;
+        println!("estimate_gxg_dot_y_norm_sq using {} random vectors", num_random_vecs * 100);
+        let gxg_yky = estimate_gxg_dot_y_norm_sq(&le_snps_arr[i], &pheno_arr, num_random_vecs * 100) / mm;
         b[1 + i] = gxg_yky;
         println!("gxg{}_yky_est: {}", i + 1, gxg_yky);
     }
@@ -262,8 +262,8 @@ pub fn estimate_g_and_single_gxg_heritability(mut geno_arr: Array<f32, Ix2>, mut
     println!("gxg_tr_k_est: {}", gxg_tr_k_est);
     println!("gxg_tr_kk_est: {}", gxg_tr_kk_est);
 
-    println!("estimate_gxg_dot_y_norm_sq using {} random vectors", num_random_vecs * 10);
-    let gxg_yky = estimate_gxg_dot_y_norm_sq(&le_snps_arr, &pheno_arr, num_random_vecs * 10) / mm;
+    println!("estimate_gxg_dot_y_norm_sq using {} random vectors", num_random_vecs * 100);
+    let gxg_yky = estimate_gxg_dot_y_norm_sq(&le_snps_arr, &pheno_arr, num_random_vecs * 100) / mm;
     println!("gxg_yky: {}", gxg_yky);
 
     let tr_gk_est = estimate_tr_k_gxg_k(&geno_arr, &le_snps_arr, num_random_vecs);
