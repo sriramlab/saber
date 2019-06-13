@@ -108,9 +108,9 @@ pub fn estimate_gxg_kk_trace(gxg_basis: &Array<f32, Ix2>, num_random_vecs: usize
     let gxg_basis_sq = gxg_basis * gxg_basis;
     let mut row_sums = Vec::new();
     gxg_basis_sq.axis_iter(Axis(0))
-           .into_par_iter()
-           .map(|row| sum_f32(row.iter()))
-           .collect_into_vec(&mut row_sums);
+                .into_par_iter()
+                .map(|row| sum_f32(row.iter()))
+                .collect_into_vec(&mut row_sums);
     let geno_ssq = Array::from_shape_vec((row_sums.len(), 1), row_sums).unwrap();
 
     let mut uugg_sum_matrix = gxg_basis.dot(&u_arr);
