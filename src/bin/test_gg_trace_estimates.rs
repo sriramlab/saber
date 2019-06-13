@@ -10,12 +10,13 @@ use ndarray_parallel::prelude::*;
 use ndarray_rand::RandomExt;
 use num_traits::Float;
 use rand::distributions::{Normal, Uniform};
+use clap::Arg;
 
 use saber::program_flow::OrExit;
 use saber::simulation::sim_geno::get_gxg_arr;
 use saber::trace_estimator::{estimate_gxg_dot_y_norm_sq, estimate_gxg_gram_trace, estimate_gxg_kk_trace,
                              estimate_tr_k_gxg_k};
-use saber::util::extract_str_arg;
+use saber::util::{extract_str_arg, extract_optional_numeric_arg};
 use saber::util::stats_util::{mean, std, sum_of_squares_f32};
 use saber::util::timer::Timer;
 use std::fmt;
@@ -76,20 +77,40 @@ fn update_tracker_and_print<T: Float + fmt::Display>(real: T, estimate: T, track
 }
 
 fn main() {
-    let matches = clap_app!(test_gg_trace_estimates =>
+    let mut app = clap_app!(test_gg_trace_estimates =>
         (version: "0.1")
         (author: "Aaron Zhou")
-        (@arg num_rows: -r +takes_value "number of rows, i.e. individuals; required")
-        (@arg num_cols: -c +takes_value "number of columns, i.e. SNPs; required")
-        (@arg num_random_vecs: -n +takes_value "number of random vectors; required")
-    ).get_matches();
+        (@arg num_rows: -r <NUM_ROWS> "Number of rows, i.e. individuals; required")
+        (@arg num_cols: -c <NUM_COLUMNS> "Number of columns, i.e. SNPs; required")
+        (@arg num_random_vecs: -n <NUM_RAND_VECS> "Number of random vectors; required")
+        (@arg num_iter: -i [NUM_ITER] "Number of iterations to run")
+    );
+    app = app.arg(
+        Arg::with_name("num_tr_kk_iter")
+            .long("num-kk-iter").short("-k").takes_value(true).value_name("NUM_TR_KK_ITER")
+            .help("Number of iterations to run for tr(KK), being kept separate from -i as this is more time consuming")
+    );
+    let matches = app.get_matches();
+
     let num_rows = extract_str_arg(&matches, "num_rows")
         .parse::<usize>().unwrap_or_exit(Some("failed to parse num_rows"));
+
     let num_cols = extract_str_arg(&matches, "num_cols")
         .parse::<usize>().unwrap_or_exit(Some("failed to parse num_cols"));
+
     let num_random_vecs = extract_str_arg(&matches, "num_random_vecs")
         .parse::<usize>().unwrap_or_exit(Some("failed to parse num_random_vecs"));
-    println!("num_rows: {}\nnum_cols: {}\nnum_random_vecs: {}", num_rows, num_cols, num_random_vecs);
+
+    let num_iter = extract_optional_numeric_arg(&matches, "num_iter")
+        .unwrap_or_exit(Some("failed to parse num_iter"))
+        .unwrap_or(100);
+
+    let num_tr_kk_iter = extract_optional_numeric_arg(&matches, "num_tr_kk_iter")
+        .unwrap_or_exit(Some("failed to parse num_tr_kk_iter"))
+        .unwrap_or(10);
+
+    println!("num_rows: {}\nnum_cols: {}\nnum_random_vecs: {}\nnum_iter: {}\nnum_tr_kk_iter: {}",
+             num_rows, num_cols, num_random_vecs, num_iter, num_tr_kk_iter);
 
     let gxg_basis = Array::random((num_rows, num_cols), Uniform::from(0..3))
         .mapv(|e| e as f32);
@@ -100,7 +121,6 @@ fn main() {
 
     let mut timer = Timer::new();
     let percent_sig_fig = 3usize;
-    let num_iter = 100;
 
     {
         println!("\n=> test estimate_gxg_dot_y_norm_sq");
@@ -161,7 +181,7 @@ fn main() {
         timer.print();
         let mut err_tracker = ValueTracker::new();
         println!("\n=> computing tr_kk_est");
-        for _ in 0..10 {
+        for _ in 0..num_tr_kk_iter {
             let tr_kk_est = estimate_gxg_kk_trace(&gxg_basis, num_random_vecs).unwrap_or_exit(None::<String>);
             update_tracker_and_print(tr_kk_true, tr_kk_est, &mut err_tracker, "tr_kk_est", percent_sig_fig);
         }
