@@ -18,7 +18,7 @@ use saber::trace_estimator::{estimate_gxg_dot_y_norm_sq, estimate_gxg_gram_trace
 use saber::util::extract_str_arg;
 
 fn main() {
-    let matches = clap_app!(Saber =>
+    let matches = clap_app!(test_gg_trace_estimates =>
         (version: "0.1")
         (author: "Aaron Zhou")
         (@arg num_rows: -r +takes_value "number of rows, i.e. individuals; required")

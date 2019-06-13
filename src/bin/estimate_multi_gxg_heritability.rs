@@ -25,14 +25,14 @@ fn get_le_snp_counts(count_filename: &String) -> Result<Vec<usize>, String> {
 }
 
 fn main() {
-    let mut app = clap_app!(Saber =>
+    let mut app = clap_app!(estimate_multi_gxg_heritability =>
         (version: "0.1")
         (author: "Aaron Zhou")
         (@arg bfile: --bfile <BFILE> "required; the PLINK prefix for x.bed, x.bim, x.fam is x")
         (@arg le_snps_filename: --le <LE_SNPS> "required; plink file prefix to the SNPs in linkage equilibrium")
         (@arg pheno_filename: --pheno <PHENO> "required; each row is one individual containing one phenotype value")
-        (@arg gxg_component_count_filename: --counts <PHENO> "required; a file where each line is the number of LE SNPs for the corresponding GxG component")
-        (@arg num_random_vecs: --nrv +takes_value "number of random vectors used to estimate traces; required")
+        (@arg gxg_component_count_filename: --counts -c <COUNTS> "required; a file where each line is the number of LE SNPs for the corresponding GxG component")
+        (@arg num_random_vecs: --nrv <NUM_RAND_VECS> "number of random vectors used to estimate traces; required")
     );
     app = app
         .arg(

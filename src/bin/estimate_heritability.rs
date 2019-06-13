@@ -10,7 +10,7 @@ use saber::program_flow::OrExit;
 use saber::util::{extract_str_arg, get_pheno_arr};
 
 fn main() {
-    let matches = clap_app!(Saber =>
+    let matches = clap_app!(estimate_heritability =>
         (version: "0.1")
         (author: "Aaron Zhou")
         (@arg plink_filename_prefix: --bfile <BFILE> "required; the prefix for x.bed, x.bim, x.fam is x")

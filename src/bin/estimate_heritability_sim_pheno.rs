@@ -12,7 +12,7 @@ use saber::util::extract_str_arg;
 use saber::util::matrix_util::normalize_matrix_columns_inplace;
 
 fn main() {
-    let matches = clap_app!(Saber =>
+    let matches = clap_app!(estimate_heritability_sim_pheno =>
         (version: "0.1")
         (author: "Aaron Zhou")
         (@arg plink_filename_prefix: --bfile <BFILE> "required; the prefix for x.bed, x.bim, x.fam is x")

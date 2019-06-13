@@ -50,7 +50,7 @@ fn get_gxg_output_filepath(prefix: &str, effect_mechanism: EffectMechanism) -> S
 }
 
 fn main() {
-    let app = clap_app!(Saber =>
+    let app = clap_app!(generate_g_and_gxg_effects =>
         (version: "0.1")
         (author: "Aaron Zhou")
         (@arg bfile: --bfile [BFILE] "the PLINK prefix for x.bed, x.bim, x.fam is x")

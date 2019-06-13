@@ -14,7 +14,7 @@ use saber::util::matrix_util:: mean_center_vector;
 use saber::util::extract_str_arg;
 
 fn main() {
-    let matches = clap_app!(Saber =>
+    let matches = clap_app!(simulate_gxg =>
         (version: "0.1")
         (author: "Aaron Zhou")
         (@arg num_people: -r +takes_value "number of rows, i.e. individuals; required")
