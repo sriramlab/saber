@@ -11,8 +11,8 @@ pub mod matrix_util;
 pub mod stats_util;
 pub mod timer;
 
-pub fn get_line_count(filepath: &String) -> Result<usize, String> {
-    let buf = match OpenOptions::new().read(true).open(filepath.as_str()) {
+pub fn get_line_count(filepath: &str) -> Result<usize, String> {
+    let buf = match OpenOptions::new().read(true).open(filepath) {
         Err(why) => return Err(format!("failed to open {}: {}", filepath, why)),
         Ok(f) => BufReader::new(f)
     };
@@ -32,29 +32,19 @@ pub fn extract_str_arg(matches: &ArgMatches, arg_name: &str) -> String {
 pub fn extract_optional_numeric_arg<T: FromStr>(matches: &ArgMatches, arg_name: &str) -> Result<Option<T>, String>
     where <T as std::str::FromStr>::Err: std::fmt::Display {
     match matches.value_of(arg_name) {
+        None => Ok(None),
         Some(s) => match s.parse::<T>() {
             Ok(val) => Ok(Some(val)),
             Err(why) => Err(format!("failed to parse {}: {}", arg_name, why))
-        },
-        None => Ok(None)
+        }
     }
 }
 
 pub fn extract_numeric_arg<T: FromStr>(matches: &ArgMatches, arg_name: &str) -> Result<T, String>
     where <T as std::str::FromStr>::Err: std::fmt::Display {
-    match matches.value_of(arg_name) {
-        Some(s) => match s.parse::<T>() {
-            Ok(val) => Ok(val),
-            Err(why) => Err(format!("failed to parse {}: {}", arg_name, why))
-        },
-        None => Err(format!("{} is not provided", arg_name))
-    }
-}
-
-pub fn extract_optional_str_vec_arg(matches: &ArgMatches, arg_name: &str) -> Option<Vec<String>> {
-    match matches.values_of(arg_name) {
-        None => None,
-        Some(v) => Some(v.map(|s| s.to_string()).collect())
+    match extract_optional_numeric_arg(matches, arg_name)? {
+        None => Err(format!("{} is not provided", arg_name)),
+        Some(val) => Ok(val)
     }
 }
 
@@ -65,11 +55,25 @@ pub fn extract_optional_str_arg(matches: &ArgMatches, arg_name: &str) -> Option<
     }
 }
 
+pub fn extract_optional_str_vec_arg(matches: &ArgMatches, arg_name: &str) -> Option<Vec<String>> {
+    match matches.values_of(arg_name) {
+        None => None,
+        Some(v) => Some(v.map(|s| s.to_string()).collect())
+    }
+}
+
+pub fn extract_str_vec_arg(matches: &ArgMatches, arg_name: &str) -> Result<Vec<String>, String> {
+    match extract_optional_str_vec_arg(matches, arg_name) {
+        None => Err(format!("{} is not provided", arg_name)),
+        Some(v) => Ok(v)
+    }
+}
+
 pub fn get_bed_bim_fam_path(bfile: &str) -> [String; 3] {
     [format!("{}.bed", bfile), format!("{}.bim", bfile), format!("{}.fam", bfile)]
 }
 
-pub fn load_trace_estimates(load_path: &String) -> Result<Array<f64, Ix2>, String> {
+pub fn load_trace_estimates(load_path: &str) -> Result<Array<f64, Ix2>, String> {
     let num_rows = get_line_count(load_path)?;
     let buf = match OpenOptions::new().read(true).open(load_path) {
         Err(why) => return Err(format!("failed to read the trace estimates from file {}: {}", load_path, why)),
@@ -85,8 +89,8 @@ pub fn load_trace_estimates(load_path: &String) -> Result<Array<f64, Ix2>, Strin
     Ok(Array::from_shape_vec((num_rows, num_cols).strides((num_cols, 1)), trace_vec).unwrap())
 }
 
-pub fn write_trace_estimates(trace_estimates: &Array<f64, Ix2>, out_path: &String) -> Result<(), String> {
-    let mut buf = match OpenOptions::new().truncate(true).create(true).write(true).open(out_path.as_str()) {
+pub fn write_trace_estimates(trace_estimates: &Array<f64, Ix2>, out_path: &str) -> Result<(), String> {
+    let mut buf = match OpenOptions::new().truncate(true).create(true).write(true).open(out_path) {
         Err(why) => return Err(format!("failed to write the trace estimates to file {}: {}", out_path, why)),
         Ok(f) => BufWriter::new(f)
     };
@@ -103,7 +107,7 @@ pub fn write_trace_estimates(trace_estimates: &Array<f64, Ix2>, out_path: &Strin
     Ok(())
 }
 
-fn validate_header(header: &String, expected_first_n_tokens: Vec<String>) -> Result<(), String> {
+fn validate_header(header: &str, expected_first_n_tokens: Vec<String>) -> Result<(), String> {
     let header_toks: Vec<String> = header.split_whitespace().map(|t| t.to_owned()).collect();
     for (i, (actual, expected)) in header_toks.into_iter().zip(expected_first_n_tokens).enumerate() {
         if actual != expected {
@@ -125,8 +129,8 @@ fn read_and_validate_plink_header(buf: &mut BufReader<File>) -> Result<String, S
 /// Each of the remaining lines have the three corresponding fields
 ///
 /// returns an array containing only the phenotype values in the order listed in the file
-pub fn get_pheno_arr(pheno_path: &String) -> Result<Array<f32, Ix1>, String> {
-    let mut buf = match OpenOptions::new().read(true).open(pheno_path.as_str()) {
+pub fn get_pheno_arr(pheno_path: &str) -> Result<Array<f32, Ix1>, String> {
+    let mut buf = match OpenOptions::new().read(true).open(pheno_path) {
         Err(why) => return Err(format!("failed to open {}: {}", pheno_path, why)),
         Ok(f) => BufReader::new(f)
     };
@@ -148,8 +152,8 @@ pub fn get_pheno_arr(pheno_path: &String) -> Result<Array<f32, Ix1>, String> {
 /// Each of the remaining lines have the three corresponding fields
 ///
 /// returns (header, FID vector, IID vector, pheno vector) where the vectors are in the order listed in the file
-pub fn get_plink_pheno_data(pheno_path: &String) -> Result<(String, Vec<String>, Vec<String>, Array<f32, Ix1>), String> {
-    let mut buf = match OpenOptions::new().read(true).open(pheno_path.as_str()) {
+pub fn get_plink_pheno_data(pheno_path: &str) -> Result<(String, Vec<String>, Vec<String>, Array<f32, Ix1>), String> {
+    let mut buf = match OpenOptions::new().read(true).open(pheno_path) {
         Err(why) => return Err(format!("failed to open {}: {}", pheno_path, why)),
         Ok(f) => BufReader::new(f)
     };
@@ -179,11 +183,11 @@ enum PhenoVal<T> {
 ///
 /// returns (header, FID vector, IID vector, pheno vector) where the vectors are in the order listed in the file
 /// and the missing phenotype values are replaced with the mean for the returned phenotype vector
-pub fn get_plink_pheno_data_replace_missing_with_mean(pheno_path: &String, missing_reps_vec: &Vec<String>)
+pub fn get_plink_pheno_data_replace_missing_with_mean(pheno_path: &str, missing_reps_vec: &Vec<String>)
     -> Result<(String, Vec<String>, Vec<String>, Array<f32, Ix1>), String> {
     let missing_reps: HashSet<String> = missing_reps_vec.iter().cloned().collect();
 
-    let mut buf = match OpenOptions::new().read(true).open(pheno_path.as_str()) {
+    let mut buf = match OpenOptions::new().read(true).open(pheno_path) {
         Err(why) => return Err(format!("failed to open {}: {}", pheno_path, why)),
         Ok(f) => BufReader::new(f)
     };
@@ -223,11 +227,11 @@ pub fn get_plink_pheno_data_replace_missing_with_mean(pheno_path: &String, missi
 
 /// The first line of the file starts with FID IID, followed by any number of covariate names.
 /// Each of the remaining lines of the file has the corresponding fields.
-pub fn get_plink_covariate_arr(covariate_path: &String) -> Result<Array<f32, Ix2>, String> {
+pub fn get_plink_covariate_arr(covariate_path: &str) -> Result<Array<f32, Ix2>, String> {
     let num_people = get_line_count(covariate_path)? - 1;
     println!("\n{} contains {} people", covariate_path, num_people);
 
-    let mut buf = match OpenOptions::new().read(true).open(covariate_path.as_str()) {
+    let mut buf = match OpenOptions::new().read(true).open(covariate_path) {
         Err(why) => return Err(format!("failed to open {}: {}", covariate_path, why)),
         Ok(f) => BufReader::new(f)
     };
@@ -262,11 +266,11 @@ mod tests {
 
     #[test]
     fn test_validate_header() {
-        assert_eq!(Ok(()), validate_header(&"FID IID".to_string(), vec!["FID".to_string(), "IID".to_string()]));
-        assert_eq!(Ok(()), validate_header(&"FID IID pheno".to_string(), vec!["FID".to_string(), "IID".to_string()]));
-        assert!(validate_header(&"FID WRONG pheno".to_string(), vec!["FID".to_string(), "IID".to_string()]).is_err());
-        assert!(validate_header(&"FID IID".to_string(), Vec::new()).is_ok());
-        assert!(validate_header(&"".to_string(), Vec::new()).is_ok());
+        assert_eq!(Ok(()), validate_header("FID IID", vec!["FID".to_string(), "IID".to_string()]));
+        assert_eq!(Ok(()), validate_header("FID IID pheno", vec!["FID".to_string(), "IID".to_string()]));
+        assert!(validate_header("FID WRONG pheno", vec!["FID".to_string(), "IID".to_string()]).is_err());
+        assert!(validate_header("FID IID", Vec::new()).is_ok());
+        assert!(validate_header("", Vec::new()).is_ok());
     }
 
     #[test]
@@ -280,7 +284,7 @@ mod tests {
             write!(file, "\n").unwrap();
         }
         let estimates = load_trace_estimates(
-            &file.path().as_os_str().to_str().unwrap().to_string()).unwrap();
+            file.path().as_os_str().to_str().unwrap()).unwrap();
         let true_estimates = Array::from_shape_vec(
             (2, 5),
             arr.into_iter().flat_map(|a| a).collect::<Vec<f64>>()).unwrap();
@@ -294,10 +298,10 @@ mod tests {
         let estimates = Array::from_shape_vec((2, 5),
                                               vec![2., 123., 0.003, 23., -409.,
                                                    -0., 1.23, -2.43, 0., -9.]).unwrap();
-        write_trace_estimates(&estimates, &path.to_str().unwrap().to_string()).unwrap();
+        write_trace_estimates(&estimates, path.to_str().unwrap()).unwrap();
 
         let loaded_estimates = load_trace_estimates(
-            &path.to_str().unwrap().to_string()).unwrap();
+            path.to_str().unwrap()).unwrap();
 
         assert_eq!(loaded_estimates, estimates);
     }
