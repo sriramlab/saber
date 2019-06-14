@@ -1,11 +1,4 @@
-#[macro_use]
-extern crate clap;
-#[macro_use]
-extern crate ndarray;
-extern crate ndarray_parallel;
-extern crate saber;
-
-use clap::Arg;
+use clap::{Arg, clap_app};
 use ndarray::Array;
 use ndarray_parallel::prelude::*;
 use ndarray_rand::RandomExt;

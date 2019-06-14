@@ -1,7 +1,8 @@
 use std::{fmt, io};
-use std::fs::{File, OpenOptions};
-use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, BufWriter, Write};
 use std::cmp::min;
+use std::fs::{File, OpenOptions};
+use std::io::{BufRead, BufReader, BufWriter, Read, Seek, SeekFrom, Write};
+
 use ndarray::{Array, Ix2, ShapeBuilder};
 
 pub enum Error {

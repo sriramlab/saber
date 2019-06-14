@@ -1,17 +1,11 @@
-#[macro_use]
-extern crate clap;
-#[macro_use]
-extern crate ndarray;
-extern crate saber;
-
 use std::fs::OpenOptions;
 use std::io::{BufWriter, Write};
 
-use clap::Arg;
+use clap::{Arg, clap_app};
 use ndarray_linalg::Solve;
 
 use saber::program_flow::OrExit;
-use saber::util::{extract_str_arg, extract_optional_str_vec_arg, get_plink_covariate_arr, get_plink_pheno_data,
+use saber::util::{extract_optional_str_vec_arg, extract_str_arg, get_plink_covariate_arr, get_plink_pheno_data,
                   get_plink_pheno_data_replace_missing_with_mean};
 use saber::util::matrix_util::normalize_vector_inplace;
 

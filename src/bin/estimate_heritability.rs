@@ -1,8 +1,4 @@
-#[macro_use]
-extern crate clap;
-#[macro_use]
-extern crate ndarray;
-extern crate saber;
+use clap::clap_app;
 
 use bio_file_reader::plink_bed::PlinkBed;
 use saber::heritability_estimator::estimate_heritability;
@@ -59,8 +55,6 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    extern crate rand;
-
     use std::collections::HashSet;
 
     use ndarray::Array;

@@ -1,5 +1,3 @@
-extern crate ndarray_parallel;
-
 use ndarray::{Array, Axis, Ix1, Ix2, ScalarOperand};
 use ndarray_parallel::prelude::*;
 use ndarray_rand::RandomExt;

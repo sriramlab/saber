@@ -1,8 +1,6 @@
-extern crate test;
-
-use ndarray::{Array, Slice, Ix2, Axis};
-use num_traits::{pow, PrimInt};
+use ndarray::{Array, Axis, Ix2, Slice};
 use ndarray::prelude::aview1;
+use num_traits::{pow, PrimInt};
 
 pub fn zero_one_two_matrix_to_indicator_vec<T: PrimInt>(matrix: &Array<T, Ix2>) -> Vec<usize> {
     let (m, n) = matrix.dim();
@@ -59,13 +57,17 @@ pub fn mailman_zero_one_two(indicator_vec: &Vec<usize>, vecs: &Array<f32, Ix2>) 
 
 #[cfg(test)]
 mod tests {
-    use super::{mailman_zero_one_two, zero_one_two_matrix_to_indicator_vec};
+    extern crate test;
+
+    use test::Bencher;
+
+    use ndarray::{Array, Ix2, array};
     use ndarray_rand::RandomExt;
-    use ndarray::{Array, Ix2};
+    use num_traits::{Float, NumCast};
     use rand::distributions::Uniform;
     use rand::distributions::uniform::SampleUniform;
-    use super::test::Bencher;
-    use num_traits::{NumCast, Float};
+
+    use super::{mailman_zero_one_two, zero_one_two_matrix_to_indicator_vec};
 
     #[test]
     fn test_zero_one_two_matrix_to_indicator_vec() {

@@ -1,5 +1,3 @@
-extern crate ndarray_parallel;
-
 use ndarray::{Array, Axis, Ix1, Ix2};
 use ndarray_parallel::prelude::*;
 

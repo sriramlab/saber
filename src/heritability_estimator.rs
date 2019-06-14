@@ -1,4 +1,4 @@
-use ndarray::{Array, Ix1, Ix2};
+use ndarray::{Array, Ix1, Ix2, array};
 use ndarray_linalg::Solve;
 use crate::util::matrix_util::{generate_plus_minus_one_bernoulli_matrix, normalize_vector_inplace,
                                normalize_matrix_columns_inplace};

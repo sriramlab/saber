@@ -1,17 +1,13 @@
-#[macro_use]
-extern crate clap;
-#[macro_use]
-extern crate ndarray;
-extern crate saber;
-
 use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 
+use clap::clap_app;
+use ndarray::{Array, Ix1, s};
+
 use bio_file_reader::plink_bed::PlinkBed;
-use ndarray::{Array, Ix1};
 use saber::program_flow::OrExit;
-use saber::util::{extract_str_arg, extract_optional_str_arg, extract_optional_numeric_arg, get_bed_bim_fam_path};
-use saber::simulation::sim_pheno::{generate_gxg_contribution_from_gxg_basis, generate_g_contribution};
+use saber::simulation::sim_pheno::{generate_g_contribution, generate_gxg_contribution_from_gxg_basis};
+use saber::util::{extract_optional_numeric_arg, extract_optional_str_arg, extract_str_arg, get_bed_bim_fam_path};
 
 fn get_le_snp_counts_and_effect_sizes(count_filename: &String) -> Result<Vec<(usize, f64)>, String> {
     let buf = match OpenOptions::new().read(true).open(count_filename.as_str()) {

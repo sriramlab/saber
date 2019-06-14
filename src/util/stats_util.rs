@@ -109,8 +109,6 @@ pub fn std<'a, T: Clone + Iterator<Item=&'a A>, A>(element_iterator: T, ddof: us
 
 #[cfg(test)]
 mod tests {
-    extern crate rand;
-
     use rand::Rng;
 
     use super::{mean, sum, sum_of_squares, variance, std};

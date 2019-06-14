@@ -1,15 +1,10 @@
-#[macro_use]
-extern crate clap;
-#[macro_use]
-extern crate ndarray;
-extern crate saber;
-
 use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader};
 
-use clap::Arg;
+use clap::{Arg, clap_app};
 
 use bio_file_reader::plink_bed::PlinkBed;
+use ndarray::s;
 use saber::heritability_estimator::{estimate_g_and_multi_gxg_heritability,
                                     estimate_g_and_multi_gxg_heritability_from_saved_traces};
 use saber::program_flow::OrExit;
