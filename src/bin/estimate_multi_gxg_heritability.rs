@@ -56,7 +56,7 @@ fn main() {
     let bfile = extract_str_arg(&matches, "bfile");
     let le_snps_path = extract_str_arg(&matches, "le_snps_path");
     let trace_outpath = extract_optional_str_arg(&matches, "trace_outpath");
-    let mut load_trace = extract_optional_str_arg(&matches, "load_trace");
+    let load_trace = extract_optional_str_arg(&matches, "load_trace");
     let pheno_path_vec = extract_str_vec_arg(&matches, "pheno_path")
         .unwrap_or_exit(None::<String>);
 
@@ -100,29 +100,39 @@ fn main() {
         acc += c;
     }
 
+    let mut saved_traces_in_memory = None;
     for (pheno_index, pheno_path) in pheno_path_vec.iter().enumerate() {
         println!("\n=> [{}/{}] estimating the heritability for the phenotype at {}", pheno_index + 1, pheno_path_vec.len(), pheno_path);
         let pheno_arr = get_pheno_arr(pheno_path)
             .unwrap_or_exit(None::<String>);
 
-        let heritability_estimate_result = match &load_trace {
-            None => estimate_g_and_multi_gxg_heritability(geno_arr,
-                                                          le_snps_arr_vec,
-                                                          pheno_arr,
-                                                          num_random_vecs),
+        let heritability_estimate_result = match saved_traces_in_memory {
+            Some(saved_traces) => estimate_g_and_multi_gxg_heritability_from_saved_traces(geno_arr,
+                                                                                          le_snps_arr_vec,
+                                                                                          pheno_arr,
+                                                                                          num_random_vecs,
+                                                                                          saved_traces),
+            None => {
+                match &load_trace {
+                    None => estimate_g_and_multi_gxg_heritability(geno_arr,
+                                                                  le_snps_arr_vec,
+                                                                  pheno_arr,
+                                                                  num_random_vecs),
 
-            Some(load_path) => {
-                let trace_estimates = load_trace_estimates(load_path)
-                    .unwrap_or_exit(Some(format!("failed to load the trace estimates from {}", load_path)));
-                let expected_dim = (num_gxg_components + 2, num_gxg_components + 2);
-                assert_eq!(trace_estimates.dim(), expected_dim,
-                           "the loaded trace has dim: {:?} which does not match the expected dimension of {:?}",
-                           trace_estimates.dim(), expected_dim);
-                estimate_g_and_multi_gxg_heritability_from_saved_traces(geno_arr,
-                                                                        le_snps_arr_vec,
-                                                                        pheno_arr,
-                                                                        num_random_vecs,
-                                                                        trace_estimates)
+                    Some(load_path) => {
+                        let trace_estimates = load_trace_estimates(load_path)
+                            .unwrap_or_exit(Some(format!("failed to load the trace estimates from {}", load_path)));
+                        let expected_dim = (num_gxg_components + 2, num_gxg_components + 2);
+                        assert_eq!(trace_estimates.dim(), expected_dim,
+                                   "the loaded trace has dim: {:?} which does not match the expected dimension of {:?}",
+                                   trace_estimates.dim(), expected_dim);
+                        estimate_g_and_multi_gxg_heritability_from_saved_traces(geno_arr,
+                                                                                le_snps_arr_vec,
+                                                                                pheno_arr,
+                                                                                num_random_vecs,
+                                                                                trace_estimates)
+                    }
+                }
             }
         };
 
@@ -144,23 +154,14 @@ fn main() {
 
                 // only write the trace out to a file once
                 if pheno_index == 0 {
-                    match &trace_outpath {
-                        None => {
-                            // save the trace to a temporary file for the remaining phenotypes' heritability estimation
-                            if pheno_path_vec.len() > 1 {
-                                let trace_tmp_outpath = format!("{}.trace_estimates.txt.tmp", &bfile);
-                                println!("\n=> writing the trace estimates to {}", trace_tmp_outpath);
-                                write_trace_estimates(&a, &trace_tmp_outpath)
-                                    .unwrap_or_exit(None::<String>);
-                                load_trace = Some(trace_tmp_outpath);
-                            }
-                        }
-                        Some(outpath) => {
-                            println!("\n=> writing the trace estimates to {}", outpath);
-                            write_trace_estimates(&a, outpath).unwrap_or_exit(None::<String>);
-                        }
-                    };
+                    if let Some(outpath) = &trace_outpath {
+                        println!("\n=> writing the trace estimates to {}", outpath);
+                        write_trace_estimates(&a, outpath).unwrap_or_exit(None::<String>);
+                    }
                 }
+
+                // save the trace to a temporary file for the remaining phenotypes' heritability estimation
+                saved_traces_in_memory = Some(a);
             }
             Err(why) => {
                 eprintln!("{}", why);
