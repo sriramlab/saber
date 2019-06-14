@@ -1,10 +1,10 @@
 use std::collections::HashSet;
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, BufWriter, Write};
+use std::str::FromStr;
 
 use clap::ArgMatches;
 use ndarray::{Array, Ix1, Ix2, ShapeBuilder};
-use std::str::FromStr;
 
 pub mod histogram;
 pub mod matrix_util;
@@ -255,14 +255,12 @@ pub fn get_plink_covariate_arr(covariate_path: &str) -> Result<Array<f32, Ix2>, 
 
 #[cfg(test)]
 mod tests {
-    extern crate ndarray;
-    extern crate tempfile;
+    use std::io::Write;
 
     use ndarray::Array;
+    use tempfile::NamedTempFile;
 
     use crate::util::{load_trace_estimates, validate_header, write_trace_estimates};
-    use tempfile::NamedTempFile;
-    use std::io::Write;
 
     #[test]
     fn test_validate_header() {

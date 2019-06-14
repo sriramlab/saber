@@ -165,8 +165,8 @@ pub mod linalg {
 #[cfg(test)]
 mod tests {
     extern crate test;
-    extern crate collenchyma_blas as co_blas;
-    extern crate collenchyma as co;
+    use collenchyma_blas as co_blas;
+    use collenchyma as co;
 
     use test::Bencher;
 

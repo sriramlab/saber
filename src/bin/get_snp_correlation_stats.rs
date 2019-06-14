@@ -1,14 +1,8 @@
-#[macro_use]
-extern crate clap;
-#[macro_use]
-extern crate ndarray;
-extern crate ndarray_parallel;
-extern crate saber;
-
 use std::fs::OpenOptions;
 use std::io::{BufWriter, Write};
 
-use ndarray::Axis;
+use clap::clap_app;
+use ndarray::{Axis, s};
 use ndarray_parallel::prelude::*;
 
 use bio_file_reader::plink_bed::PlinkBed;
