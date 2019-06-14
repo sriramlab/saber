@@ -92,7 +92,7 @@ fn main() {
                                                 vec![le_snps_arr],
                                                 pheno_arr,
                                                 num_random_vecs) {
-        Ok((_a, _b, h)) => {
+        Ok((_a, _b, h, _, _, _)) => {
             println!("\nvariance estimates on the normalized phenotype:\nG variance: {}\nGxG variance: {}\nnoise variance: {}",
                      h[0], h[1], h[2]);
         }

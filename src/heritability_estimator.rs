@@ -54,10 +54,15 @@ pub fn estimate_heritability(mut geno_arr: Array<f32, Ix2>, mut pheno_arr: Array
 }
 
 /// `geno_arr` is the genotype matrix for the G component
-/// each array in `le_snps_arr` contains the gxg basis SNPs for the corresponding gxg component
+/// Each array in `le_snps_arr` contains the gxg basis SNPs for the corresponding gxg component
+/// Returns (a, b, var_estimates, normalized_geno_arr, normalized_le_snps_arr, normalized_pheno_arr),
+/// where `a` and `b` are the matrix A and vector b in Ax = b that is solved for the heritability estimates.
+/// `var_estimates` is a vector of the variance estimates due to G, the GxG components, and noise, in that order.
+/// The phenotypes are normalized to have unit variance so the `var_estimates` are the fractions of the total
+/// phenotypic variance due to the various components.
 pub fn estimate_g_and_multi_gxg_heritability(mut geno_arr: Array<f32, Ix2>, mut le_snps_arr: Vec<Array<f32, Ix2>>,
     mut pheno_arr: Array<f32, Ix1>, num_random_vecs: usize,
-) -> Result<(Array<f64, Ix2>, Array<f64, Ix1>, Vec<f64>), String> {
+) -> Result<(Array<f64, Ix2>, Array<f64, Ix1>, Vec<f64>, Array<f32, Ix2>, Vec<Array<f32, Ix2>>, Array<f32, Ix1>), String> {
     let (num_people, num_snps) = geno_arr.dim();
     let num_gxg_components = le_snps_arr.len();
     println!("\n=> estimating heritability due to G and GxG\nnum_people: {}\nnum_snps: {}\nnumber of GxG components: {}",
@@ -136,13 +141,13 @@ pub fn estimate_g_and_multi_gxg_heritability(mut geno_arr: Array<f32, Ix2>, mut 
     for i in 0..num_gxg_components + 2 {
         var_estimates.push(sig_sq[i]);
     }
-    Ok((a, b, var_estimates))
+    Ok((a, b, var_estimates, geno_arr, le_snps_arr, pheno_arr))
 }
 
 /// `saved_traces` is the matrix A in the normal equation Ax = y for heritability estimation
 pub fn estimate_g_and_multi_gxg_heritability_from_saved_traces(mut geno_arr: Array<f32, Ix2>, mut le_snps_arr: Vec<Array<f32, Ix2>>,
     mut pheno_arr: Array<f32, Ix1>, num_random_vecs: usize, saved_traces: Array<f64, Ix2>)
-    -> Result<(Array<f64, Ix2>, Array<f64, Ix1>, Vec<f64>), String> {
+    -> Result<(Array<f64, Ix2>, Array<f64, Ix1>, Vec<f64>, Array<f32, Ix2>, Vec<Array<f32, Ix2>>, Array<f32, Ix1>), String> {
     let (num_people, num_snps) = geno_arr.dim();
     let num_gxg_components = le_snps_arr.len();
     println!("\n=> estimating heritability due to G and GxG\nnum_people: {}\nnum_snps: {}\nnumber of GxG components: {}",
@@ -189,7 +194,7 @@ pub fn estimate_g_and_multi_gxg_heritability_from_saved_traces(mut geno_arr: Arr
     for i in 0..num_gxg_components + 2 {
         var_estimates.push(sig_sq[i]);
     }
-    Ok((saved_traces, b, var_estimates))
+    Ok((saved_traces, b, var_estimates, geno_arr, le_snps_arr, pheno_arr))
 }
 
 pub fn estimate_gxg_heritability(gxg_basis_arr: Array<f32, Ix2>, mut pheno_arr: Array<f32, Ix1>, num_random_vecs: usize) -> Result<f64, String> {
