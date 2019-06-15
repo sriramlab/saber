@@ -49,7 +49,7 @@ fn main() {
     let app = clap_app!(generate_g_and_gxg_effects =>
         (version: "0.1")
         (author: "Aaron Zhou")
-        (@arg bfile: --bfile [BFILE] "the PLINK prefix for x.bed, x.bim, x.fam is x")
+        (@arg bfile: --bfile -b [BFILE] "the PLINK prefix for x.bed, x.bim, x.fam is x")
         (@arg le_snps_bfile: --le [LE_SNPS] "plink file prefix to the SNPs in linkage equilibrium")
         (@arg gxg_component_count_filename: --counts -c [COUNTS]
         "If provided, will generate GxG effects; this is a file where each line is the number of LE SNPs for the corresponding GxG component, a whitespace, and the variance due to that component")
