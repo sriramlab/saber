@@ -82,18 +82,12 @@ pub fn estimate_g_and_multi_gxg_heritability(mut geno_arr: Array<f32, Ix2>, mut 
     normalize_vector_inplace(&mut pheno_arr, 0);
 
     let mut a = Array::<f64, Ix2>::zeros((num_gxg_components + 2, num_gxg_components + 2));
-    let mut b = Array::<f64, Ix1>::zeros(num_gxg_components + 2);
 
     println!("\n=> estimating traces related to the G matrix");
     let num_rand_z = 100usize;
     let tr_kk_est = estimate_tr_kk(&geno_arr, num_rand_z);
-    let xy = geno_arr.t().dot(&pheno_arr);
-    let yky = sum_of_squares(xy.iter()) / num_snps as f64;
-    let yy = sum_of_squares(pheno_arr.iter());
     a[[0, 0]] = tr_kk_est;
-    b[0] = yky;
-    b[num_gxg_components + 1] = yy;
-    println!("tr_kk_est: {}\nyky: {}\nyy: {}", tr_kk_est, yky, yy);
+    println!("tr_kk_est: {}", tr_kk_est);
 
     println!("\n=> estimating traces related to the GxG component pairs");
     for i in 0..num_gxg_components {
@@ -122,17 +116,16 @@ pub fn estimate_g_and_multi_gxg_heritability(mut geno_arr: Array<f32, Ix2>, mut 
         a[[0, 1 + i]] = tr_gk_est;
         a[[1 + i, 0]] = tr_gk_est;
         println!("tr_gk{}_est: {}", i + 1, tr_gk_est);
-
-        println!("estimate_gxg_dot_y_norm_sq using {} random vectors", num_random_vecs * 50);
-        let gxg_yky = estimate_gxg_dot_y_norm_sq(&le_snps_arr[i], &pheno_arr, num_random_vecs * 50) / mm;
-        b[1 + i] = gxg_yky;
-        println!("gxg{}_yky_est: {}", i + 1, gxg_yky);
     }
 
     let n = num_people as f64;
     a[[num_gxg_components + 1, 0]] = n;
     a[[0, num_gxg_components + 1]] = n;
     a[[num_gxg_components + 1, num_gxg_components + 1]] = n;
+    let b = get_yky_gxg_yky_and_yy(&geno_arr,
+                                   &pheno_arr,
+                                   &le_snps_arr,
+                                   num_random_vecs);
     println!("solving ax=b\na = {:?}\nb = {:?}", a, b);
     let sig_sq = a.solve_into(b.clone()).unwrap();
 
@@ -166,25 +159,11 @@ pub fn estimate_g_and_multi_gxg_heritability_from_saved_traces(mut geno_arr: Arr
     println!("\n=> normalizing the phenotype vector");
     normalize_vector_inplace(&mut pheno_arr, 0);
 
-    let mut b = Array::<f64, Ix1>::zeros(num_gxg_components + 2);
-
-    println!("\n=> estimating yky and yy");
-    let xy = geno_arr.t().dot(&pheno_arr);
-    let yky = sum_of_squares(xy.iter()) / num_snps as f64;
-    let yy = sum_of_squares(pheno_arr.iter());
-    b[0] = yky;
-    b[num_gxg_components + 1] = yy;
-    println!("yky: {}\nyy: {}", yky, yy);
-
-    println!("\n=> estimating traces related to the GxG components");
-    for i in 0..num_gxg_components {
-        println!("\nGXG component {}", i + 1);
-        let mm = n_choose_2(le_snps_arr[i].dim().1) as f64;
-        println!("estimate_gxg_dot_y_norm_sq using {} random vectors", num_random_vecs * 50);
-        let gxg_yky = estimate_gxg_dot_y_norm_sq(&le_snps_arr[i], &pheno_arr, num_random_vecs * 50) / mm;
-        b[1 + i] = gxg_yky;
-        println!("gxg{}_yky_est: {}", i + 1, gxg_yky);
-    }
+    println!("\n=> computing yy yky and estimating gxg_yky");
+    let b = get_yky_gxg_yky_and_yy(&geno_arr,
+                                   &pheno_arr,
+                                   &le_snps_arr,
+                                   num_random_vecs);
 
     println!("solving ax=b\na = {:?}\nb = {:?}", saved_traces, b);
     let sig_sq = saved_traces.solve_into(b.clone()).unwrap();
@@ -195,6 +174,33 @@ pub fn estimate_g_and_multi_gxg_heritability_from_saved_traces(mut geno_arr: Arr
         var_estimates.push(sig_sq[i]);
     }
     Ok((saved_traces, b, var_estimates, geno_arr, le_snps_arr, pheno_arr))
+}
+
+fn get_yky_gxg_yky_and_yy(normalized_geno_arr: &Array<f32, Ix2>, normalized_pheno_arr: &Array<f32, Ix1>,
+    normalized_le_snps_arr: &Vec<Array<f32, Ix2>>, num_random_vecs: usize)
+    -> Array<f64, Ix1> {
+    let (_num_people, num_snps) = normalized_geno_arr.dim();
+    let num_gxg_components = normalized_le_snps_arr.len();
+
+    let mut b = Array::<f64, Ix1>::zeros(num_gxg_components + 2);
+
+    let xy = normalized_geno_arr.t().dot(normalized_pheno_arr);
+    let yky = sum_of_squares(xy.iter()) / num_snps as f64;
+    let yy = sum_of_squares(normalized_pheno_arr.iter());
+    b[0] = yky;
+    b[num_gxg_components + 1] = yy;
+    println!("yky: {}\nyy: {}", yky, yy);
+
+    println!("\n=> estimating traces related to y and the GxG components");
+    for i in 0..num_gxg_components {
+        println!("\nGXG component {}", i + 1);
+        let mm = n_choose_2(normalized_le_snps_arr[i].dim().1) as f64;
+        println!("estimate_gxg_dot_y_norm_sq using {} random vectors", num_random_vecs * 50);
+        let gxg_yky = estimate_gxg_dot_y_norm_sq(&normalized_le_snps_arr[i], &normalized_pheno_arr, num_random_vecs * 50) / mm;
+        b[1 + i] = gxg_yky;
+        println!("gxg{}_yky_est: {}", i + 1, gxg_yky);
+    }
+    b
 }
 
 pub fn estimate_gxg_heritability(gxg_basis_arr: Array<f32, Ix2>, mut pheno_arr: Array<f32, Ix1>, num_random_vecs: usize) -> Result<f64, String> {
