@@ -1,26 +1,32 @@
 use ndarray::{Array, Axis, Ix1, Ix2};
 use ndarray_parallel::prelude::*;
 
-use crate::util::matrix_util::generate_plus_minus_one_bernoulli_matrix;
+use crate::util::matrix_util::{generate_plus_minus_one_bernoulli_matrix, normalize_matrix_columns_inplace};
 use crate::util::stats_util::{n_choose_2, sum_f32, sum_of_squares, sum_of_squares_f32};
+use bio_file_reader::plink_bed::PlinkBed;
 
 /// geno_arr has shape num_people x num_snps
-pub fn estimate_tr_kk(geno_arr: &Array<f32, Ix2>, num_random_vecs: usize) -> f64 {
-    let (num_people, num_snps) = geno_arr.dim();
+pub fn estimate_tr_kk(geno_arr_bed: &mut PlinkBed, num_random_vecs: usize) -> f64 {
+    let num_people = geno_arr_bed.num_people;
+    let num_snps = geno_arr_bed.num_snps;
     let rand_mat = generate_plus_minus_one_bernoulli_matrix(num_people, num_random_vecs);
-    let xz_arr = geno_arr.t().dot(&rand_mat);
-    let xxz = geno_arr.dot(&xz_arr);
 
-    let mut sums = Vec::new();
-    xxz.axis_iter(Axis(1))
-       .into_par_iter()
-       .map(|col| sum_of_squares_f32(col.iter()))
-       .collect_into_vec(&mut sums);
+    let chunk_size = 5000;
+    let xxz_arr: Vec<f32> = geno_arr_bed
+        .col_chunk_iter(chunk_size)
+        .fold(vec![0f32; num_people * num_random_vecs], |mut acc, mut snp_chunk| {
+            normalize_matrix_columns_inplace(&mut snp_chunk, 0);
+            let arr = snp_chunk.dot(&snp_chunk.t().dot(&rand_mat)).as_slice().unwrap().to_owned();
+            for (i, val) in arr.into_iter().enumerate() {
+                acc[i] += val;
+            }
+            acc
+        });
 
-    (sums.into_iter().sum::<f32>() / (num_snps * num_snps * num_random_vecs) as f32) as f64
-//    sum_of_squares(xxz.iter()) / (num_snps * num_snps * num_random_vecs) as f64
+    sum_of_squares(xxz_arr.iter()) / (num_snps * num_snps * num_random_vecs) as f64
 }
 
+// TODO: be more memory efficient
 pub fn estimate_tr_k_gxg_k(geno_arr: &Array<f32, Ix2>, le_snps_arr: &Array<f32, Ix2>, num_random_vecs: usize) -> f64 {
     let u_arr = generate_plus_minus_one_bernoulli_matrix(le_snps_arr.dim().1, num_random_vecs);
     let mut sums = Vec::new();
@@ -156,3 +162,20 @@ pub fn estimate_gxg_dot_y_norm_sq(gxg_basis_arr: &Array<f32, Ix2>, y: &Array<f32
     ggz.par_iter_mut().for_each(|x| *x = (*x) * (*x));
     ((ggz.sum() / num_random_vecs as f32 - s) / 2.) as f64
 }
+
+/*
+pub fn estimate_tr_kk(geno_arr: &Array<f32, Ix2>, num_random_vecs: usize) -> f64 {
+    let (num_people, num_snps) = geno_arr.dim();
+    let rand_mat = generate_plus_minus_one_bernoulli_matrix(num_people, num_random_vecs);
+    let xz_arr = geno_arr.t().dot(&rand_mat);
+    let xxz = geno_arr.dot(&xz_arr);
+
+    let mut sums = Vec::new();
+    xxz.axis_iter(Axis(1))
+       .into_par_iter()
+       .map(|col| sum_of_squares_f32(col.iter()))
+       .collect_into_vec(&mut sums);
+
+    (sums.into_iter().sum::<f32>() / (num_snps * num_snps * num_random_vecs) as f32) as f64
+}
+*/
