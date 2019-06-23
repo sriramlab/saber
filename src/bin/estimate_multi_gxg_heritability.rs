@@ -109,7 +109,7 @@ fn main() {
                                                                                           saved_traces),
             None => {
                 match &load_trace {
-                    None => estimate_g_and_multi_gxg_heritability(geno_arr,
+                    None => estimate_g_and_multi_gxg_heritability(&mut bed,
                                                                   le_snps_arr_vec,
                                                                   pheno_arr,
                                                                   num_random_vecs),

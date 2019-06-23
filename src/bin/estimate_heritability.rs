@@ -9,8 +9,8 @@ fn main() {
     let matches = clap_app!(estimate_heritability =>
         (version: "0.1")
         (author: "Aaron Zhou")
-        (@arg plink_filename_prefix: --bfile <BFILE> "required; the prefix for x.bed, x.bim, x.fam is x")
-        (@arg pheno_filename: --pheno <PHENO> "required; each row is one individual containing one phenotype value")
+        (@arg plink_filename_prefix: --bfile -b <BFILE> "required; the prefix for x.bed, x.bim, x.fam is x")
+        (@arg pheno_filename: --pheno -p <PHENO> "required; each row is one individual containing one phenotype value")
         (@arg num_random_vecs: --nrv +takes_value "number of random vectors used to estimate traces; required")
     ).get_matches();
 
@@ -32,15 +32,12 @@ fn main() {
     let pheno_arr = get_pheno_arr(&pheno_filename)
         .unwrap_or_exit(None::<String>);
 
-    let mut bed = PlinkBed::new(&plink_bed_path,
+    let bed = PlinkBed::new(&plink_bed_path,
                                 &plink_bim_path,
                                 &plink_fam_path)
         .unwrap_or_exit(None::<String>);
 
-    let geno_arr = bed.get_genotype_matrix()
-                      .unwrap_or_exit(Some("failed to get the genotype matrix"));
-
-    match estimate_heritability(geno_arr,
+    match estimate_heritability(bed,
                                 pheno_arr,
                                 num_random_vecs) {
         Ok(h) => {
