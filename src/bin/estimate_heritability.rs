@@ -33,8 +33,8 @@ fn main() {
         .unwrap_or_exit(None::<String>);
 
     let bed = PlinkBed::new(&plink_bed_path,
-                                &plink_bim_path,
-                                &plink_fam_path)
+                            &plink_bim_path,
+                            &plink_fam_path)
         .unwrap_or_exit(None::<String>);
 
     match estimate_heritability(bed,
