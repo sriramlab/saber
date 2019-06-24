@@ -11,16 +11,24 @@ pub fn estimate_tr_kk(geno_arr_bed: &mut PlinkBed, num_random_vecs: usize) -> f6
     let num_snps = geno_arr_bed.num_snps;
     let rand_mat = generate_plus_minus_one_bernoulli_matrix(num_people, num_random_vecs);
 
+    use rayon::prelude::*;
     let chunk_size = 5000;
     let xxz_arr: Vec<f32> = geno_arr_bed
         .col_chunk_iter(chunk_size)
-        .fold(vec![0f32; num_people * num_random_vecs], |mut acc, mut snp_chunk| {
+        .into_par_iter()
+        .fold_with(vec![0f32; num_people * num_random_vecs], |mut acc, mut snp_chunk| {
             normalize_matrix_columns_inplace(&mut snp_chunk, 0);
             let arr = snp_chunk.dot(&snp_chunk.t().dot(&rand_mat)).as_slice().unwrap().to_owned();
             for (i, val) in arr.into_iter().enumerate() {
                 acc[i] += val;
             }
             acc
+        })
+        .reduce(|| vec![0f32; num_people * num_random_vecs], |mut a, b|{
+            for (i, val) in b.iter().enumerate(){
+                a[i] += val;
+            }
+            a
         });
 
     sum_of_squares(xxz_arr.iter()) / (num_snps * num_snps * num_random_vecs) as f64

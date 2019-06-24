@@ -4,6 +4,8 @@ use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 
 use ndarray::{Array, Ix2, ShapeBuilder};
+use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
+use rayon::iter::plumbing::{bridge, Consumer, Producer, ProducerCallback, UnindexedConsumer};
 
 pub enum Error {
     IO { why: String, io_error: io::Error },
@@ -139,10 +141,13 @@ impl PlinkBed {
     }
 
     pub fn col_chunk_iter(&mut self, snp_stride: usize) -> PlinkColChunkIter {
-        let mut buf = PlinkBed::get_buf(&self.bed_filename).unwrap();
-        // skip the first 3 magic bytes
-        buf.seek_relative(3).unwrap();
-        PlinkColChunkIter::new(buf, self.num_people, self.num_snps, snp_stride)
+        let buf = PlinkBed::get_buf(&self.bed_filename).unwrap();
+        PlinkColChunkIter::new(buf,
+                               0,
+                               self.num_snps,
+                               snp_stride,
+                               self.num_people,
+                               &self.bed_filename)
     }
 
     /// save the transpose of the BED file into `out_path`, which should have an extension of .bedt
@@ -190,28 +195,53 @@ impl PlinkBed {
 pub struct PlinkColChunkIter {
     buf: BufReader<File>,
     num_people: usize,
-    num_snps: usize,
+    end_snp_index: usize,
     num_snps_per_iter: usize,
     start_snp_index: usize,
+    bed_filename: String,
+    current_snp_index: usize,
 }
 
 impl PlinkColChunkIter {
-    pub fn new(buf: BufReader<File>, num_people: usize, num_snps: usize, num_snps_per_iter: usize) -> PlinkColChunkIter {
-        PlinkColChunkIter { buf, num_people, num_snps, num_snps_per_iter, start_snp_index: 0 }
+    pub fn new(buf: BufReader<File>, start_snp_index: usize, end_snp_index: usize, num_snps_per_iter: usize,
+        num_people: usize, bed_filename: &str) -> PlinkColChunkIter {
+        let mut iter = PlinkColChunkIter {
+            buf,
+            num_people,
+            end_snp_index,
+            num_snps_per_iter,
+            start_snp_index,
+            bed_filename: bed_filename.to_string(),
+            current_snp_index: start_snp_index,
+        };
+        iter.seek_to_snp(start_snp_index);
+        iter
     }
-}
 
-impl Iterator for PlinkColChunkIter {
-    type Item = Array<f32, Ix2>;
+    fn num_bytes_per_snp(&self) -> usize {
+        PlinkBed::usize_div_ceil(self.num_people, 4)
+    }
 
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.start_snp_index >= self.num_snps {
-            return None;
-        }
-        let chunk_size = min(self.num_snps_per_iter, self.num_snps - self.start_snp_index);
+    fn seek_to_snp(&mut self, snp_index: usize) {
+        assert!(snp_index >= self.start_snp_index, "can only seek to snp with index >= self.start_snp_index: {}. Received {}",
+                self.start_snp_index, snp_index);
+        // skip the first 3 magic bytes
+        self.buf.seek(SeekFrom::Start(3 + (self.num_bytes_per_snp() * snp_index) as u64)).unwrap();
+    }
 
-        let num_bytes_per_snp = PlinkBed::usize_div_ceil(self.num_people, 4);
-        let last_byte_index = num_bytes_per_snp - 1;
+    /// indices are 0 based
+    /// end_snp_index is exclusive
+    fn clone_with_start_end_index(&self, start_snp_index: usize, end_snp_index: usize) -> PlinkColChunkIter {
+        PlinkColChunkIter::new(
+            PlinkBed::get_buf(&self.bed_filename).unwrap(),
+            start_snp_index,
+            end_snp_index,
+            self.num_snps_per_iter,
+            self.num_people,
+            &self.bed_filename)
+    }
+    fn read_chunk(&mut self, chunk_size: usize) -> Array<f32, Ix2> {
+        let num_bytes_per_snp = self.num_bytes_per_snp();
         let num_people_last_byte = match self.num_people % 4 {
             0 => 4,
             x => x
@@ -221,49 +251,154 @@ impl Iterator for PlinkColChunkIter {
         unsafe {
             v.set_len(self.num_people * chunk_size);
         }
-        let mut vi = 0usize;
+        let mut current_index = 0usize;
 
         let mut snp_bytes = vec![0u8; num_bytes_per_snp];
         for _ in 0..chunk_size {
             self.buf.read_exact(&mut snp_bytes).unwrap();
-            for i in 0..last_byte_index {
-                v[vi] = PlinkBed::lowest_two_bits_to_geno(snp_bytes[i]) as f32;
-                v[vi + 1] = PlinkBed::lowest_two_bits_to_geno(snp_bytes[i] >> 2) as f32;
-                v[vi + 2] = PlinkBed::lowest_two_bits_to_geno(snp_bytes[i] >> 4) as f32;
-                v[vi + 3] = PlinkBed::lowest_two_bits_to_geno(snp_bytes[i] >> 6) as f32;
-                vi += 4;
+            for i in 0..num_bytes_per_snp - 1 {
+                v[current_index] = PlinkBed::lowest_two_bits_to_geno(snp_bytes[i]) as f32;
+                v[current_index + 1] = PlinkBed::lowest_two_bits_to_geno(snp_bytes[i] >> 2) as f32;
+                v[current_index + 2] = PlinkBed::lowest_two_bits_to_geno(snp_bytes[i] >> 4) as f32;
+                v[current_index + 3] = PlinkBed::lowest_two_bits_to_geno(snp_bytes[i] >> 6) as f32;
+                current_index += 4;
             }
             // last byte
             for k in 0..num_people_last_byte {
-                v[vi] = PlinkBed::lowest_two_bits_to_geno(snp_bytes[last_byte_index] >> (k << 1)) as f32;
-                vi += 1;
+                v[current_index] = PlinkBed::lowest_two_bits_to_geno(snp_bytes[num_bytes_per_snp - 1] >> (k << 1)) as f32;
+                current_index += 1;
             }
         }
-        self.start_snp_index += chunk_size;
-        let geno_arr = Array::from_shape_vec((self.num_people, chunk_size)
-                                                 .strides((1, self.num_people)), v).unwrap();
-        Some(geno_arr)
+        self.current_snp_index += chunk_size;
+        Array::from_shape_vec((self.num_people, chunk_size)
+                                  .strides((1, self.num_people)), v).unwrap()
     }
 }
 
-//#[cfg(test)]
-//mod tests {
-//    use super::PlinkBed;
-//    use ndarray::s;
-//    use std::cmp::min;
+impl IntoParallelIterator for PlinkColChunkIter {
+    type Iter = PlinkColChunkParallelIter;
+    type Item = <PlinkColChunkParallelIter as ParallelIterator>::Item;
+
+    fn into_par_iter(self) -> Self::Iter {
+        PlinkColChunkParallelIter { iter: self }
+    }
+}
+
+impl Iterator for PlinkColChunkIter {
+    type Item = Array<f32, Ix2>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current_snp_index >= self.end_snp_index {
+            return None;
+        }
+        let chunk_size = min(self.num_snps_per_iter, self.end_snp_index - self.current_snp_index);
+        Some(self.read_chunk(chunk_size))
+    }
+}
+
+impl ExactSizeIterator for PlinkColChunkIter {
+    fn len(&self) -> usize {
+        PlinkBed::usize_div_ceil(self.end_snp_index - self.current_snp_index, self.num_snps_per_iter)
+    }
+}
+
+impl DoubleEndedIterator for PlinkColChunkIter {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if self.current_snp_index >= self.end_snp_index {
+            return None;
+        }
+        let chunk_size = min(self.num_snps_per_iter, self.end_snp_index - self.current_snp_index);
+        self.end_snp_index -= chunk_size;
+        self.seek_to_snp(self.end_snp_index);
+        let chunk = self.read_chunk(chunk_size);
+        self.seek_to_snp(self.current_snp_index);
+        Some(chunk)
+    }
+}
+
+struct ColChunkIterProducer {
+    iter: PlinkColChunkIter,
+}
+
+impl Producer for ColChunkIterProducer {
+    type Item = <PlinkColChunkIter as Iterator>::Item;
+    type IntoIter = PlinkColChunkIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter
+    }
+
+    fn split_at(self, index: usize) -> (Self, Self) {
+        let mid_snp_index = self.iter.start_snp_index + min(self.iter.num_snps_per_iter * index, self.iter.len());
+        (ColChunkIterProducer { iter: self.iter.clone_with_start_end_index(self.iter.start_snp_index, mid_snp_index) },
+         ColChunkIterProducer { iter: self.iter.clone_with_start_end_index(mid_snp_index, self.iter.end_snp_index) })
+    }
+}
+
+impl IntoIterator for ColChunkIterProducer {
+    type Item = <PlinkColChunkIter as Iterator>::Item;
+    type IntoIter = PlinkColChunkIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter
+    }
+}
+
+pub struct PlinkColChunkParallelIter {
+    iter: PlinkColChunkIter
+}
+
+impl ParallelIterator for PlinkColChunkParallelIter {
+    type Item = <PlinkColChunkIter as Iterator>::Item;
+
+    fn drive_unindexed<C>(self, consumer: C) -> C::Result
+        where C: UnindexedConsumer<Self::Item>
+    {
+        bridge(self, consumer)
+    }
+
+    fn opt_len(&self) -> Option<usize> {
+        Some(self.iter.len())
+    }
+}
+
+impl IndexedParallelIterator for PlinkColChunkParallelIter {
+    fn len(&self) -> usize {
+        self.iter.len()
+    }
+
+    fn drive<C>(self, consumer: C) -> C::Result
+        where C: Consumer<Self::Item>,
+    {
+        bridge(self, consumer)
+    }
+
+    fn with_producer<CB>(self, callback: CB) -> CB::Output
+        where CB: ProducerCallback<Self::Item>,
+    {
+        callback.callback(ColChunkIterProducer { iter: self.iter })
+    }
+}
+/*
+#[cfg(test)]
+mod tests {
+    use super::PlinkBed;
+    use ndarray::s;
+    use std::cmp::min;
 
 // TODO: generate test files on the fly
-//    #[test]
-//    fn test_chunk_iter() {
-//        let bfile = "/Users/aaron/saber-data/nfbc/NFBC_20091001";
-//        let mut bed = PlinkBed::new(&(bfile.to_string() + ".bed"),
-//                                    &(bfile.to_string() + ".bim"),
-//                                    &(bfile.to_string() + ".fam")).unwrap();
-//        let true_geno_arr = bed.get_genotype_matrix().unwrap();
-//        let chunk_size = 5000;
-//        for (i, snps) in bed.col_chunk_iter(chunk_size).enumerate() {
-//            let end_index = min((i + 1) * chunk_size, true_geno_arr.dim().1);
-//            assert!(true_geno_arr.slice(s![..,i * chunk_size..end_index]) == snps);
-//        }
-//    }
-//}
+    #[test]
+    fn test_chunk_iter() {
+        let bfile = "/Users/aaron/saber-data/nfbc/NFBC_20091001";
+        let mut bed = PlinkBed::new(&(bfile.to_string() + ".bed"),
+                                    &(bfile.to_string() + ".bim"),
+                                    &(bfile.to_string() + ".fam")).unwrap();
+        let true_geno_arr = bed.get_genotype_matrix().unwrap();
+        let chunk_size = 5000;
+        for (i, snps) in bed.col_chunk_iter(chunk_size).enumerate() {
+            let end_index = min((i + 1) * chunk_size, true_geno_arr.dim().1);
+            assert!(true_geno_arr.slice(s![..,i * chunk_size..end_index]) == snps);
+        }
+    }
+}
+*/

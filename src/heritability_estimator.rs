@@ -54,8 +54,10 @@ pub fn estimate_heritability(mut geno_arr_bed: PlinkBed, mut pheno_arr: Array<f3
     let num_snps = geno_arr_bed.num_snps;
     println!("num_people: {}\nnum_snps: {}", num_people, num_snps);
 
+    println!("\n=> normalizing the phenotype vector");
     normalize_vector_inplace(&mut pheno_arr, 0);
 
+    println!("\n=> estimating tr(KK)");
     let chunk_size = 5000;
     let trace_kk_est = estimate_tr_kk(&mut geno_arr_bed, num_random_vecs);
     println!("trace_kk_est: {}", trace_kk_est);
@@ -97,7 +99,6 @@ pub fn estimate_heritability(mut geno_arr_bed: PlinkBed, mut pheno_arr: Array<f3
 pub fn estimate_g_and_multi_gxg_heritability(geno_arr_bed: &mut PlinkBed, mut le_snps_arr: Vec<Array<f32, Ix2>>,
     mut pheno_arr: Array<f32, Ix1>, num_random_vecs: usize,
 ) -> Result<(Array<f64, Ix2>, Array<f64, Ix1>, Vec<f64>, Array<f32, Ix2>, Vec<Array<f32, Ix2>>, Array<f32, Ix1>), Error> {
-
     let mut geno_arr: Array<f32, Ix2> = geno_arr_bed.get_genotype_matrix()?;
     let (num_people, num_snps) = geno_arr.dim();
     let num_gxg_components = le_snps_arr.len();
