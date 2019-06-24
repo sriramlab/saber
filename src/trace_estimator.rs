@@ -6,13 +6,13 @@ use crate::util::stats_util::{n_choose_2, sum_f32, sum_of_squares, sum_of_square
 use bio_file_reader::plink_bed::PlinkBed;
 
 /// geno_arr has shape num_people x num_snps
-pub fn estimate_tr_kk(geno_arr_bed: &mut PlinkBed, num_random_vecs: usize) -> f64 {
+pub fn estimate_tr_kk(geno_arr_bed: &mut PlinkBed, num_random_vecs: usize, num_snps_per_chunk: Option<usize>) -> f64 {
     let num_people = geno_arr_bed.num_people;
     let num_snps = geno_arr_bed.num_snps;
     let rand_mat = generate_plus_minus_one_bernoulli_matrix(num_people, num_random_vecs);
 
     use rayon::prelude::*;
-    let chunk_size = 100;
+    let chunk_size = num_snps_per_chunk.unwrap_or(50);
     let xxz_arr: Vec<f32> = geno_arr_bed
         .col_chunk_iter(chunk_size)
         .into_par_iter()
