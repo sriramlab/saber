@@ -58,12 +58,15 @@ pub fn estimate_heritability(mut geno_arr_bed: PlinkBed, mut pheno_arr: Array<f3
     normalize_vector_inplace(&mut pheno_arr, 0);
 
     println!("\n=> estimating tr(KK)");
-    let chunk_size = 5000;
-    let trace_kk_est = estimate_tr_kk(&mut geno_arr_bed, num_random_vecs);
+    let chunk_size = 50;
+    let trace_kk_est = estimate_tr_kk(&mut geno_arr_bed, num_random_vecs, Some(chunk_size));
     println!("trace_kk_est: {}", trace_kk_est);
+
+    use rayon::iter::*;
 
     let y_g_arr: Vec<f32> = geno_arr_bed
         .col_chunk_iter(chunk_size)
+        .into_par_iter()
         .flat_map(|mut snp_chunk| {
             normalize_matrix_columns_inplace(&mut snp_chunk, 0);
             pheno_arr.dot(&snp_chunk).as_slice().unwrap().to_owned()
@@ -122,7 +125,7 @@ pub fn estimate_g_and_multi_gxg_heritability(geno_arr_bed: &mut PlinkBed, mut le
 
     println!("\n=> estimating traces related to the G matrix");
     let num_rand_z = 100usize;
-    let tr_kk_est = estimate_tr_kk(geno_arr_bed, num_rand_z);
+    let tr_kk_est = estimate_tr_kk(geno_arr_bed, num_rand_z, None);
     a[[0, 0]] = tr_kk_est;
     println!("tr_kk_est: {}", tr_kk_est);
 
@@ -296,7 +299,7 @@ pub fn estimate_g_and_single_gxg_heritability(mut geno_arr_bed: PlinkBed, mut le
 
     println!("\n=> estimating traces related to the G matrix");
     let num_rand_z = 100usize;
-    let tr_kk_est = estimate_tr_kk(&mut geno_arr_bed, num_rand_z);
+    let tr_kk_est = estimate_tr_kk(&mut geno_arr_bed, num_rand_z, None);
     println!("tr_kk_est: {}", tr_kk_est);
     let xy = geno_arr.t().dot(&pheno_arr);
     let yky = sum_of_squares(xy.iter()) / num_snps as f64;

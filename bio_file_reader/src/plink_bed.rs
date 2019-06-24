@@ -193,26 +193,26 @@ impl PlinkBed {
 }
 
 pub struct PlinkColChunkIter {
-    buf: BufReader<File>,
-    num_people: usize,
-    end_snp_index: usize,
-    num_snps_per_iter: usize,
     start_snp_index: usize,
-    bed_filename: String,
+    end_snp_index: usize,
     current_snp_index: usize,
+    num_people: usize,
+    num_snps_per_iter: usize,
+    bed_filename: String,
+    buf: BufReader<File>,
 }
 
 impl PlinkColChunkIter {
     pub fn new(buf: BufReader<File>, start_snp_index: usize, end_snp_index: usize, num_snps_per_iter: usize,
         num_people: usize, bed_filename: &str) -> PlinkColChunkIter {
         let mut iter = PlinkColChunkIter {
-            buf,
-            num_people,
-            end_snp_index,
-            num_snps_per_iter,
             start_snp_index,
-            bed_filename: bed_filename.to_string(),
+            end_snp_index,
             current_snp_index: start_snp_index,
+            num_people,
+            num_snps_per_iter,
+            bed_filename: bed_filename.to_string(),
+            buf,
         };
         iter.seek_to_snp(start_snp_index);
         iter
@@ -238,7 +238,8 @@ impl PlinkColChunkIter {
             end_snp_index,
             self.num_snps_per_iter,
             self.num_people,
-            &self.bed_filename)
+            &self.bed_filename
+        )
     }
     fn read_chunk(&mut self, chunk_size: usize) -> Array<f32, Ix2> {
         let num_bytes_per_snp = self.num_bytes_per_snp();
