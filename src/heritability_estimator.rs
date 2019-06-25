@@ -59,7 +59,7 @@ pub fn estimate_heritability(mut geno_arr_bed: PlinkBed, mut pheno_arr: Array<f3
 
     println!("\n=> estimating tr(KK)");
     let chunk_size = 50;
-    let trace_kk_est = estimate_tr_kk(&mut geno_arr_bed, num_random_vecs, Some(chunk_size));
+    let trace_kk_est = estimate_tr_kk(&mut geno_arr_bed, num_random_vecs, None);
     println!("trace_kk_est: {}", trace_kk_est);
 
     use rayon::iter::*;

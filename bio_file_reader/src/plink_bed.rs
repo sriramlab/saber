@@ -238,9 +238,10 @@ impl PlinkColChunkIter {
             end_snp_index,
             self.num_snps_per_iter,
             self.num_people,
-            &self.bed_filename
+            &self.bed_filename,
         )
     }
+
     fn read_chunk(&mut self, chunk_size: usize) -> Array<f32, Ix2> {
         let num_bytes_per_snp = self.num_bytes_per_snp();
         let num_people_last_byte = match self.num_people % 4 {
@@ -330,7 +331,7 @@ impl Producer for ColChunkIterProducer {
     }
 
     fn split_at(self, index: usize) -> (Self, Self) {
-        let mid_snp_index = self.iter.start_snp_index + min(self.iter.num_snps_per_iter * index, self.iter.len());
+        let mid_snp_index = min(self.iter.start_snp_index + self.iter.num_snps_per_iter * index, self.iter.end_snp_index);
         (ColChunkIterProducer { iter: self.iter.clone_with_start_end_index(self.iter.start_snp_index, mid_snp_index) },
          ColChunkIterProducer { iter: self.iter.clone_with_start_end_index(mid_snp_index, self.iter.end_snp_index) })
     }
