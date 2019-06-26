@@ -73,10 +73,8 @@ fn main() {
 
     println!("\n=> generating the phenotype array and the genotype matrix");
 
-    let mut bed = PlinkBed::new(&bed_path, &bim_path, &fam_path)
+    let mut geno_arr = PlinkBed::new(&bed_path, &bim_path, &fam_path)
         .unwrap_or_exit(None::<String>);
-    let mut geno_arr = bed.get_genotype_matrix()
-                          .unwrap_or_exit(Some("failed to get the genotype matrix"));
 
     let mut le_snps_bed = PlinkBed::new(&le_snps_bed_path, &le_snps_bim_path, &le_snps_fam_path)
         .unwrap_or_exit(None::<String>);
@@ -102,14 +100,14 @@ fn main() {
             .unwrap_or_exit(None::<String>);
 
         let heritability_estimate_result = match saved_traces_in_memory {
-            Some(saved_traces) => estimate_g_and_multi_gxg_heritability_from_saved_traces(geno_arr,
+            Some(saved_traces) => estimate_g_and_multi_gxg_heritability_from_saved_traces(&mut geno_arr,
                                                                                           le_snps_arr_vec,
                                                                                           pheno_arr,
                                                                                           num_random_vecs,
                                                                                           saved_traces),
             None => {
                 match &load_trace {
-                    None => estimate_g_and_multi_gxg_heritability(&mut bed,
+                    None => estimate_g_and_multi_gxg_heritability(&mut geno_arr,
                                                                   le_snps_arr_vec,
                                                                   pheno_arr,
                                                                   num_random_vecs),
@@ -121,7 +119,7 @@ fn main() {
                         assert_eq!(trace_estimates.dim(), expected_dim,
                                    "the loaded trace has dim: {:?} which does not match the expected dimension of {:?}",
                                    trace_estimates.dim(), expected_dim);
-                        estimate_g_and_multi_gxg_heritability_from_saved_traces(geno_arr,
+                        estimate_g_and_multi_gxg_heritability_from_saved_traces(&mut geno_arr,
                                                                                 le_snps_arr_vec,
                                                                                 pheno_arr,
                                                                                 num_random_vecs,
@@ -132,8 +130,7 @@ fn main() {
         };
 
         match heritability_estimate_result {
-            Ok((a, _b, h,
-                   normalized_geno_arr, normalized_le_snps_arr, _)) => {
+            Ok((a, _b, h, normalized_le_snps_arr, _)) => {
                 println!("\nvariance estimates on the normalized phenotype at {}:\nG variance: {}", pheno_path, h[0]);
                 let mut gxg_var_sum = 0.;
                 for i in 1..=num_gxg_components {
@@ -144,7 +141,6 @@ fn main() {
                 println!("total GxG variance: {}", gxg_var_sum);
 
                 // reassign for the remaining phenotypes' heritability estimation
-                geno_arr = normalized_geno_arr;
                 le_snps_arr_vec = normalized_le_snps_arr;
 
                 // only write the trace out to a file once
