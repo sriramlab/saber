@@ -5,6 +5,8 @@ use crate::util::matrix_util::{generate_plus_minus_one_bernoulli_matrix, normali
 use crate::util::stats_util::{n_choose_2, sum_f32, sum_of_squares, sum_of_squares_f32};
 use bio_file_reader::plink_bed::PlinkBed;
 
+const DEFAULT_NUM_SNPS_PER_CHUNK: usize = 1000;
+
 /// geno_arr has shape num_people x num_snps
 pub fn estimate_tr_kk(geno_arr_bed: &mut PlinkBed, num_random_vecs: usize, num_snps_per_chunk: Option<usize>) -> f64 {
     let num_people = geno_arr_bed.num_people;
@@ -12,7 +14,7 @@ pub fn estimate_tr_kk(geno_arr_bed: &mut PlinkBed, num_random_vecs: usize, num_s
     let rand_mat = generate_plus_minus_one_bernoulli_matrix(num_people, num_random_vecs);
 
     use rayon::prelude::*;
-    let chunk_size = num_snps_per_chunk.unwrap_or(1000);
+    let chunk_size = num_snps_per_chunk.unwrap_or(DEFAULT_NUM_SNPS_PER_CHUNK);
     let xxz_arr: Vec<f32> = geno_arr_bed
         .col_chunk_iter(chunk_size)
         .into_par_iter()
@@ -35,7 +37,8 @@ pub fn estimate_tr_kk(geno_arr_bed: &mut PlinkBed, num_random_vecs: usize, num_s
 }
 
 // TODO: be more memory efficient
-pub fn estimate_tr_k_gxg_k(geno_arr: &Array<f32, Ix2>, le_snps_arr: &Array<f32, Ix2>, num_random_vecs: usize) -> f64 {
+pub fn estimate_tr_k_gxg_k(geno_arr: &mut PlinkBed, le_snps_arr: &Array<f32, Ix2>, num_random_vecs: usize,
+    num_snps_per_chunk: Option<usize>) -> f64 {
     let u_arr = generate_plus_minus_one_bernoulli_matrix(le_snps_arr.dim().1, num_random_vecs);
     let mut sums = Vec::new();
     le_snps_arr.axis_iter(Axis(0))
@@ -47,13 +50,29 @@ pub fn estimate_tr_k_gxg_k(geno_arr: &Array<f32, Ix2>, le_snps_arr: &Array<f32, 
     squashed.par_iter_mut().for_each(|x| *x = (*x) * (*x));
     let corrected = (squashed - geno_ssq) / 2.;
 
-    let gc = geno_arr.t().dot(&corrected);
-    let mut sums = Vec::new();
-    gc.axis_iter(Axis(1))
-      .into_par_iter()
-      .map(|col| sum_of_squares_f32(col.iter()))
-      .collect_into_vec(&mut sums);
-    (sums.into_iter().sum::<f32>() / (geno_arr.dim().1 * n_choose_2(le_snps_arr.dim().1) * num_random_vecs) as f32) as f64
+    use rayon::prelude::*;
+    let chunk_size = num_snps_per_chunk.unwrap_or(DEFAULT_NUM_SNPS_PER_CHUNK);
+    let ssq = geno_arr
+        .col_chunk_iter(chunk_size)
+        .into_par_iter()
+        .fold_with(0f32, |mut acc, mut snp_chunk| {
+            normalize_matrix_columns_inplace(&mut snp_chunk, 0);
+            let arr = snp_chunk.t().dot(&corrected).as_slice().unwrap().to_owned();
+            acc += sum_of_squares_f32(arr.iter());
+            acc
+        })
+        .reduce(|| 0f32, |a, b| {
+            a + b
+        });
+    (ssq / (geno_arr.num_snps * n_choose_2(le_snps_arr.dim().1) * num_random_vecs) as f32) as f64
+
+//    let gc = geno_arr.t().dot(&corrected);
+//    let mut sums = Vec::new();
+//    gc.axis_iter(Axis(1))
+//      .into_par_iter()
+//      .map(|col| sum_of_squares_f32(col.iter()))
+//      .collect_into_vec(&mut sums);
+//    (sums.into_iter().sum::<f32>() / (geno_arr.dim().1 * n_choose_2(le_snps_arr.dim().1) * num_random_vecs) as f32) as f64
 }
 
 // TODO: test
