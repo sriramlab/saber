@@ -3,7 +3,7 @@ use ndarray::{Array, Ix1, Ix2, array};
 use ndarray_linalg::Solve;
 use crate::util::matrix_util::{generate_plus_minus_one_bernoulli_matrix, normalize_vector_inplace,
                                normalize_matrix_columns_inplace};
-use crate::util::stats_util::{sum_of_squares, n_choose_2};
+use crate::util::stats_util::{sum_of_squares, n_choose_2, sum_of_squares_f32};
 use crate::trace_estimator::{estimate_gxg_kk_trace, estimate_gxg_gram_trace, estimate_gxg_dot_y_norm_sq,
                              estimate_tr_k_gxg_k, estimate_tr_kk, estimate_tr_gxg_ki_gxg_kj};
 use colored::Colorize;
@@ -99,11 +99,10 @@ pub fn estimate_heritability(mut geno_arr_bed: PlinkBed, mut pheno_arr: Array<f3
 /// `var_estimates` is a vector of the variance estimates due to G, the GxG components, and noise, in that order.
 /// The phenotypes are normalized to have unit variance so the `var_estimates` are the fractions of the total
 /// phenotypic variance due to the various components.
-pub fn estimate_g_and_multi_gxg_heritability(geno_arr_bed: &mut PlinkBed, mut le_snps_arr: Vec<Array<f32, Ix2>>,
+pub fn estimate_g_and_multi_gxg_heritability(geno_arr: &mut PlinkBed, mut le_snps_arr: Vec<Array<f32, Ix2>>,
     mut pheno_arr: Array<f32, Ix1>, num_random_vecs: usize,
-) -> Result<(Array<f64, Ix2>, Array<f64, Ix1>, Vec<f64>, Array<f32, Ix2>, Vec<Array<f32, Ix2>>, Array<f32, Ix1>), Error> {
-    let mut geno_arr: Array<f32, Ix2> = geno_arr_bed.get_genotype_matrix()?;
-    let (num_people, num_snps) = geno_arr.dim();
+) -> Result<(Array<f64, Ix2>, Array<f64, Ix1>, Vec<f64>, Vec<Array<f32, Ix2>>, Array<f32, Ix1>), Error> {
+    let (num_people, num_snps) = (geno_arr.num_people, geno_arr.num_snps);
     let num_gxg_components = le_snps_arr.len();
     println!("\n=> estimating heritability due to G and GxG\nnum_people: {}\nnum_snps: {}\nnumber of GxG components: {}",
              num_people, num_snps, num_gxg_components);
@@ -111,8 +110,6 @@ pub fn estimate_g_and_multi_gxg_heritability(geno_arr_bed: &mut PlinkBed, mut le
         println!("GxG component [{}/{}]: {} LE SNPs", i + 1, num_gxg_components, arr.dim().1);
     }
 
-    println!("\n=> normalizing the genotype matrix");
-    normalize_matrix_columns_inplace(&mut geno_arr, 0);
     for (i, arr) in le_snps_arr.iter_mut().enumerate() {
         println!("=> normalizing GxG component [{}/{}]", i + 1, num_gxg_components);
         normalize_matrix_columns_inplace(arr, 0);
@@ -125,7 +122,7 @@ pub fn estimate_g_and_multi_gxg_heritability(geno_arr_bed: &mut PlinkBed, mut le
 
     println!("\n=> estimating traces related to the G matrix");
     let num_rand_z = 100usize;
-    let tr_kk_est = estimate_tr_kk(geno_arr_bed, num_rand_z, None);
+    let tr_kk_est = estimate_tr_kk(geno_arr, num_rand_z, None);
     a[[0, 0]] = tr_kk_est;
     println!("tr_kk_est: {}", tr_kk_est);
 
@@ -152,7 +149,7 @@ pub fn estimate_g_and_multi_gxg_heritability(geno_arr_bed: &mut PlinkBed, mut le
         a[[1 + i, num_gxg_components + 1]] = gxg_tr_k_est;
         println!("gxg_tr_k{}_est: {}", i + 1, gxg_tr_k_est);
 
-        let tr_gk_est = estimate_tr_k_gxg_k(geno_arr_bed, &le_snps_arr[i], num_random_vecs, None);
+        let tr_gk_est = estimate_tr_k_gxg_k(geno_arr, &le_snps_arr[i], num_random_vecs, None);
         a[[0, 1 + i]] = tr_gk_est;
         a[[1 + i, 0]] = tr_gk_est;
         println!("tr_gk{}_est: {}", i + 1, tr_gk_est);
@@ -162,7 +159,7 @@ pub fn estimate_g_and_multi_gxg_heritability(geno_arr_bed: &mut PlinkBed, mut le
     a[[num_gxg_components + 1, 0]] = n;
     a[[0, num_gxg_components + 1]] = n;
     a[[num_gxg_components + 1, num_gxg_components + 1]] = n;
-    let b = get_yky_gxg_yky_and_yy(&geno_arr,
+    let b = get_yky_gxg_yky_and_yy(geno_arr,
                                    &pheno_arr,
                                    &le_snps_arr,
                                    num_random_vecs);
@@ -174,14 +171,14 @@ pub fn estimate_g_and_multi_gxg_heritability(geno_arr_bed: &mut PlinkBed, mut le
     for i in 0..num_gxg_components + 2 {
         var_estimates.push(sig_sq[i]);
     }
-    Ok((a, b, var_estimates, geno_arr, le_snps_arr, pheno_arr))
+    Ok((a, b, var_estimates, le_snps_arr, pheno_arr))
 }
 
 /// `saved_traces` is the matrix A in the normal equation Ax = y for heritability estimation
-pub fn estimate_g_and_multi_gxg_heritability_from_saved_traces(mut geno_arr: Array<f32, Ix2>, mut le_snps_arr: Vec<Array<f32, Ix2>>,
+pub fn estimate_g_and_multi_gxg_heritability_from_saved_traces(geno_arr: &mut PlinkBed, mut le_snps_arr: Vec<Array<f32, Ix2>>,
     mut pheno_arr: Array<f32, Ix1>, num_random_vecs: usize, saved_traces: Array<f64, Ix2>)
-    -> Result<(Array<f64, Ix2>, Array<f64, Ix1>, Vec<f64>, Array<f32, Ix2>, Vec<Array<f32, Ix2>>, Array<f32, Ix1>), Error> {
-    let (num_people, num_snps) = geno_arr.dim();
+    -> Result<(Array<f64, Ix2>, Array<f64, Ix1>, Vec<f64>, Vec<Array<f32, Ix2>>, Array<f32, Ix1>), Error> {
+    let (num_people, num_snps) = (geno_arr.num_people, geno_arr.num_snps);
     let num_gxg_components = le_snps_arr.len();
     println!("\n=> estimating heritability due to G and GxG\nnum_people: {}\nnum_snps: {}\nnumber of GxG components: {}",
              num_people, num_snps, num_gxg_components);
@@ -189,8 +186,6 @@ pub fn estimate_g_and_multi_gxg_heritability_from_saved_traces(mut geno_arr: Arr
         println!("GxG component [{}/{}]: {} LE SNPs", i + 1, num_gxg_components, arr.dim().1);
     }
 
-    println!("\n=> normalizing the genotype matrix");
-    normalize_matrix_columns_inplace(&mut geno_arr, 0);
     for (i, arr) in le_snps_arr.iter_mut().enumerate() {
         println!("=> normalizing GxG component [{}/{}]", i + 1, num_gxg_components);
         normalize_matrix_columns_inplace(arr, 0);
@@ -200,7 +195,7 @@ pub fn estimate_g_and_multi_gxg_heritability_from_saved_traces(mut geno_arr: Arr
     normalize_vector_inplace(&mut pheno_arr, 0);
 
     println!("\n=> computing yy yky and estimating gxg_yky");
-    let b = get_yky_gxg_yky_and_yy(&geno_arr,
+    let b = get_yky_gxg_yky_and_yy(geno_arr,
                                    &pheno_arr,
                                    &le_snps_arr,
                                    num_random_vecs);
@@ -213,21 +208,32 @@ pub fn estimate_g_and_multi_gxg_heritability_from_saved_traces(mut geno_arr: Arr
     for i in 0..num_gxg_components + 2 {
         var_estimates.push(sig_sq[i]);
     }
-    Ok((saved_traces, b, var_estimates, geno_arr, le_snps_arr, pheno_arr))
+    Ok((saved_traces, b, var_estimates, le_snps_arr, pheno_arr))
 }
 
-fn get_yky_gxg_yky_and_yy(normalized_geno_arr: &Array<f32, Ix2>, normalized_pheno_arr: &Array<f32, Ix1>,
+fn get_yky_gxg_yky_and_yy(geno_arr: &mut PlinkBed, normalized_pheno_arr: &Array<f32, Ix1>,
     normalized_le_snps_arr: &Vec<Array<f32, Ix2>>, num_random_vecs: usize)
     -> Array<f64, Ix1> {
-    let (_num_people, num_snps) = normalized_geno_arr.dim();
+    let num_snps = geno_arr.num_snps;
     let num_gxg_components = normalized_le_snps_arr.len();
 
     let mut b = Array::<f64, Ix1>::zeros(num_gxg_components + 2);
 
-    let xy = normalized_geno_arr.t().dot(normalized_pheno_arr);
-    let yky = sum_of_squares(xy.iter()) / num_snps as f64;
+    use rayon::prelude::*;
+    let yky = geno_arr
+        .col_chunk_iter(1000)
+        .into_par_iter()
+        .fold_with(0f32, |mut acc, mut snp_chunk| {
+            normalize_matrix_columns_inplace(&mut snp_chunk, 0);
+            let arr = snp_chunk.t().dot(normalized_pheno_arr).as_slice().unwrap().to_owned();
+            acc += sum_of_squares_f32(arr.iter());
+            acc
+        })
+        .reduce(|| 0f32, |a, b| {
+            a + b
+        }) / num_snps as f32;
     let yy = sum_of_squares(normalized_pheno_arr.iter());
-    b[0] = yky;
+    b[0] = yky as f64;
     b[num_gxg_components + 1] = yy;
     println!("yky: {}\nyy: {}", yky, yy);
 
