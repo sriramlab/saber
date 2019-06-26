@@ -152,7 +152,7 @@ pub fn estimate_g_and_multi_gxg_heritability(geno_arr_bed: &mut PlinkBed, mut le
         a[[1 + i, num_gxg_components + 1]] = gxg_tr_k_est;
         println!("gxg_tr_k{}_est: {}", i + 1, gxg_tr_k_est);
 
-        let tr_gk_est = estimate_tr_k_gxg_k(&geno_arr, &le_snps_arr[i], num_random_vecs);
+        let tr_gk_est = estimate_tr_k_gxg_k(geno_arr_bed, &le_snps_arr[i], num_random_vecs, None);
         a[[0, 1 + i]] = tr_gk_est;
         a[[1 + i, 0]] = tr_gk_est;
         println!("tr_gk{}_est: {}", i + 1, tr_gk_est);
@@ -281,7 +281,7 @@ pub fn estimate_gxg_heritability(gxg_basis_arr: Array<f32, Ix2>, mut pheno_arr: 
 /// `geno_arr` is the genotype matrix for the G component
 /// `le_snps_arr` contains the gxg basis SNPs
 #[deprecated(note = "use estimate_g_and_multi_gxg_heritability instead")]
-pub fn estimate_g_and_single_gxg_heritability(mut geno_arr_bed: PlinkBed, mut le_snps_arr: Array<f32, Ix2>,
+pub fn estimate_g_and_single_gxg_heritability(geno_arr_bed: &mut PlinkBed, mut le_snps_arr: Array<f32, Ix2>,
     mut pheno_arr: Array<f32, Ix1>, num_random_vecs: usize,
 ) -> Result<(f64, f64, f64), Error> {
     let mut geno_arr: Array<f32, Ix2> = geno_arr_bed.get_genotype_matrix()?;
@@ -299,7 +299,7 @@ pub fn estimate_g_and_single_gxg_heritability(mut geno_arr_bed: PlinkBed, mut le
 
     println!("\n=> estimating traces related to the G matrix");
     let num_rand_z = 100usize;
-    let tr_kk_est = estimate_tr_kk(&mut geno_arr_bed, num_rand_z, None);
+    let tr_kk_est = estimate_tr_kk(geno_arr_bed, num_rand_z, None);
     println!("tr_kk_est: {}", tr_kk_est);
     let xy = geno_arr.t().dot(&pheno_arr);
     let yky = sum_of_squares(xy.iter()) / num_snps as f64;
@@ -318,7 +318,7 @@ pub fn estimate_g_and_single_gxg_heritability(mut geno_arr_bed: PlinkBed, mut le
     let gxg_yky = estimate_gxg_dot_y_norm_sq(&le_snps_arr, &pheno_arr, num_random_vecs * 50) / mm;
     println!("gxg_yky: {}", gxg_yky);
 
-    let tr_gk_est = estimate_tr_k_gxg_k(&geno_arr, &le_snps_arr, num_random_vecs);
+    let tr_gk_est = estimate_tr_k_gxg_k(geno_arr_bed, &le_snps_arr, num_random_vecs, None);
     println!("tr_gk_est: {}", tr_gk_est);
 
     let n = num_people as f64;

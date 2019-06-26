@@ -132,6 +132,7 @@ fn main() {
         println!("\ngxg_dot_y_norm_sq error ratio stats:\n{}", err_tracker.to_percent_string(percent_sig_fig));
     }
 
+    /*
     {
         println!("\n=> test estimate_tr_k_gxg_k");
         let rand_geno = Array::random((num_rows, num_cols), Uniform::from(4..7))
@@ -143,11 +144,13 @@ fn main() {
 
         let mut err_tracker = ValueTracker::new();
         for _ in 0..num_iter {
-            let tr_k_gxg_k_est = estimate_tr_k_gxg_k(&rand_geno, &gxg_basis, num_random_vecs);
+            let tr_k_gxg_k_est = estimate_tr_k_gxg_k(&rand_geno, &gxg_basis, num_random_vecs, None);
             update_tracker_and_print(tr_k_gxg_k_true, tr_k_gxg_k_est, &mut err_tracker, "tr_k_gxg_k_est", percent_sig_fig);
         }
         println!("\ntr_k_gxg_k error ratio stats:\n{}", err_tracker.to_percent_string(percent_sig_fig));
     }
+    */
+
     timer.print();
 
     {
