@@ -36,7 +36,6 @@ pub fn estimate_tr_kk(geno_arr_bed: &mut PlinkBed, num_random_vecs: usize, num_s
     sum_of_squares(xxz_arr.iter()) / (num_snps * num_snps * num_random_vecs) as f64
 }
 
-// TODO: be more memory efficient
 pub fn estimate_tr_k_gxg_k(geno_arr: &mut PlinkBed, le_snps_arr: &Array<f32, Ix2>, num_random_vecs: usize,
     num_snps_per_chunk: Option<usize>) -> f64 {
     let u_arr = generate_plus_minus_one_bernoulli_matrix(le_snps_arr.dim().1, num_random_vecs);
