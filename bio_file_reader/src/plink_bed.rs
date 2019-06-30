@@ -30,6 +30,12 @@ impl fmt::Debug for Error {
     }
 }
 
+impl From<io::Error> for Error {
+    fn from(io_error: io::Error) -> Error {
+        Error::IO { why: "IO error".to_string(), io_error }
+    }
+}
+
 pub struct PlinkBed {
     bed_buf: BufReader<File>,
     pub num_people: usize,
@@ -80,6 +86,38 @@ impl PlinkBed {
         Ok(PlinkBed { bed_buf, num_people, num_snps, num_bytes_per_snp, bed_filename: bed_filename.to_string() })
     }
 
+    // the first person is the lowest two bits
+    // 00 -> 2 homozygous for the first allele in the .bim file (usually the minor allele)
+    // 01 -> 0 missing genotype
+    // 10 -> 1 heterozygous
+    // 11 -> 0 homozygous for the second allele in the .bim file (usually the major allele)
+    pub fn create_bed(arr: &Array<u8, Ix2>, out_path: &str) -> Result<(), Error> {
+        let (num_peope, _num_snps) = arr.dim();
+        let mut buf_writer = BufWriter::new(OpenOptions::new().create(true).truncate(true).write(true).open(out_path)?);
+        buf_writer.write(&[0x6c, 0x1b, 0x1])?;
+        for col in arr.gencolumns() {
+            let mut i = 0;
+            for _ in 0..num_peope / 4 {
+                buf_writer.write(&[
+                    PlinkBed::geno_to_lowest_two_bits(col[i])
+                        | (PlinkBed::geno_to_lowest_two_bits(col[i + 1]) << 2)
+                        | (PlinkBed::geno_to_lowest_two_bits(col[i + 2]) << 4)
+                        | (PlinkBed::geno_to_lowest_two_bits(col[i + 3]) << 6)
+                ])?;
+                i += 4;
+            }
+            let remainder = num_peope % 4;
+            if remainder > 0 {
+                let mut byte = 0u8;
+                for j in 0..remainder {
+                    byte |= PlinkBed::geno_to_lowest_two_bits(col[i + j]) << (j * 2);
+                }
+                buf_writer.write(&[byte])?;
+            }
+        }
+        Ok(())
+    }
+
     pub fn reset_bed_buf(&mut self) -> Result<(), io::Error> {
         // the first three bytes are the file signature
         self.bed_buf.seek(SeekFrom::Start(3))?;
@@ -92,6 +130,16 @@ impl PlinkBed {
         // the first three bytes are the file signature
         self.bed_buf.seek(SeekFrom::Start((3 + self.num_bytes_per_snp * snp_i + person_j / 4) as u64))?;
         Ok(())
+    }
+
+    fn geno_to_lowest_two_bits(geno: u8) -> u8 {
+        // 00 -> 2 homozygous for the first allele in the .bim file (usually the minor allele)
+        // 01 -> 0 missing genotype
+        // 10 -> 1 heterozygous
+        // 11 -> 0 homozygous for the second allele in the .bim file (usually the major allele)
+        let not_a = ((geno & 0b10) >> 1) ^ 1;
+        let not_b = (geno & 1) ^ 1;
+        (not_a << 1) | (not_b & not_a)
     }
 
     fn lowest_two_bits_to_geno(byte: u8) -> u8 {
@@ -381,26 +429,71 @@ impl IndexedParallelIterator for PlinkColChunkParallelIter {
         callback.callback(ColChunkIterProducer { iter: self.iter })
     }
 }
-/*
+
 #[cfg(test)]
 mod tests {
     use super::PlinkBed;
-    use ndarray::s;
+    use ndarray::{s, array, Array};
+    use ndarray_rand::RandomExt;
+    use rand::distributions::Uniform;
+    use tempfile::NamedTempFile;
     use std::cmp::min;
+    use std::io::Write;
+    use std::io;
 
-// TODO: generate test files on the fly
+    fn create_dummy_bim_fam(bim: &mut NamedTempFile, fam: &mut NamedTempFile, num_people: usize, num_snps: usize) -> Result<(), io::Error> {
+        for i in 1..=num_people {
+            fam.write_fmt(format_args!("{}\n", i))?;
+        }
+        for i in 1..=num_snps {
+            bim.write_fmt(format_args!("{}\n", i))?;
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_bed() {
+        let geno = array![
+            [0,0,1,2],
+            [1,1,2,1],
+            [2,0,0,0],
+            [1,0,0,2],
+            [0,2,1,0]
+        ];
+        let mut bim = NamedTempFile::new().unwrap();
+        let mut fam = NamedTempFile::new().unwrap();
+        create_dummy_bim_fam(&mut bim, &mut fam, geno.dim().0, geno.dim().1).unwrap();
+        let path = NamedTempFile::new().unwrap().into_temp_path().to_str().unwrap().to_string();
+        PlinkBed::create_bed(&geno, &path).unwrap();
+        let mut geno_bed = PlinkBed::new(&path,
+                                         bim.into_temp_path().to_str().unwrap(),
+                                         fam.into_temp_path().to_str().unwrap()).unwrap();
+        assert_eq!(geno.mapv(|x| x as f32), geno_bed.get_genotype_matrix().unwrap());
+    }
+
     #[test]
     fn test_chunk_iter() {
-        let bfile = "/Users/aaron/saber-data/nfbc/NFBC_20091001";
-        let mut bed = PlinkBed::new(&(bfile.to_string() + ".bed"),
-                                    &(bfile.to_string() + ".bim"),
-                                    &(bfile.to_string() + ".fam")).unwrap();
+        let (num_people, num_snps) = (137usize, 71usize);
+        let geno = Array::random((num_people, num_snps), Uniform::from(0..3));
+
+        let mut bim = NamedTempFile::new().unwrap();
+        let mut fam = NamedTempFile::new().unwrap();
+        create_dummy_bim_fam(&mut bim, &mut fam, num_people, num_snps).unwrap();
+        let bed_file = NamedTempFile::new().unwrap();
+        let bed_path = bed_file.into_temp_path().to_str().unwrap().to_string();
+        PlinkBed::create_bed(&geno, &bed_path).unwrap();
+
+        let mut bed = PlinkBed::new(
+            &bed_path,
+            bim.into_temp_path().to_str().unwrap(),
+            fam.into_temp_path().to_str().unwrap(),
+        ).unwrap();
         let true_geno_arr = bed.get_genotype_matrix().unwrap();
-        let chunk_size = 5000;
+        let chunk_size = 2;
         for (i, snps) in bed.col_chunk_iter(chunk_size).enumerate() {
             let end_index = min((i + 1) * chunk_size, true_geno_arr.dim().1);
             assert!(true_geno_arr.slice(s![..,i * chunk_size..end_index]) == snps);
         }
     }
 }
-*/
+
