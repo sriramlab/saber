@@ -292,14 +292,13 @@ mod tests {
     #[test]
     fn test_write_trace_estimates() {
         let file = NamedTempFile::new().unwrap();
-        let path = file.into_temp_path();
+        let path = file.into_temp_path().to_str().unwrap().to_string();
         let estimates = Array::from_shape_vec((2, 5),
                                               vec![2., 123., 0.003, 23., -409.,
                                                    -0., 1.23, -2.43, 0., -9.]).unwrap();
-        write_trace_estimates(&estimates, path.to_str().unwrap()).unwrap();
+        write_trace_estimates(&estimates, &path).unwrap();
 
-        let loaded_estimates = load_trace_estimates(
-            path.to_str().unwrap()).unwrap();
+        let loaded_estimates = load_trace_estimates(&path).unwrap();
 
         assert_eq!(loaded_estimates, estimates);
     }
