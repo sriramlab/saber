@@ -7,7 +7,7 @@ use crate::util::stats_util::{sum_of_squares, n_choose_2, sum_of_squares_f32};
 use crate::trace_estimator::{estimate_gxg_kk_trace, estimate_gxg_gram_trace, estimate_gxg_dot_y_norm_sq,
                              estimate_tr_k_gxg_k, estimate_tr_kk, estimate_tr_gxg_ki_gxg_kj};
 use colored::Colorize;
-use bio_file_reader::plink_bed::Error as PlinkBedError;
+use bio_file_reader::error::Error as PlinkBedError;
 use bio_file_reader::plink_bed::PlinkBed;
 
 fn bold_print(msg: &String) {
@@ -32,7 +32,8 @@ impl From<PlinkBedError> for Error {
     fn from(err: PlinkBedError) -> Error {
         match err {
             PlinkBedError::BadFormat(why) => Error::Generic(why),
-            PlinkBedError::IO { why, io_error } => Error::IO { why, io_error }
+            PlinkBedError::Generic(why) => Error::Generic(why),
+            PlinkBedError::IO { why, io_error } => Error::IO { why, io_error },
         }
     }
 }
