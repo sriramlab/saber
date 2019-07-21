@@ -12,7 +12,6 @@ pub enum IntervalShape {
     LeftClosedRightOpen,
 }
 
-/// `end` is exclusive
 pub struct Interval<T> {
     start: T,
     end: T,
@@ -36,13 +35,17 @@ impl<T: fmt::Display> fmt::Debug for Interval<T> {
     }
 }
 
-impl<T: Num> Interval<T> {
+impl<T: Num + Copy> Interval<T> {
     pub fn new(start: T, end: T, shape: IntervalShape) -> Interval<T> {
         Interval {
             start,
             end,
             shape,
         }
+    }
+
+    pub fn len(&self) -> T {
+        self.end - self.start
     }
 }
 
@@ -52,13 +55,13 @@ impl<T: Num> PartialEq for Interval<T> {
     }
 }
 
-pub struct ClosedIntervalCollector<T: Num> {
+pub struct ClosedIntegerIntervalCollector<T: Integer> {
     intervals: Vec<Interval<T>>,
 }
 
-impl<T: Integer + NumAssignOps + Copy + fmt::Display> ClosedIntervalCollector<T> {
-    pub fn new() -> ClosedIntervalCollector<T> {
-        ClosedIntervalCollector {
+impl<T: Integer + NumAssignOps + Copy + fmt::Display> ClosedIntegerIntervalCollector<T> {
+    pub fn new() -> ClosedIntegerIntervalCollector<T> {
+        ClosedIntegerIntervalCollector {
             intervals: Vec::<Interval<T>>::new(),
         }
     }
@@ -92,11 +95,11 @@ impl<T: Integer + NumAssignOps + Copy + fmt::Display> ClosedIntervalCollector<T>
 
 #[cfg(test)]
 mod tests {
-    use super::{ClosedIntervalCollector, Interval, IntervalShape};
+    use super::{ClosedIntegerIntervalCollector, Interval, IntervalShape};
 
     #[test]
     fn test_append_larger_point() {
-        let mut collector = ClosedIntervalCollector::new();
+        let mut collector = ClosedIntegerIntervalCollector::new();
         collector.append_larger_point(1).unwrap();
         collector.append_larger_point(4).unwrap();
         collector.append_larger_point(5).unwrap();
