@@ -1,50 +1,28 @@
-use std::{fmt, io};
 use std::cmp::min;
 use std::fs::{File, OpenOptions};
+use std::io;
 use std::io::{BufRead, BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 
 use ndarray::{Array, Ix2, ShapeBuilder};
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use rayon::iter::plumbing::{bridge, Consumer, Producer, ProducerCallback, UnindexedConsumer};
 
-pub enum Error {
-    IO { why: String, io_error: io::Error },
-    BadFormat(String),
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Error::IO { why, .. } => write!(f, "IO error: {}", why),
-            Error::BadFormat(why) => write!(f, "Bad format: {}", why)
-        }
-    }
-}
-
-impl fmt::Debug for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Error::IO { why, .. } => write!(f, "IO error: {}", why),
-            Error::BadFormat(why) => write!(f, "Bad format: {}", why)
-        }
-    }
-}
-
-impl From<io::Error> for Error {
-    fn from(io_error: io::Error) -> Error {
-        Error::IO { why: "IO error".to_string(), io_error }
-    }
-}
+use crate::byte_chunk_iter::ByteChunkIter;
+use crate::error::Error;
 
 pub struct PlinkBed {
     bed_buf: BufReader<File>,
     pub num_people: usize,
     pub num_snps: usize,
-    num_bytes_per_snp: usize,
-    pub bed_filename: String,
+    pub num_bytes_per_snp: usize,
+    pub filepath: String,
 }
 
 impl PlinkBed {
+    pub fn get_magic_bytes() -> [u8; 3] {
+        [0x6c_u8, 0x1b_u8, 0x01_u8]
+    }
+
     fn get_buf(filename: &str) -> Result<BufReader<File>, Error> {
         match OpenOptions::new().read(true).open(filename) {
             Err(io_error) => Err(Error::IO { why: format!("failed to open {}: {}", filename, io_error), io_error }),
@@ -83,7 +61,7 @@ impl PlinkBed {
         println!("{} stats:\nnum_snps: {}\nnum_people: {}\nnum_bytes_per_block: {}\n----------",
                  bed_filename, num_snps, num_people, num_bytes_per_snp);
 
-        Ok(PlinkBed { bed_buf, num_people, num_snps, num_bytes_per_snp, bed_filename: bed_filename.to_string() })
+        Ok(PlinkBed { bed_buf, num_people, num_snps, num_bytes_per_snp, filepath: bed_filename.to_string() })
     }
 
     // the first person is the lowest two bits
@@ -189,13 +167,22 @@ impl PlinkBed {
     }
 
     pub fn col_chunk_iter(&mut self, snp_stride: usize) -> PlinkColChunkIter {
-        let buf = PlinkBed::get_buf(&self.bed_filename).unwrap();
+        let buf = PlinkBed::get_buf(&self.filepath).unwrap();
         PlinkColChunkIter::new(buf,
                                0,
                                self.num_snps,
                                snp_stride,
                                self.num_people,
-                               &self.bed_filename)
+                               &self.filepath)
+    }
+
+    pub fn byte_chunk_iter(&mut self, start_byte_index: usize, end_byte_index_exclusive: usize,
+        chunk_size: usize) -> Result<ByteChunkIter<File>, Error> {
+        let buf = match OpenOptions::new().read(true).open(&self.filepath) {
+            Ok(file) => BufReader::new(file),
+            Err(io_error) => return Err(Error::IO { why: format!("failed to open {}: {}", self.filepath, io_error), io_error }),
+        };
+        Ok(ByteChunkIter::new(buf, start_byte_index, end_byte_index_exclusive, chunk_size))
     }
 
     /// save the transpose of the BED file into `out_path`, which should have an extension of .bedt
@@ -432,14 +419,16 @@ impl IndexedParallelIterator for PlinkColChunkParallelIter {
 
 #[cfg(test)]
 mod tests {
-    use super::PlinkBed;
-    use ndarray::{s, array, Array};
+    use std::cmp::min;
+    use std::io;
+    use std::io::Write;
+
+    use ndarray::{array, Array, s};
     use ndarray_rand::RandomExt;
     use rand::distributions::Uniform;
     use tempfile::NamedTempFile;
-    use std::cmp::min;
-    use std::io::Write;
-    use std::io;
+
+    use super::PlinkBed;
 
     fn create_dummy_bim_fam(bim: &mut NamedTempFile, fam: &mut NamedTempFile, num_people: usize, num_snps: usize) -> Result<(), io::Error> {
         for i in 1..=num_people {
@@ -489,7 +478,7 @@ mod tests {
             fam.into_temp_path().to_str().unwrap(),
         ).unwrap();
         let true_geno_arr = bed.get_genotype_matrix().unwrap();
-        let chunk_size = 2;
+        let chunk_size = 5;
         for (i, snps) in bed.col_chunk_iter(chunk_size).enumerate() {
             let end_index = min((i + 1) * chunk_size, true_geno_arr.dim().1);
             assert!(true_geno_arr.slice(s![..,i * chunk_size..end_index]) == snps);
