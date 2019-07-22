@@ -4,7 +4,9 @@ use num::integer::Integer;
 use num::Num;
 use num::traits::NumAssignOps;
 
-#[derive(PartialEq)]
+pub mod traits;
+
+#[derive(Copy, Clone, PartialEq)]
 pub enum IntervalShape {
     Open,
     Closed,
@@ -12,27 +14,11 @@ pub enum IntervalShape {
     LeftClosedRightOpen,
 }
 
+#[derive(Copy, Clone)]
 pub struct Interval<T> {
     start: T,
     end: T,
     shape: IntervalShape,
-}
-
-impl<T: fmt::Display> fmt::Display for Interval<T> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self.shape {
-            IntervalShape::Open => write!(f, "({}, {})", self.start, self.end),
-            IntervalShape::Closed => write!(f, "[{}, {}]", self.start, self.end),
-            IntervalShape::LeftOpenRightClosed => write!(f, "({}, {}]", self.start, self.end),
-            IntervalShape::LeftClosedRightOpen => write!(f, "[{}, {})", self.start, self.end)
-        }
-    }
-}
-
-impl<T: fmt::Display> fmt::Debug for Interval<T> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self)
-    }
 }
 
 impl<T: Num + Copy> Interval<T> {
@@ -52,6 +38,23 @@ impl<T: Num + Copy> Interval<T> {
 impl<T: Num> PartialEq for Interval<T> {
     fn eq(&self, other: &Interval<T>) -> bool {
         self.start == other.start && self.end == other.end && self.shape == other.shape
+    }
+}
+
+impl<T: fmt::Display> fmt::Display for Interval<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self.shape {
+            IntervalShape::Open => write!(f, "({}, {})", self.start, self.end),
+            IntervalShape::Closed => write!(f, "[{}, {}]", self.start, self.end),
+            IntervalShape::LeftOpenRightClosed => write!(f, "({}, {}]", self.start, self.end),
+            IntervalShape::LeftClosedRightOpen => write!(f, "[{}, {})", self.start, self.end)
+        }
+    }
+}
+
+impl<T: fmt::Display> fmt::Debug for Interval<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self)
     }
 }
 
