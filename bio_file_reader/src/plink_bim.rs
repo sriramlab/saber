@@ -3,13 +3,13 @@ use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
 
 use crate::error::Error;
-use crate::interval::{ClosedIntegerIntervalCollector, Interval};
+use crate::interval::{ClosedIntegerIntervalCollector, IntervalOverIntegers};
 
-const CHROM_FIELD_INDEX: usize = 0;
-const VARIANT_ID_FIELD_INDEX: usize = 1;
-const COORDINATE_FIELD_INDEX: usize = 3;
-const FIRST_ALLELE_FIELD_INDEX: usize = 4;
-const SECOND_ALLELE_FIELD_INDEX: usize = 5;
+pub const CHROM_FIELD_INDEX: usize = 0;
+pub const VARIANT_ID_FIELD_INDEX: usize = 1;
+pub const COORDINATE_FIELD_INDEX: usize = 3;
+pub const FIRST_ALLELE_FIELD_INDEX: usize = 4;
+pub const SECOND_ALLELE_FIELD_INDEX: usize = 5;
 
 pub struct PlinkBim {
     pub filepath: String,
@@ -37,7 +37,7 @@ impl PlinkBim {
         ).collect());
     }
 
-    pub fn get_chrom_fileline_positions(&mut self, chrom: &str) -> Result<Vec<Interval<usize>>, Error> {
+    pub fn get_chrom_fileline_positions(&mut self, chrom: &str) -> Result<Vec<IntervalOverIntegers<usize>>, Error> {
         let mut collector = ClosedIntegerIntervalCollector::new();
         self.reset_buf()?;
         for (i, l) in self.buf.by_ref().lines().enumerate() {
@@ -50,7 +50,7 @@ impl PlinkBim {
         Ok(collector.get_intervals())
     }
 
-    pub fn get_chrom_to_fileline_positions(&mut self) -> Result<HashMap<String, Vec<Interval<usize>>>, Error> {
+    pub fn get_chrom_to_fileline_positions(&mut self) -> Result<HashMap<String, Vec<IntervalOverIntegers<usize>>>, Error> {
         let mut chrom_to_positions = HashMap::new();
         for chrom in self.get_all_chroms()? {
             let positions = self.get_chrom_fileline_positions(&chrom)?;
@@ -66,7 +66,7 @@ mod tests {
     use std::io::{BufWriter, Write};
     use tempfile::NamedTempFile;
     use std::collections::{HashSet, HashMap};
-    use crate::interval::{Interval, IntervalShape};
+    use crate::interval::{IntervalOverIntegers};
 
     fn write_bim_line<W: Write>(buf_writer: &mut BufWriter<W>, chrom: &str, id: &str, coordinate: u64,
         first_allele: char, second_allele: char) {
@@ -91,16 +91,16 @@ mod tests {
         }
         let mut bim = PlinkBim::new(file.into_temp_path().to_str().unwrap()).unwrap();
         let positions = bim.get_chrom_to_fileline_positions().unwrap();
-        let expected: HashMap<String, Vec<Interval<usize>>> = vec![
-            ("1".to_string(), vec![Interval::new(0, 5, IntervalShape::Closed)]),
+        let expected: HashMap<String, Vec<IntervalOverIntegers<usize>>> = vec![
+            ("1".to_string(), vec![IntervalOverIntegers::new(0, 5)]),
             ("3".to_string(), vec![
-                Interval::new(6, 9, IntervalShape::Closed),
-                Interval::new(13, 15, IntervalShape::Closed)
+                IntervalOverIntegers::new(6, 9),
+                IntervalOverIntegers::new(13, 15)
             ]),
-            ("4".to_string(), vec![Interval::new(10, 10, IntervalShape::Closed)]),
+            ("4".to_string(), vec![IntervalOverIntegers::new(10, 10)]),
             ("5".to_string(), vec![
-                Interval::new(11, 12, IntervalShape::Closed),
-                Interval::new(16, 17, IntervalShape::Closed),
+                IntervalOverIntegers::new(11, 12),
+                IntervalOverIntegers::new(16, 17),
             ])
         ].into_iter().collect();
         assert_eq!(positions, expected);
