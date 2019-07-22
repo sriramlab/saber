@@ -60,7 +60,7 @@ fn main() {
             .iter()
             .filter(|(chrom, _positions)| *chrom != excluded_chrom)
             // intra-chromosome coalescence
-            .flat_map(|(_chrom, positions)| positions.sort_and_coalesce_intervals())
+            .flat_map(|(_chrom, positions)| positions.get_intervals_by_ref().sort_and_coalesce_intervals())
             .collect::<Vec<ContiguousIntegerSet<usize>>>();
         // inter-chromosome coalescence
         snp_intervals.sort_and_coalesce_intervals_inplace();

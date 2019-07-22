@@ -1,11 +1,9 @@
-use std::fmt;
-
 use num::Integer;
-use num::traits::NumAssignOps;
 
 use crate::interval::traits::{Coalesce, CoalesceIntervals, Interval};
+use crate::set::{ContiguousIntegerSet, IntegerSet};
 
-impl<I: Coalesce + Interval<Element=E> + Clone, E: Integer + NumAssignOps + Copy + fmt::Display> CoalesceIntervals<I, E> for Vec<I> {
+impl<I: Coalesce + Interval<Element=E> + Clone, E: Integer + Copy> CoalesceIntervals<I, E> for Vec<I> {
     fn sort_and_coalesce_intervals(&self) -> Vec<I> {
         let mut intervals: Vec<I> = self.to_vec();
         intervals.sort_and_coalesce_intervals_inplace();
@@ -27,6 +25,16 @@ impl<I: Coalesce + Interval<Element=E> + Clone, E: Integer + NumAssignOps + Copy
             }
         }
         *self = coalesced_intervals;
+    }
+}
+
+impl<E: Integer + Copy> CoalesceIntervals<ContiguousIntegerSet<E>, E> for IntegerSet<E> {
+    fn sort_and_coalesce_intervals(&self) -> Vec<ContiguousIntegerSet<E>> {
+        self.intervals.sort_and_coalesce_intervals()
+    }
+
+    fn sort_and_coalesce_intervals_inplace(&mut self) {
+        self.intervals.sort_and_coalesce_intervals_inplace();
     }
 }
 

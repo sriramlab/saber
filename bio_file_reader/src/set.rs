@@ -66,8 +66,20 @@ impl<E: Integer + NumAssignOps + Copy + fmt::Display> IntegerSetCollector<E> {
         &self.intervals
     }
 
-    pub fn get_intervals(self) -> Vec<ContiguousIntegerSet<E>> {
+    pub fn to_intervals(&self) -> Vec<ContiguousIntegerSet<E>> {
+        self.intervals.clone()
+    }
+
+    pub fn into_intervals(self) -> Vec<ContiguousIntegerSet<E>> {
         self.intervals
+    }
+
+    pub fn to_integer_set(&self) -> IntegerSet<E> {
+        IntegerSet::from(self.intervals.clone())
+    }
+
+    pub fn into_integer_set(self) -> IntegerSet<E> {
+        IntegerSet::from(self.intervals)
     }
 
     pub fn append_larger_point(&mut self, point: E) -> Result<(), String> {
@@ -89,6 +101,33 @@ impl<E: Integer + NumAssignOps + Copy + fmt::Display> IntegerSetCollector<E> {
     }
 }
 
+#[derive(PartialEq, Debug)]
+pub struct IntegerSet<E: Integer + Copy> {
+    pub intervals: Vec<ContiguousIntegerSet<E>>
+}
+
+impl<E: Integer + Copy> IntegerSet<E> {
+    pub fn new() -> IntegerSet<E> {
+        IntegerSet {
+            intervals: Vec::new()
+        }
+    }
+
+    pub fn from(intervals: Vec<ContiguousIntegerSet<E>>) -> IntegerSet<E> {
+        IntegerSet {
+            intervals
+        }
+    }
+
+    pub fn get_intervals_by_ref(&self) -> &Vec<ContiguousIntegerSet<E>> {
+        &self.intervals
+    }
+
+    pub fn into_intervals(self) -> Vec<ContiguousIntegerSet<E>> {
+        self.intervals
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::interval::traits::Coalesce;
@@ -104,7 +143,7 @@ mod tests {
         collector.append_larger_point(7).unwrap();
         collector.append_larger_point(8).unwrap();
         collector.append_larger_point(9).unwrap();
-        assert_eq!(collector.get_intervals(), vec![
+        assert_eq!(collector.into_intervals(), vec![
             ContiguousIntegerSet::new(1, 1),
             ContiguousIntegerSet::new(4, 5),
             ContiguousIntegerSet::new(7, 9)
