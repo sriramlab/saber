@@ -3,9 +3,10 @@ use std::io::{BufWriter, Write};
 
 use clap::{Arg, clap_app};
 
-use bio_file_reader::interval::{Interval, IntervalOverIntegers, MergeIntervals};
+use bio_file_reader::interval::traits::{CoalesceIntervals, Interval};
 use bio_file_reader::plink_bed::PlinkBed;
 use bio_file_reader::plink_bim::PlinkBim;
+use bio_file_reader::set::ContiguousIntegerSet;
 use saber::program_flow::OrExit;
 use saber::util::{extract_str_arg, get_bed_bim_fam_path};
 
@@ -55,12 +56,12 @@ fn main() {
 
         buf_writer.write(&magic_bytes).unwrap_or_exit(Some(format!("failed to write to file {}", out_filepath)));
 
-        let mut snp_intervals: Vec<IntervalOverIntegers<usize>> = chrom_to_fileline_positions
+        let mut snp_intervals: Vec<ContiguousIntegerSet<usize>> = chrom_to_fileline_positions
             .iter()
             .filter(|(chrom, _positions)| *chrom != excluded_chrom)
             // intra-chromosome coalescence
             .flat_map(|(_chrom, positions)| positions.sort_and_coalesce_intervals())
-            .collect::<Vec<IntervalOverIntegers<usize>>>();
+            .collect::<Vec<ContiguousIntegerSet<usize>>>();
         // inter-chromosome coalescence
         snp_intervals.sort_and_coalesce_intervals_inplace();
         println!("Excluding chromosome {}. Using file lines {:?}", excluded_chrom, snp_intervals);
