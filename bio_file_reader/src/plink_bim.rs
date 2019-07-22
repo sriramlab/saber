@@ -1,9 +1,9 @@
-use std::collections::{HashSet, HashMap};
+use std::collections::{HashMap, HashSet};
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
 
 use crate::error::Error;
-use crate::interval::{ClosedIntegerIntervalCollector, IntervalOverIntegers};
+use crate::set::{ContiguousIntegerSet, IntegerSetCollector};
 
 pub const CHROM_FIELD_INDEX: usize = 0;
 pub const VARIANT_ID_FIELD_INDEX: usize = 1;
@@ -37,8 +37,8 @@ impl PlinkBim {
         ).collect());
     }
 
-    pub fn get_chrom_fileline_positions(&mut self, chrom: &str) -> Result<Vec<IntervalOverIntegers<usize>>, Error> {
-        let mut collector = ClosedIntegerIntervalCollector::new();
+    pub fn get_chrom_fileline_positions(&mut self, chrom: &str) -> Result<Vec<ContiguousIntegerSet<usize>>, Error> {
+        let mut collector = IntegerSetCollector::new();
         self.reset_buf()?;
         for (i, l) in self.buf.by_ref().lines().enumerate() {
             if l.unwrap()
@@ -50,7 +50,7 @@ impl PlinkBim {
         Ok(collector.get_intervals())
     }
 
-    pub fn get_chrom_to_fileline_positions(&mut self) -> Result<HashMap<String, Vec<IntervalOverIntegers<usize>>>, Error> {
+    pub fn get_chrom_to_fileline_positions(&mut self) -> Result<HashMap<String, Vec<ContiguousIntegerSet<usize>>>, Error> {
         let mut chrom_to_positions = HashMap::new();
         for chrom in self.get_all_chroms()? {
             let positions = self.get_chrom_fileline_positions(&chrom)?;
@@ -62,11 +62,14 @@ impl PlinkBim {
 
 #[cfg(test)]
 mod tests {
-    use super::PlinkBim;
+    use std::collections::{HashMap, HashSet};
     use std::io::{BufWriter, Write};
+
     use tempfile::NamedTempFile;
-    use std::collections::{HashSet, HashMap};
-    use crate::interval::{IntervalOverIntegers};
+
+    use crate::set::ContiguousIntegerSet;
+
+    use super::PlinkBim;
 
     fn write_bim_line<W: Write>(buf_writer: &mut BufWriter<W>, chrom: &str, id: &str, coordinate: u64,
         first_allele: char, second_allele: char) {
@@ -91,16 +94,16 @@ mod tests {
         }
         let mut bim = PlinkBim::new(file.into_temp_path().to_str().unwrap()).unwrap();
         let positions = bim.get_chrom_to_fileline_positions().unwrap();
-        let expected: HashMap<String, Vec<IntervalOverIntegers<usize>>> = vec![
-            ("1".to_string(), vec![IntervalOverIntegers::new(0, 5)]),
+        let expected: HashMap<String, Vec<ContiguousIntegerSet<usize>>> = vec![
+            ("1".to_string(), vec![ContiguousIntegerSet::new(0, 5)]),
             ("3".to_string(), vec![
-                IntervalOverIntegers::new(6, 9),
-                IntervalOverIntegers::new(13, 15)
+                ContiguousIntegerSet::new(6, 9),
+                ContiguousIntegerSet::new(13, 15)
             ]),
-            ("4".to_string(), vec![IntervalOverIntegers::new(10, 10)]),
+            ("4".to_string(), vec![ContiguousIntegerSet::new(10, 10)]),
             ("5".to_string(), vec![
-                IntervalOverIntegers::new(11, 12),
-                IntervalOverIntegers::new(16, 17),
+                ContiguousIntegerSet::new(11, 12),
+                ContiguousIntegerSet::new(16, 17),
             ])
         ].into_iter().collect();
         assert_eq!(positions, expected);

@@ -5,3 +5,4 @@ pub mod error;
 pub mod interval;
 pub mod plink_bed;
 pub mod plink_bim;
+pub mod set;
