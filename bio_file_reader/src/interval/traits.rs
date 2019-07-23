@@ -5,11 +5,7 @@ pub trait Interval {
 
     fn get_start(&self) -> Self::Element;
 
-    fn set_start(&mut self, start: Self::Element);
-
     fn get_end(&self) -> Self::Element;
-
-    fn set_end(&mut self, end: Self::Element);
 
     fn len(&self) -> Self::Element {
         self.get_end() - self.get_start()
@@ -29,9 +25,15 @@ pub trait IntervalTopology: Topology {
     fn get_topology(&self) -> IntervalShape;
 }
 
-pub trait CoalesceIntervals<I: Interval<Element=E>, E: Num + Copy> {
-    fn sort_and_coalesce_intervals(&self) -> Vec<I>;
-    fn sort_and_coalesce_intervals_inplace(&mut self);
+pub trait CoalesceIntervals<I: Interval<Element=E>, E: Num + Copy>: std::marker::Sized {
+    fn to_coalesced_intervals(&self) -> Vec<I>;
+
+    fn coalesce_intervals_inplace(&mut self);
+
+    fn into_coalesced(mut self) -> Self {
+        self.coalesce_intervals_inplace();
+        self
+    }
 }
 
 #[derive(Copy, Clone, PartialEq)]

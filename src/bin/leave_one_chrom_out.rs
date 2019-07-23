@@ -60,10 +60,10 @@ fn main() {
             .iter()
             .filter(|(chrom, _positions)| *chrom != excluded_chrom)
             // intra-chromosome coalescence
-            .flat_map(|(_chrom, positions)| positions.get_intervals_by_ref().sort_and_coalesce_intervals())
+            .flat_map(|(_chrom, positions)| positions.get_intervals_by_ref().to_coalesced_intervals())
             .collect::<Vec<ContiguousIntegerSet<usize>>>();
         // inter-chromosome coalescence
-        snp_intervals.sort_and_coalesce_intervals_inplace();
+        snp_intervals.coalesce_intervals_inplace();
         println!("Excluding chromosome {}. Using file lines {:?}", excluded_chrom, snp_intervals);
 
         for interval in snp_intervals.into_iter() {
