@@ -1,16 +1,15 @@
 use num::Integer;
 
 use crate::interval::traits::{Coalesce, CoalesceIntervals, Interval};
-use crate::set::{ContiguousIntegerSet, IntegerSet};
 
 impl<I: Coalesce + Interval<Element=E> + Clone, E: Integer + Copy> CoalesceIntervals<I, E> for Vec<I> {
-    fn sort_and_coalesce_intervals(&self) -> Vec<I> {
+    fn to_coalesced_intervals(&self) -> Vec<I> {
         let mut intervals: Vec<I> = self.to_vec();
-        intervals.sort_and_coalesce_intervals_inplace();
+        intervals.coalesce_intervals_inplace();
         intervals
     }
 
-    fn sort_and_coalesce_intervals_inplace(&mut self) {
+    fn coalesce_intervals_inplace(&mut self) {
         self.sort_by_key(|i| i.get_start());
         let mut coalesced_intervals = Vec::new();
         for interval in self.drain(..) {
@@ -28,15 +27,6 @@ impl<I: Coalesce + Interval<Element=E> + Clone, E: Integer + Copy> CoalesceInter
     }
 }
 
-impl<E: Integer + Copy> CoalesceIntervals<ContiguousIntegerSet<E>, E> for IntegerSet<E> {
-    fn sort_and_coalesce_intervals(&self) -> Vec<ContiguousIntegerSet<E>> {
-        self.intervals.sort_and_coalesce_intervals()
-    }
-
-    fn sort_and_coalesce_intervals_inplace(&mut self) {
-        self.intervals.sort_and_coalesce_intervals_inplace();
-    }
-}
 
 #[cfg(test)]
 mod tests {
@@ -45,7 +35,7 @@ mod tests {
     use super::CoalesceIntervals;
 
     #[test]
-    fn test_sort_and_coalesce_intervals() {
+    fn test_to_coalesced_intervals() {
         let intervals = vec![
             ContiguousIntegerSet::new(2, 4),
             ContiguousIntegerSet::new(1, 1),
@@ -54,7 +44,7 @@ mod tests {
             ContiguousIntegerSet::new(9, 10),
             ContiguousIntegerSet::new(-1, 3)
         ];
-        let sorted_intervals = intervals.sort_and_coalesce_intervals();
+        let sorted_intervals = intervals.to_coalesced_intervals();
         assert_eq!(sorted_intervals, vec![
             ContiguousIntegerSet::new(-10, -5),
             ContiguousIntegerSet::new(-1, 5),
