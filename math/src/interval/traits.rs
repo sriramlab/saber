@@ -7,13 +7,11 @@ pub trait Interval {
 
     fn get_end(&self) -> Self::Element;
 
-    fn len(&self) -> Self::Element {
-        self.get_end() - self.get_start()
-    }
+    fn length(&self) -> Self::Element;
 }
 
-pub trait Coalesce: std::marker::Sized {
-    fn coalesce_with(&self, other: &Self) -> Option<Self>;
+pub trait Coalesce<T>: std::marker::Sized {
+    fn coalesce_with(&self, other: &T) -> Option<Self>;
 }
 
 pub trait CoalesceIntervals<I: Interval<Element=E>, E: Num + Copy>: std::marker::Sized {
@@ -30,13 +28,4 @@ pub trait CoalesceIntervals<I: Interval<Element=E>, E: Num + Copy>: std::marker:
 pub trait Topology {
     fn is_open(&self) -> bool;
     fn is_closed(&self) -> bool;
-}
-
-/// returns None if the number of elements is infinite
-pub trait Countable {
-    fn cardinality(&self) -> Option<usize>;
-
-    fn is_finite(&self) -> bool {
-        self.cardinality().is_some()
-    }
 }

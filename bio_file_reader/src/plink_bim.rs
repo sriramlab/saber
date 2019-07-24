@@ -3,7 +3,7 @@ use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
 
 use crate::error::Error;
-use crate::set::{IntegerSetCollector, IntegerSet};
+use math::set::{IntegerSetCollector, IntegerSet};
 
 pub const CHROM_FIELD_INDEX: usize = 0;
 pub const VARIANT_ID_FIELD_INDEX: usize = 1;
@@ -67,7 +67,7 @@ mod tests {
 
     use tempfile::NamedTempFile;
 
-    use crate::set::{ContiguousIntegerSet, IntegerSet};
+    use math::set::{ContiguousIntegerSet, IntegerSet};
 
     use super::PlinkBim;
 

@@ -7,7 +7,11 @@ use num::integer::Integer;
 use num::traits::cast::ToPrimitive;
 use num::traits::NumAssignOps;
 
-use crate::interval::traits::{Coalesce, CoalesceIntervals, Interval, Countable};
+use crate::interval::traits::{Coalesce, CoalesceIntervals, Interval};
+use crate::sample::{Collecting, Constructable, Sample, ToIterator};
+use crate::set::traits::Finite;
+
+pub mod traits;
 
 pub trait Set {
     fn is_empty(&self) -> bool;
@@ -34,12 +38,12 @@ impl<E: Integer + Copy> ContiguousIntegerSet<E> {
     }
 }
 
-impl<E: Integer + Copy + ToPrimitive> Countable for ContiguousIntegerSet<E> {
-    fn cardinality(&self) -> Option<usize> {
+impl<E: Integer + Copy + ToPrimitive> Finite for ContiguousIntegerSet<E> {
+    fn size(&self) -> usize {
         if self.is_empty() {
-            Some(0)
+            0
         } else {
-            Some((self.end - self.start).to_usize().unwrap())
+            (self.end - self.start + E::one()).to_usize().unwrap()
         }
     }
 }
@@ -47,7 +51,7 @@ impl<E: Integer + Copy + ToPrimitive> Countable for ContiguousIntegerSet<E> {
 /// returns an interval if only if the two intervals can be merged into
 /// a single non-empty interval
 /// An empty interval can be merged with any other non-empty interval
-impl<E: Integer + Copy> Coalesce for ContiguousIntegerSet<E> {
+impl<E: Integer + Copy> Coalesce<Self> for ContiguousIntegerSet<E> {
     fn coalesce_with(&self, other: &Self) -> Option<Self> {
         if self.is_empty() && other.is_empty() {
             None
@@ -65,6 +69,20 @@ impl<E: Integer + Copy> Coalesce for ContiguousIntegerSet<E> {
     }
 }
 
+impl<E: Integer + Copy> Coalesce<E> for ContiguousIntegerSet<E> {
+    fn coalesce_with(&self, other: &E) -> Option<Self> {
+        if self.is_empty() {
+            Some(ContiguousIntegerSet::new(*other, *other))
+        } else {
+            if self.start > *other + E::one() || self.end + E::one() < *other {
+                None
+            } else {
+                Some(ContiguousIntegerSet::new(min(self.start, *other), max(self.end, *other)))
+            }
+        }
+    }
+}
+
 impl<E: Integer + Copy> Interval for ContiguousIntegerSet<E> {
     type Element = E;
 
@@ -75,14 +93,55 @@ impl<E: Integer + Copy> Interval for ContiguousIntegerSet<E> {
     fn get_end(&self) -> E {
         self.end
     }
+
+    fn length(&self) -> E {
+        self.end - self.start
+    }
+}
+
+impl<E: Integer + Copy> ToIterator<ContiguousIntegerSetIter<E>, E> for ContiguousIntegerSet<E> {
+    fn iter(&self) -> ContiguousIntegerSetIter<E> {
+        ContiguousIntegerSetIter::from(*self)
+    }
+}
+
+impl<E: Integer + Copy + ToPrimitive> Sample<ContiguousIntegerSetIter<E>, E> for ContiguousIntegerSet<E> {
+    type Output = IntegerSet<E>;
+}
+
+pub struct ContiguousIntegerSetIter<E: Integer + Copy> {
+    contiguous_integer_set: ContiguousIntegerSet<E>,
+    current: E,
+}
+
+impl<E: Integer + Copy> ContiguousIntegerSetIter<E> {
+    fn from(contiguous_integer_set: ContiguousIntegerSet<E>) -> ContiguousIntegerSetIter<E> {
+        ContiguousIntegerSetIter {
+            contiguous_integer_set,
+            current: E::zero(),
+        }
+    }
+}
+
+impl<E: Integer + Copy> Iterator for ContiguousIntegerSetIter<E> {
+    type Item = E;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current > self.contiguous_integer_set.end {
+            None
+        } else {
+            let val = self.current;
+            self.current = self.current + E::one();
+            Some(val)
+        }
+    }
 }
 
 #[derive(Clone, PartialEq, Debug)]
-pub struct IntegerSet<E: Integer + Copy> {
+pub struct IntegerSet<E: Integer + Copy + ToPrimitive> {
     pub intervals: Vec<ContiguousIntegerSet<E>>
 }
 
-impl<E: Integer + Copy> IntegerSet<E> {
+impl<E: Integer + Copy + ToPrimitive> IntegerSet<E> {
     pub fn new() -> IntegerSet<E> {
         IntegerSet {
             intervals: Vec::new()
@@ -104,10 +163,6 @@ impl<E: Integer + Copy> IntegerSet<E> {
         }
     }
 
-    pub fn remove_empty_intervals(&mut self) {
-        self.intervals.drain_filter(|i| i.is_empty());
-    }
-
     pub fn to_non_empty_intervals(&self) -> Self {
         self.clone().into_non_empty_intervals()
     }
@@ -115,6 +170,10 @@ impl<E: Integer + Copy> IntegerSet<E> {
     pub fn into_non_empty_intervals(mut self) -> Self {
         self.remove_empty_intervals();
         self
+    }
+
+    pub fn remove_empty_intervals(&mut self) {
+        self.intervals.drain_filter(|i| i.is_empty());
     }
 
     pub fn get_intervals_by_ref(&self) -> &Vec<ContiguousIntegerSet<E>> {
@@ -130,13 +189,33 @@ impl<E: Integer + Copy> IntegerSet<E> {
     }
 }
 
-impl<E: Integer + Copy + Sum> IntegerSet<E> {
-    pub fn size(&self) -> E {
-        self.intervals.iter().map(|i| i.len()).sum()
+impl<E: Integer + Copy + Sum + ToPrimitive> IntegerSet<E> {
+    pub fn size(&self) -> usize {
+        self.intervals.iter().map(|&i| i.size()).sum()
     }
 }
 
-impl<E: Integer + Copy> CoalesceIntervals<ContiguousIntegerSet<E>, E> for IntegerSet<E> {
+impl<E: Integer + Copy + ToPrimitive> Set for IntegerSet<E> {
+    fn is_empty(&self) -> bool {
+        self.to_non_empty_intervals().intervals.is_empty()
+    }
+}
+
+impl<E: Integer + Copy + ToPrimitive> Finite for IntegerSet<E> {
+    fn size(&self) -> usize {
+        if self.is_empty() {
+            0
+        } else {
+            let mut size = 0;
+            for interval in self.intervals.iter() {
+                size += interval.size();
+            }
+            size
+        }
+    }
+}
+
+impl<E: Integer + Copy + ToPrimitive> CoalesceIntervals<ContiguousIntegerSet<E>, E> for IntegerSet<E> {
     fn to_coalesced_intervals(&self) -> Vec<ContiguousIntegerSet<E>> {
         let mut intervals = self.to_non_empty_intervals().intervals;
         intervals.coalesce_intervals_inplace();
@@ -149,7 +228,7 @@ impl<E: Integer + Copy> CoalesceIntervals<ContiguousIntegerSet<E>, E> for Intege
     }
 }
 
-impl<E: Integer + Copy> Sub for ContiguousIntegerSet<E> {
+impl<E: Integer + Copy + ToPrimitive> Sub for ContiguousIntegerSet<E> {
     type Output = IntegerSet<E>;
     fn sub(self, rhs: ContiguousIntegerSet<E>) -> Self::Output {
         let a = self.get_start();
@@ -168,7 +247,7 @@ impl<E: Integer + Copy> Sub for ContiguousIntegerSet<E> {
     }
 }
 
-impl<E: Integer + Copy> Sub<ContiguousIntegerSet<E>> for IntegerSet<E> {
+impl<E: Integer + Copy + ToPrimitive> Sub<ContiguousIntegerSet<E>> for IntegerSet<E> {
     type Output = Self;
     fn sub(self, rhs: ContiguousIntegerSet<E>) -> Self::Output {
         let diff_intervals: Vec<ContiguousIntegerSet<E>> = self.intervals.iter()
@@ -179,13 +258,13 @@ impl<E: Integer + Copy> Sub<ContiguousIntegerSet<E>> for IntegerSet<E> {
     }
 }
 
-impl<E: Integer + Copy> SubAssign<ContiguousIntegerSet<E>> for IntegerSet<E> {
+impl<E: Integer + Copy + ToPrimitive> SubAssign<ContiguousIntegerSet<E>> for IntegerSet<E> {
     fn sub_assign(&mut self, rhs: ContiguousIntegerSet<E>) {
         *self = self.to_owned() - rhs
     }
 }
 
-impl<E: Integer + Copy> Sub<IntegerSet<E>> for ContiguousIntegerSet<E> {
+impl<E: Integer + Copy + ToPrimitive> Sub<IntegerSet<E>> for ContiguousIntegerSet<E> {
     type Output = IntegerSet<E>;
     fn sub(self, rhs: IntegerSet<E>) -> Self::Output {
         let mut diff = IntegerSet::from(vec![self]);
@@ -196,7 +275,7 @@ impl<E: Integer + Copy> Sub<IntegerSet<E>> for ContiguousIntegerSet<E> {
     }
 }
 
-impl<E: Integer + Copy> Sub for IntegerSet<E> {
+impl<E: Integer + Copy + ToPrimitive> Sub for IntegerSet<E> {
     type Output = Self;
     fn sub(self, rhs: IntegerSet<E>) -> Self::Output {
         let mut diff = self;
@@ -207,17 +286,85 @@ impl<E: Integer + Copy> Sub for IntegerSet<E> {
     }
 }
 
-impl<E: Integer + Copy> SubAssign for IntegerSet<E> {
+impl<E: Integer + Copy + ToPrimitive> SubAssign for IntegerSet<E> {
     fn sub_assign(&mut self, rhs: IntegerSet<E>) {
         *self = self.to_owned() - rhs
     }
+}
+
+impl<E: Integer + Copy + ToPrimitive> Constructable for IntegerSet<E> {
+    type Output = IntegerSet<E>;
+    fn new() -> Self::Output {
+        IntegerSet::new()
+    }
+}
+
+impl<E: Integer + Copy + ToPrimitive> Collecting<E> for IntegerSet<E> {
+    fn collect(&mut self, item: E) {
+        for interval in self.intervals.iter_mut() {
+            match interval.coalesce_with(&item) {
+                Some(i) => {
+                    *interval = i;
+                    return;
+                }
+                None => {}
+            };
+        }
+        self.intervals.push(ContiguousIntegerSet::new(item, item));
+    }
+}
+
+pub struct IntegerSetIter<E: Integer + Copy + ToPrimitive> {
+    integer_set: IntegerSet<E>,
+    current_interval_index: usize,
+    current_element_index: E,
+}
+
+impl<E: Integer + Copy + ToPrimitive> IntegerSetIter<E> {
+    fn from(integer_set: IntegerSet<E>) -> IntegerSetIter<E> {
+        IntegerSetIter {
+            integer_set,
+            current_interval_index: 0,
+            current_element_index: E::zero(),
+        }
+    }
+}
+
+impl<E: Integer + Copy + ToPrimitive> Iterator for IntegerSetIter<E> {
+    type Item = E;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current_interval_index >= self.integer_set.intervals.len() {
+            None
+        } else {
+            let interval = &self.integer_set.intervals[self.current_interval_index];
+            if self.current_element_index.to_usize().unwrap() >= interval.size() {
+                self.current_interval_index += 1;
+                self.current_element_index = E::zero();
+                self.next()
+            } else {
+                let val = interval.start + self.current_element_index;
+                self.current_element_index = self.current_element_index + E::one();
+                Some(val)
+            }
+        }
+    }
+}
+
+impl<E: Integer + Copy + ToPrimitive> ToIterator<IntegerSetIter<E>, E> for IntegerSet<E> {
+    fn iter(&self) -> IntegerSetIter<E> {
+        IntegerSetIter::from(self.clone())
+    }
+}
+
+impl<E: Integer + Copy + ToPrimitive> Sample<IntegerSetIter<E>, E> for IntegerSet<E> {
+    type Output = IntegerSet<E>;
 }
 
 pub struct IntegerSetCollector<E: Integer + Copy> {
     intervals: Vec<ContiguousIntegerSet<E>>
 }
 
-impl<E: Integer + NumAssignOps + Copy + fmt::Display> IntegerSetCollector<E> {
+impl<E: Integer + NumAssignOps + Copy + ToPrimitive + fmt::Display> IntegerSetCollector<E> {
     pub fn new() -> IntegerSetCollector<E> {
         IntegerSetCollector {
             intervals: Vec::<ContiguousIntegerSet<E>>::new(),
