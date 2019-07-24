@@ -4,15 +4,16 @@ use std::iter::Sum;
 use std::ops::{Sub, SubAssign};
 
 use num::integer::Integer;
+use num::traits::cast::ToPrimitive;
 use num::traits::NumAssignOps;
 
-use crate::interval::traits::*;
+use crate::interval::traits::{Coalesce, CoalesceIntervals, Interval, Countable};
 
 pub trait Set {
     fn is_empty(&self) -> bool;
 }
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub struct ContiguousIntegerSet<E: Integer + Copy> {
     start: E,
     end: E,
@@ -29,6 +30,16 @@ impl<E: Integer + Copy> ContiguousIntegerSet<E> {
         ContiguousIntegerSet {
             start,
             end,
+        }
+    }
+}
+
+impl<E: Integer + Copy + ToPrimitive> Countable for ContiguousIntegerSet<E> {
+    fn cardinality(&self) -> Option<usize> {
+        if self.is_empty() {
+            Some(0)
+        } else {
+            Some((self.end - self.start).to_usize().unwrap())
         }
     }
 }
@@ -63,56 +74,6 @@ impl<E: Integer + Copy> Interval for ContiguousIntegerSet<E> {
 
     fn get_end(&self) -> E {
         self.end
-    }
-}
-
-pub struct IntegerSetCollector<E: Integer + Copy> {
-    intervals: Vec<ContiguousIntegerSet<E>>
-}
-
-impl<E: Integer + NumAssignOps + Copy + fmt::Display> IntegerSetCollector<E> {
-    pub fn new() -> IntegerSetCollector<E> {
-        IntegerSetCollector {
-            intervals: Vec::<ContiguousIntegerSet<E>>::new(),
-        }
-    }
-
-    pub fn get_intervals_ref(&self) -> &Vec<ContiguousIntegerSet<E>> {
-        &self.intervals
-    }
-
-    pub fn to_intervals(&self) -> Vec<ContiguousIntegerSet<E>> {
-        self.intervals.clone()
-    }
-
-    pub fn into_intervals(self) -> Vec<ContiguousIntegerSet<E>> {
-        self.intervals
-    }
-
-    pub fn to_integer_set(&self) -> IntegerSet<E> {
-        IntegerSet::from(self.intervals.clone())
-    }
-
-    pub fn into_integer_set(self) -> IntegerSet<E> {
-        IntegerSet::from(self.intervals)
-    }
-
-    pub fn append_larger_point(&mut self, point: E) -> Result<(), String> {
-        match self.intervals.last_mut() {
-            None => {
-                self.intervals.push(ContiguousIntegerSet::new(point, point));
-            }
-            Some(interval) => {
-                if point <= interval.end {
-                    return Err(format!("The last encountered point {} is larger than the new point {} to be collected", interval.end, point));
-                } else if point == interval.end + E::one() {
-                    interval.end = point;
-                } else {
-                    self.intervals.push(ContiguousIntegerSet::new(point, point));
-                }
-            }
-        }
-        Ok(())
     }
 }
 
@@ -249,6 +210,56 @@ impl<E: Integer + Copy> Sub for IntegerSet<E> {
 impl<E: Integer + Copy> SubAssign for IntegerSet<E> {
     fn sub_assign(&mut self, rhs: IntegerSet<E>) {
         *self = self.to_owned() - rhs
+    }
+}
+
+pub struct IntegerSetCollector<E: Integer + Copy> {
+    intervals: Vec<ContiguousIntegerSet<E>>
+}
+
+impl<E: Integer + NumAssignOps + Copy + fmt::Display> IntegerSetCollector<E> {
+    pub fn new() -> IntegerSetCollector<E> {
+        IntegerSetCollector {
+            intervals: Vec::<ContiguousIntegerSet<E>>::new(),
+        }
+    }
+
+    pub fn get_intervals_ref(&self) -> &Vec<ContiguousIntegerSet<E>> {
+        &self.intervals
+    }
+
+    pub fn to_intervals(&self) -> Vec<ContiguousIntegerSet<E>> {
+        self.intervals.clone()
+    }
+
+    pub fn into_intervals(self) -> Vec<ContiguousIntegerSet<E>> {
+        self.intervals
+    }
+
+    pub fn to_integer_set(&self) -> IntegerSet<E> {
+        IntegerSet::from(self.intervals.clone())
+    }
+
+    pub fn into_integer_set(self) -> IntegerSet<E> {
+        IntegerSet::from(self.intervals)
+    }
+
+    pub fn append_larger_point(&mut self, point: E) -> Result<(), String> {
+        match self.intervals.last_mut() {
+            None => {
+                self.intervals.push(ContiguousIntegerSet::new(point, point));
+            }
+            Some(interval) => {
+                if point <= interval.end {
+                    return Err(format!("The last encountered point {} is larger than the new point {} to be collected", interval.end, point));
+                } else if point == interval.end + E::one() {
+                    interval.end = point;
+                } else {
+                    self.intervals.push(ContiguousIntegerSet::new(point, point));
+                }
+            }
+        }
+        Ok(())
     }
 }
 
