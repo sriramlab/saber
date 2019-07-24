@@ -16,15 +16,6 @@ pub trait Coalesce: std::marker::Sized {
     fn coalesce_with(&self, other: &Self) -> Option<Self>;
 }
 
-pub trait Topology {
-    fn is_open(&self) -> bool;
-    fn is_closed(&self) -> bool;
-}
-
-pub trait IntervalTopology: Topology {
-    fn get_topology(&self) -> IntervalShape;
-}
-
 pub trait CoalesceIntervals<I: Interval<Element=E>, E: Num + Copy>: std::marker::Sized {
     fn to_coalesced_intervals(&self) -> Vec<I>;
 
@@ -36,10 +27,16 @@ pub trait CoalesceIntervals<I: Interval<Element=E>, E: Num + Copy>: std::marker:
     }
 }
 
-#[derive(Copy, Clone, PartialEq)]
-pub enum IntervalShape {
-    Open,
-    Closed,
-    LeftOpenRightClosed,
-    LeftClosedRightOpen,
+pub trait Topology {
+    fn is_open(&self) -> bool;
+    fn is_closed(&self) -> bool;
+}
+
+/// returns None if the number of elements is infinite
+pub trait Countable {
+    fn cardinality(&self) -> Option<usize>;
+
+    fn is_finite(&self) -> bool {
+        self.cardinality().is_some()
+    }
 }
