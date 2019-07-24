@@ -40,6 +40,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 name = "bio_file_reader"
 version = "0.1.0"
 dependencies = [
+ "math 0.1.0",
  "ndarray 0.12.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "ndarray-rand 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "num 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -274,6 +275,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 name = "linear-map"
 version = "0.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "math"
+version = "0.1.0"
+dependencies = [
+ "num 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rand 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
+]
 
 [[package]]
 name = "matrixmultiply"
@@ -709,6 +718,7 @@ dependencies = [
  "collenchyma 0.0.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "collenchyma-blas 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "colored 1.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "math 0.1.0",
  "ndarray 0.12.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "ndarray-linalg 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "ndarray-parallel 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
