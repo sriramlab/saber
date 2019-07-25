@@ -6,7 +6,7 @@ use clap::{Arg, clap_app};
 use bio_file_reader::plink_bed::PlinkBed;
 use bio_file_reader::plink_bim::PlinkBim;
 use math::interval::traits::{CoalesceIntervals, Interval};
-use math::set::ContiguousIntegerSet;
+use math::set::integer_set::ContiguousIntegerSet;
 use saber::program_flow::OrExit;
 use saber::util::{extract_str_arg, get_bed_bim_fam_path};
 
