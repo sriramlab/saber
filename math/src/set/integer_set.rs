@@ -6,7 +6,8 @@ use num::integer::Integer;
 use num::traits::cast::ToPrimitive;
 
 use crate::interval::traits::{Coalesce, CoalesceIntervals, Interval};
-use crate::sample::{Collecting, Constructable, Sample, ToIterator};
+use crate::traits::{Collecting, Constructable, ToIterator};
+use crate::sample::Sample;
 use crate::set::Set;
 use crate::set::traits::Finite;
 
@@ -401,7 +402,7 @@ impl<E: Integer + Copy + ToPrimitive> Sample<IntegerSetIter<E>, E> for IntegerSe
 #[cfg(test)]
 mod tests {
     use crate::interval::traits::*;
-    use crate::sample::Collecting;
+    use crate::traits::Collecting;
 
     use super::{ContiguousIntegerSet, IntegerSet};
 

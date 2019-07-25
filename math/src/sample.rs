@@ -1,27 +1,7 @@
 use rand::distributions::{Distribution, Uniform};
 
 use crate::set::traits::Finite;
-
-pub mod trait_impl;
-
-pub trait ToIterator<I: Iterator<Item=E>, E> {
-    fn iter(&self) -> I;
-}
-
-pub trait Collecting<T> {
-    fn collect(&mut self, item: T);
-}
-
-impl<T> Collecting<T> for Vec<T> {
-    fn collect(&mut self, item: T) {
-        self.push(item);
-    }
-}
-
-pub trait Constructable {
-    type Output;
-    fn new() -> Self::Output;
-}
+use crate::traits::{Collecting, Constructable, ToIterator};
 
 pub trait Sample<I: Iterator<Item=E>, E: Clone>: Finite + ToIterator<I, E> {
     type Output: Collecting<E> + Constructable<Output=Self::Output>;
@@ -52,6 +32,7 @@ pub trait Sample<I: Iterator<Item=E>, E: Clone>: Finite + ToIterator<I, E> {
 #[cfg(test)]
 mod tests {
     use crate::set::integer_set::{ContiguousIntegerSet, IntegerSet};
+
     use super::Sample;
 
     #[test]

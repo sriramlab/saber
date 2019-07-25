@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
 
-use math::sample::Collecting;
+use math::traits::Collecting;
 use math::set::integer_set::IntegerSet;
 
 use crate::error::Error;
