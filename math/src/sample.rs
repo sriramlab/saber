@@ -31,7 +31,7 @@ pub trait Sample<I: Iterator<Item=E>, E: Clone>: Finite + ToIterator<I, E> {
     fn sample_subset_without_replacement(&self, size: usize) -> Result<Self::Output, String> {
         let mut remaining = self.size();
         if size > remaining {
-            return Err(format!("desired sample size {} > population size {}", size, self.size()));
+            return Err(format!("desired sample size {} > population size {}", size, remaining));
         }
         let mut samples = Self::Output::new();
         let mut needed = size;
@@ -51,7 +51,7 @@ pub trait Sample<I: Iterator<Item=E>, E: Clone>: Finite + ToIterator<I, E> {
 
 #[cfg(test)]
 mod tests {
-    use crate::set::{ContiguousIntegerSet, IntegerSet};
+    use crate::set::integer_set::{ContiguousIntegerSet, IntegerSet};
     use super::Sample;
 
     #[test]

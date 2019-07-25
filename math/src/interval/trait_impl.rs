@@ -29,7 +29,7 @@ impl<I: Coalesce<I> + Interval<Element=E> + Clone, E: Integer + Copy> CoalesceIn
 
 #[cfg(test)]
 mod tests {
-    use crate::set::ContiguousIntegerSet;
+    use crate::set::integer_set::ContiguousIntegerSet;
 
     use super::CoalesceIntervals;
 

@@ -2,8 +2,10 @@ use std::collections::{HashMap, HashSet};
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
 
+use math::sample::Collecting;
+use math::set::integer_set::IntegerSet;
+
 use crate::error::Error;
-use math::set::{IntegerSetCollector, IntegerSet};
 
 pub const CHROM_FIELD_INDEX: usize = 0;
 pub const VARIANT_ID_FIELD_INDEX: usize = 1;
@@ -38,16 +40,16 @@ impl PlinkBim {
     }
 
     pub fn get_chrom_fileline_positions(&mut self, chrom: &str) -> Result<IntegerSet<usize>, Error> {
-        let mut collector = IntegerSetCollector::new();
+        let mut set = IntegerSet::new();
         self.reset_buf()?;
         for (i, l) in self.buf.by_ref().lines().enumerate() {
             if l.unwrap()
                 .split_whitespace()
                 .nth(CHROM_FIELD_INDEX).unwrap() == chrom {
-                collector.append_larger_point(i)?;
+                set.collect(i);
             }
         }
-        Ok(collector.into_integer_set())
+        Ok(set)
     }
 
     pub fn get_chrom_to_fileline_positions(&mut self) -> Result<HashMap<String, IntegerSet<usize>>, Error> {
@@ -67,7 +69,7 @@ mod tests {
 
     use tempfile::NamedTempFile;
 
-    use math::set::{ContiguousIntegerSet, IntegerSet};
+    use math::set::integer_set::{ContiguousIntegerSet, IntegerSet};
 
     use super::PlinkBim;
 
