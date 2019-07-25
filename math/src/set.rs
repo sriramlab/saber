@@ -1,4 +1,4 @@
-pub mod integer_set;
+pub mod ordered_integer_set;
 pub mod traits;
 
 pub trait Set {

@@ -3,7 +3,7 @@ use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
 
 use math::traits::Collecting;
-use math::set::integer_set::IntegerSet;
+use math::set::ordered_integer_set::OrderedIntegerSet;
 
 use crate::error::Error;
 
@@ -39,8 +39,8 @@ impl PlinkBim {
         ).collect());
     }
 
-    pub fn get_chrom_fileline_positions(&mut self, chrom: &str) -> Result<IntegerSet<usize>, Error> {
-        let mut set = IntegerSet::new();
+    pub fn get_chrom_fileline_positions(&mut self, chrom: &str) -> Result<OrderedIntegerSet<usize>, Error> {
+        let mut set = OrderedIntegerSet::new();
         self.reset_buf()?;
         for (i, l) in self.buf.by_ref().lines().enumerate() {
             if l.unwrap()
@@ -52,7 +52,7 @@ impl PlinkBim {
         Ok(set)
     }
 
-    pub fn get_chrom_to_fileline_positions(&mut self) -> Result<HashMap<String, IntegerSet<usize>>, Error> {
+    pub fn get_chrom_to_fileline_positions(&mut self) -> Result<HashMap<String, OrderedIntegerSet<usize>>, Error> {
         let mut chrom_to_positions = HashMap::new();
         for chrom in self.get_all_chroms()? {
             let positions = self.get_chrom_fileline_positions(&chrom)?;
@@ -69,7 +69,7 @@ mod tests {
 
     use tempfile::NamedTempFile;
 
-    use math::set::integer_set::{ContiguousIntegerSet, IntegerSet};
+    use math::set::ordered_integer_set::{ContiguousIntegerSet, OrderedIntegerSet};
 
     use super::PlinkBim;
 
@@ -96,14 +96,14 @@ mod tests {
         }
         let mut bim = PlinkBim::new(file.into_temp_path().to_str().unwrap()).unwrap();
         let positions = bim.get_chrom_to_fileline_positions().unwrap();
-        let expected: HashMap<String, IntegerSet<usize>> = vec![
-            ("1".to_string(), IntegerSet::from(vec![ContiguousIntegerSet::new(0, 5)])),
-            ("3".to_string(), IntegerSet::from(vec![
+        let expected: HashMap<String, OrderedIntegerSet<usize>> = vec![
+            ("1".to_string(), OrderedIntegerSet::from(vec![ContiguousIntegerSet::new(0, 5)])),
+            ("3".to_string(), OrderedIntegerSet::from(vec![
                 ContiguousIntegerSet::new(6, 9),
                 ContiguousIntegerSet::new(13, 15)
             ])),
-            ("4".to_string(), IntegerSet::from(vec![ContiguousIntegerSet::new(10, 10)])),
-            ("5".to_string(), IntegerSet::from(vec![
+            ("4".to_string(), OrderedIntegerSet::from(vec![ContiguousIntegerSet::new(10, 10)])),
+            ("5".to_string(), OrderedIntegerSet::from(vec![
                 ContiguousIntegerSet::new(11, 12),
                 ContiguousIntegerSet::new(16, 17),
             ]))

@@ -31,7 +31,7 @@ pub trait Sample<I: Iterator<Item=E>, E: Clone>: Finite + ToIterator<I, E> {
 
 #[cfg(test)]
 mod tests {
-    use crate::set::integer_set::{ContiguousIntegerSet, IntegerSet};
+    use crate::set::ordered_integer_set::{ContiguousIntegerSet, OrderedIntegerSet};
 
     use super::Sample;
 
@@ -42,7 +42,7 @@ mod tests {
         let samples = interval.sample_subset_without_replacement(num_samples).unwrap();
         assert_eq!(samples.size(), num_samples);
 
-        let set = IntegerSet::from_slice(&[[-89, -23], [-2, 100], [300, 345]]);
+        let set = OrderedIntegerSet::from_slice(&[[-89, -23], [-2, 100], [300, 345]]);
         let num_samples = 18;
         let samples = set.sample_subset_without_replacement(num_samples).unwrap();
         assert_eq!(samples.size(), num_samples);
