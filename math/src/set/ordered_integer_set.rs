@@ -94,13 +94,13 @@ impl<E: Integer + Copy> Coalesce<E> for ContiguousIntegerSet<E> {
     }
 }
 
-impl<E: Integer + Copy> ToIterator<ContiguousIntegerSetIter<E>, E> for ContiguousIntegerSet<E> {
+impl<E: Integer + Copy> ToIterator<'_, ContiguousIntegerSetIter<E>, E> for ContiguousIntegerSet<E> {
     fn to_iter(&self) -> ContiguousIntegerSetIter<E> {
         ContiguousIntegerSetIter::from(*self)
     }
 }
 
-impl<E: Integer + Copy + ToPrimitive> Sample<ContiguousIntegerSetIter<E>, E, OrderedIntegerSet<E>> for ContiguousIntegerSet<E> {}
+impl<E: Integer + Copy + ToPrimitive> Sample<'_, ContiguousIntegerSetIter<E>, E, OrderedIntegerSet<E>> for ContiguousIntegerSet<E> {}
 
 pub struct ContiguousIntegerSetIter<E: Integer + Copy> {
     contiguous_integer_set: ContiguousIntegerSet<E>,
@@ -373,13 +373,13 @@ impl<E: Integer + Copy + ToPrimitive> Iterator for IntegerSetIter<E> {
     }
 }
 
-impl<E: Integer + Copy + ToPrimitive> ToIterator<IntegerSetIter<E>, E> for OrderedIntegerSet<E> {
+impl<E: Integer + Copy + ToPrimitive> ToIterator<'_, IntegerSetIter<E>, E> for OrderedIntegerSet<E> {
     fn to_iter(&self) -> IntegerSetIter<E> {
         IntegerSetIter::from(self.clone())
     }
 }
 
-impl<E: Integer + Copy + ToPrimitive + Sum> Sample<IntegerSetIter<E>, E, OrderedIntegerSet<E>> for OrderedIntegerSet<E> {}
+impl<E: Integer + Copy + ToPrimitive + Sum> Sample<'_, IntegerSetIter<E>, E, OrderedIntegerSet<E>> for OrderedIntegerSet<E> {}
 
 #[cfg(test)]
 mod tests {
