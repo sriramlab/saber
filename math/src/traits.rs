@@ -1,8 +1,7 @@
 pub mod trait_impl;
 
 pub trait Constructable {
-    type Output;
-    fn new() -> Self::Output;
+    fn new() -> Self;
 }
 
 pub trait Collecting<T> {
@@ -10,5 +9,5 @@ pub trait Collecting<T> {
 }
 
 pub trait ToIterator<I: Iterator<Item=E>, E> {
-    fn iter(&self) -> I;
+    fn to_iter(&self) -> I;
 }

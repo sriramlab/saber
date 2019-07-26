@@ -3,22 +3,23 @@ use rand::distributions::{Distribution, Uniform};
 use crate::set::traits::Finite;
 use crate::traits::{Collecting, Constructable, ToIterator};
 
-pub trait Sample<I: Iterator<Item=E>, E: Clone>: Finite + ToIterator<I, E> {
-    type Output: Collecting<E> + Constructable<Output=Self::Output>;
+pub mod trait_impl;
+
+pub trait Sample<I: Iterator<Item=E>, E: Clone, O: Collecting<E> + Constructable>: Finite + ToIterator<I, E> {
     /// samples `size` elements without replacement
     /// `size`: the number of samples to be drawn
     /// returns Err if `size` is larger than the population size
-    fn sample_subset_without_replacement(&self, size: usize) -> Result<Self::Output, String> {
+    fn sample_subset_without_replacement(&self, size: usize) -> Result<O, String> {
         let mut remaining = self.size();
         if size > remaining {
             return Err(format!("desired sample size {} > population size {}", size, remaining));
         }
-        let mut samples = Self::Output::new();
+        let mut samples = O::new();
         let mut needed = size;
         let mut rng = rand::thread_rng();
         let uniform = Uniform::new(0., 1.);
 
-        for element in self.iter() {
+        for element in self.to_iter() {
             if uniform.sample(&mut rng) <= (needed as f64 / remaining as f64) {
                 samples.collect(element.clone());
                 needed -= 1;
@@ -32,6 +33,7 @@ pub trait Sample<I: Iterator<Item=E>, E: Clone>: Finite + ToIterator<I, E> {
 #[cfg(test)]
 mod tests {
     use crate::set::ordered_integer_set::{ContiguousIntegerSet, OrderedIntegerSet};
+    use crate::set::traits::Finite;
 
     use super::Sample;
 

@@ -11,6 +11,7 @@ use crate::sample::Sample;
 use crate::set::Set;
 use crate::set::traits::Finite;
 
+/// represents the set of integers in [start, end]
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct ContiguousIntegerSet<E: Integer + Copy> {
     start: E,
@@ -94,14 +95,12 @@ impl<E: Integer + Copy> Coalesce<E> for ContiguousIntegerSet<E> {
 }
 
 impl<E: Integer + Copy> ToIterator<ContiguousIntegerSetIter<E>, E> for ContiguousIntegerSet<E> {
-    fn iter(&self) -> ContiguousIntegerSetIter<E> {
+    fn to_iter(&self) -> ContiguousIntegerSetIter<E> {
         ContiguousIntegerSetIter::from(*self)
     }
 }
 
-impl<E: Integer + Copy + ToPrimitive> Sample<ContiguousIntegerSetIter<E>, E> for ContiguousIntegerSet<E> {
-    type Output = OrderedIntegerSet<E>;
-}
+impl<E: Integer + Copy + ToPrimitive> Sample<ContiguousIntegerSetIter<E>, E, OrderedIntegerSet<E>> for ContiguousIntegerSet<E> {}
 
 pub struct ContiguousIntegerSetIter<E: Integer + Copy> {
     contiguous_integer_set: ContiguousIntegerSet<E>,
@@ -148,7 +147,7 @@ impl<E: Integer + Copy + ToPrimitive> OrderedIntegerSet<E> {
                              .collect();
         OrderedIntegerSet {
             intervals
-        }
+        }.into_coalesced()
     }
 
     pub fn to_non_empty_intervals(&self) -> Self {
@@ -177,8 +176,8 @@ impl<E: Integer + Copy + ToPrimitive> OrderedIntegerSet<E> {
     }
 }
 
-impl<E: Integer + Copy + Sum + ToPrimitive> OrderedIntegerSet<E> {
-    pub fn size(&self) -> usize {
+impl<E: Integer + Copy + Sum + ToPrimitive> Finite for OrderedIntegerSet<E> {
+    fn size(&self) -> usize {
         self.intervals.iter().map(|&i| i.size()).sum()
     }
 }
@@ -187,27 +186,13 @@ impl<E: Integer + Copy + ToPrimitive> From<Vec<ContiguousIntegerSet<E>>> for Ord
     fn from(intervals: Vec<ContiguousIntegerSet<E>>) -> OrderedIntegerSet<E> {
         OrderedIntegerSet {
             intervals
-        }
+        }.into_coalesced()
     }
 }
 
 impl<E: Integer + Copy + ToPrimitive> Set for OrderedIntegerSet<E> {
     fn is_empty(&self) -> bool {
         self.to_non_empty_intervals().intervals.is_empty()
-    }
-}
-
-impl<E: Integer + Copy + ToPrimitive> Finite for OrderedIntegerSet<E> {
-    fn size(&self) -> usize {
-        if self.is_empty() {
-            0
-        } else {
-            let mut size = 0;
-            for interval in self.intervals.iter() {
-                size += interval.size();
-            }
-            size
-        }
     }
 }
 
@@ -289,8 +274,7 @@ impl<E: Integer + Copy + ToPrimitive> SubAssign for OrderedIntegerSet<E> {
 }
 
 impl<E: Integer + Copy + ToPrimitive> Constructable for OrderedIntegerSet<E> {
-    type Output = OrderedIntegerSet<E>;
-    fn new() -> Self::Output {
+    fn new() -> OrderedIntegerSet<E> {
         OrderedIntegerSet::new()
     }
 }
@@ -390,14 +374,12 @@ impl<E: Integer + Copy + ToPrimitive> Iterator for IntegerSetIter<E> {
 }
 
 impl<E: Integer + Copy + ToPrimitive> ToIterator<IntegerSetIter<E>, E> for OrderedIntegerSet<E> {
-    fn iter(&self) -> IntegerSetIter<E> {
+    fn to_iter(&self) -> IntegerSetIter<E> {
         IntegerSetIter::from(self.clone())
     }
 }
 
-impl<E: Integer + Copy + ToPrimitive> Sample<IntegerSetIter<E>, E> for OrderedIntegerSet<E> {
-    type Output = OrderedIntegerSet<E>;
-}
+impl<E: Integer + Copy + ToPrimitive + Sum> Sample<IntegerSetIter<E>, E, OrderedIntegerSet<E>> for OrderedIntegerSet<E> {}
 
 #[cfg(test)]
 mod tests {
@@ -465,7 +447,10 @@ mod tests {
             let s2 = ContiguousIntegerSet::new(b[0], b[1]);
             assert_eq!(s1 - s2, OrderedIntegerSet::from_slice(expected));
         }
-        test(&[6, 5], &[-1, 3], &[[6, 5]]);
+        test(&[6, 5], &[-1, 3], &[]);
+        test(&[6, 5], &[1, 3], &[]);
+        test(&[5, 10], &[3, 1], &[[5, 10]]);
+        test(&[5, 8], &[-1, 3], &[[5, 8]]);
         test(&[2, 10], &[4, 9], &[[2, 3], [10, 10]]);
         test(&[2, 10], &[1, 8], &[[9, 10]]);
         test(&[2, 10], &[6, 8], &[[2, 5], [9, 10]]);
