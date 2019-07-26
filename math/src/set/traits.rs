@@ -1,10 +1,14 @@
-#[derive(Copy, Clone, PartialEq)]
+pub trait Set {
+    fn is_empty(&self) -> bool;
+}
+
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub enum CountableType {
     Finite(usize),
     CountablyInfinite,
 }
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub enum Cardinality {
     Countable(CountableType),
     Uncountable,
