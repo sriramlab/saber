@@ -5,11 +5,11 @@ use crate::traits::{Collecting, Constructable, ToIterator};
 
 pub mod trait_impl;
 
-pub trait Sample<I: Iterator<Item=E>, E: Clone, O: Collecting<E> + Constructable>: Finite + ToIterator<I, E> {
+pub trait Sample<'a, I: Iterator<Item=E>, E, O: Collecting<E> + Constructable>: Finite + ToIterator<'a, I, E> {
     /// samples `size` elements without replacement
     /// `size`: the number of samples to be drawn
     /// returns Err if `size` is larger than the population size
-    fn sample_subset_without_replacement(&self, size: usize) -> Result<O, String> {
+    fn sample_subset_without_replacement<'s: 'a>(&'s self, size: usize) -> Result<O, String> {
         let mut remaining = self.size();
         if size > remaining {
             return Err(format!("desired sample size {} > population size {}", size, remaining));
@@ -21,7 +21,7 @@ pub trait Sample<I: Iterator<Item=E>, E: Clone, O: Collecting<E> + Constructable
 
         for element in self.to_iter() {
             if uniform.sample(&mut rng) <= (needed as f64 / remaining as f64) {
-                samples.collect(element.clone());
+                samples.collect(element);
                 needed -= 1;
             }
             remaining -= 1;

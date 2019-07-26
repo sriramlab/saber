@@ -4,10 +4,10 @@ pub trait Constructable {
     fn new() -> Self;
 }
 
-pub trait Collecting<T> {
-    fn collect(&mut self, item: T);
+pub trait Collecting<E> {
+    fn collect(&mut self, item: E);
 }
 
-pub trait ToIterator<I: Iterator<Item=E>, E> {
-    fn to_iter(&self) -> I;
+pub trait ToIterator<'s, I: Iterator<Item=R>, R> {
+    fn to_iter(&'s self) -> I;
 }
