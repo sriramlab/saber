@@ -1,23 +1,9 @@
+use std::ops::Deref;
 use std::slice::Iter;
 
 use crate::sample::Sample;
-use crate::set::traits::Finite;
-use crate::traits::ToIterator;
-use std::ops::Deref;
 
 impl<'a, E: Clone> Sample<'a, Iter<'a, E>, &'a E, Vec<E>> for Vec<E> where &'a E: Deref {}
-
-impl<T> Finite for Vec<T> {
-    fn size(&self) -> usize {
-        self.len()
-    }
-}
-
-impl<'a, 's: 'a, E> ToIterator<'s, Iter<'a, E>, &'a E> for Vec<E> {
-    fn to_iter(&'s self) -> Iter<'a, E> {
-        self.iter()
-    }
-}
 
 #[cfg(test)]
 mod tests {
