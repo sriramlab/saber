@@ -7,8 +7,22 @@ use ndarray::{Array, Ix2, ShapeBuilder};
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use rayon::iter::plumbing::{bridge, Consumer, Producer, ProducerCallback, UnindexedConsumer};
 
+use math::set::ordered_integer_set::OrderedIntegerSet;
+use math::set::traits::{Set, Finite};
+
 use crate::byte_chunk_iter::ByteChunkIter;
 use crate::error::Error;
+use math::traits::ToIterator;
+
+const NUM_PEOPLE_PER_BYTE: usize = 4;
+
+#[inline]
+fn get_num_people_last_byte(total_num_people: usize) -> usize {
+    match total_num_people % NUM_PEOPLE_PER_BYTE {
+        0 => NUM_PEOPLE_PER_BYTE,
+        x => x
+    }
+}
 
 pub struct PlinkBed {
     bed_buf: BufReader<File>,
@@ -35,6 +49,7 @@ impl PlinkBed {
         Ok(fam_buf.lines().count())
     }
 
+    #[inline]
     fn usize_div_ceil(a: usize, divisor: usize) -> usize {
         a / divisor + (a % divisor != 0) as usize
     }
@@ -134,10 +149,7 @@ impl PlinkBed {
         self.reset_bed_buf()?;
 
         let last_byte_index = self.num_bytes_per_snp - 1;
-        let num_people_last_byte = match self.num_people % 4 {
-            0 => 4,
-            x => x
-        };
+        let num_people_last_byte = get_num_people_last_byte(self.num_people);
 
         let mut v = Vec::with_capacity(self.num_people * self.num_snps);
         unsafe {
@@ -166,18 +178,24 @@ impl PlinkBed {
         Ok(geno_arr)
     }
 
-    pub fn col_chunk_iter(&mut self, snp_stride: usize) -> PlinkColChunkIter {
+    pub fn col_chunk_iter(&mut self, num_snps_per_iter: usize, range: Option<OrderedIntegerSet<usize>>) -> PlinkColChunkIter {
         let buf = PlinkBed::get_buf(&self.filepath).unwrap();
-        PlinkColChunkIter::new(buf,
-                               0,
-                               self.num_snps,
-                               snp_stride,
-                               self.num_people,
-                               &self.filepath)
+        match range {
+            Some(range) => PlinkColChunkIter::new(buf,
+                                                  range,
+                                                  num_snps_per_iter,
+                                                  self.num_people,
+                                                  &self.filepath),
+            None => PlinkColChunkIter::new(buf,
+                                           OrderedIntegerSet::from_slice(&[[0, self.num_snps - 1]]),
+                                           num_snps_per_iter,
+                                           self.num_people,
+                                           &self.filepath)
+        }
     }
 
     pub fn byte_chunk_iter(&mut self, start_byte_index: usize, end_byte_index_exclusive: usize,
-        chunk_size: usize) -> Result<ByteChunkIter<File>, Error> {
+                           chunk_size: usize) -> Result<ByteChunkIter<File>, Error> {
         let buf = match OpenOptions::new().read(true).open(&self.filepath) {
             Ok(file) => BufReader::new(file),
             Err(io_error) => return Err(Error::IO { why: format!("failed to open {}: {}", self.filepath, io_error), io_error }),
@@ -228,49 +246,61 @@ impl PlinkBed {
 }
 
 pub struct PlinkColChunkIter {
-    start_snp_index: usize,
-    end_snp_index: usize,
-    current_snp_index: usize,
-    num_people: usize,
-    num_snps_per_iter: usize,
-    bed_filename: String,
     buf: BufReader<File>,
+    range: OrderedIntegerSet<usize>,
+    num_snps_per_iter: usize,
+    num_people: usize,
+    num_snps_in_range: usize,
+    range_cursor: usize,
+    last_read_snp_index: Option<usize>,
+    bed_filename: String,
 }
 
 impl PlinkColChunkIter {
-    pub fn new(buf: BufReader<File>, start_snp_index: usize, end_snp_index: usize, num_snps_per_iter: usize,
-        num_people: usize, bed_filename: &str) -> PlinkColChunkIter {
+    pub fn new(buf: BufReader<File>,
+               range: OrderedIntegerSet<usize>,
+               num_snps_per_iter: usize,
+               num_people: usize,
+               bed_filename: &str,
+    ) -> PlinkColChunkIter {
+        let num_snps_in_range = range.size();
+        let first = range.first();
         let mut iter = PlinkColChunkIter {
-            start_snp_index,
-            end_snp_index,
-            current_snp_index: start_snp_index,
-            num_people,
-            num_snps_per_iter,
-            bed_filename: bed_filename.to_string(),
             buf,
+            range,
+            num_snps_per_iter,
+            num_people,
+            num_snps_in_range,
+            range_cursor: 0,
+            last_read_snp_index: None,
+            bed_filename: bed_filename.to_string(),
         };
-        iter.seek_to_snp(start_snp_index);
+        if let Some(start) = first {
+            iter.seek_to_snp(start).unwrap();
+        }
         iter
     }
 
+    #[inline]
     fn num_bytes_per_snp(&self) -> usize {
-        PlinkBed::usize_div_ceil(self.num_people, 4)
+        PlinkBed::usize_div_ceil(self.num_people, NUM_PEOPLE_PER_BYTE)
     }
 
-    fn seek_to_snp(&mut self, snp_index: usize) {
-        assert!(snp_index >= self.start_snp_index, "can only seek to snp with index >= self.start_snp_index: {}. Received {}",
-                self.start_snp_index, snp_index);
+    fn seek_to_snp(&mut self, snp_index: usize) -> Result<(), Error> {
+        if !self.range.contains(snp_index) {
+            return Err(Error::Generic(format!("SNP index {} is not in the interator range", snp_index)));
+        }
         // skip the first 3 magic bytes
         self.buf.seek(SeekFrom::Start(3 + (self.num_bytes_per_snp() * snp_index) as u64)).unwrap();
+        Ok(())
     }
 
     /// indices are 0 based
-    /// end_snp_index is exclusive
-    fn clone_with_start_end_index(&self, start_snp_index: usize, end_snp_index: usize) -> PlinkColChunkIter {
+    #[inline]
+    fn clone_with_range(&self, range: OrderedIntegerSet<usize>) -> PlinkColChunkIter {
         PlinkColChunkIter::new(
             PlinkBed::get_buf(&self.bed_filename).unwrap(),
-            start_snp_index,
-            end_snp_index,
+            range,
             self.num_snps_per_iter,
             self.num_people,
             &self.bed_filename,
@@ -279,34 +309,40 @@ impl PlinkColChunkIter {
 
     fn read_chunk(&mut self, chunk_size: usize) -> Array<f32, Ix2> {
         let num_bytes_per_snp = self.num_bytes_per_snp();
-        let num_people_last_byte = match self.num_people % 4 {
-            0 => 4,
-            x => x
-        };
+        let num_people_last_byte = get_num_people_last_byte(self.num_people);
+
+        let snp_indices = self.range.slice(self.range_cursor..self.range_cursor + chunk_size);
+        self.range_cursor += chunk_size;
 
         let mut v = Vec::with_capacity(self.num_people * chunk_size);
         unsafe {
             v.set_len(self.num_people * chunk_size);
         }
-        let mut current_index = 0usize;
+        let mut acc_i = 0usize;
 
         let mut snp_bytes = vec![0u8; num_bytes_per_snp];
-        for _ in 0..chunk_size {
+        for index in snp_indices.to_iter() {
+            if let Some(last_read_snp_index) = self.last_read_snp_index {
+                let snp_index_gap = index - last_read_snp_index;
+                if snp_index_gap > 1 {
+                    self.buf.seek_relative(((snp_index_gap - 1) * self.num_bytes_per_snp()) as i64).unwrap();
+                }
+            }
             self.buf.read_exact(&mut snp_bytes).unwrap();
             for i in 0..num_bytes_per_snp - 1 {
-                v[current_index] = PlinkBed::lowest_two_bits_to_geno(snp_bytes[i]) as f32;
-                v[current_index + 1] = PlinkBed::lowest_two_bits_to_geno(snp_bytes[i] >> 2) as f32;
-                v[current_index + 2] = PlinkBed::lowest_two_bits_to_geno(snp_bytes[i] >> 4) as f32;
-                v[current_index + 3] = PlinkBed::lowest_two_bits_to_geno(snp_bytes[i] >> 6) as f32;
-                current_index += 4;
+                v[acc_i] = PlinkBed::lowest_two_bits_to_geno(snp_bytes[i]) as f32;
+                v[acc_i + 1] = PlinkBed::lowest_two_bits_to_geno(snp_bytes[i] >> 2) as f32;
+                v[acc_i + 2] = PlinkBed::lowest_two_bits_to_geno(snp_bytes[i] >> 4) as f32;
+                v[acc_i + 3] = PlinkBed::lowest_two_bits_to_geno(snp_bytes[i] >> 6) as f32;
+                acc_i += 4;
             }
             // last byte
             for k in 0..num_people_last_byte {
-                v[current_index] = PlinkBed::lowest_two_bits_to_geno(snp_bytes[num_bytes_per_snp - 1] >> (k << 1)) as f32;
-                current_index += 1;
+                v[acc_i] = PlinkBed::lowest_two_bits_to_geno(snp_bytes[num_bytes_per_snp - 1] >> (k << 1)) as f32;
+                acc_i += 1;
             }
+            self.last_read_snp_index = Some(index);
         }
-        self.current_snp_index += chunk_size;
         Array::from_shape_vec((self.num_people, chunk_size)
                                   .strides((1, self.num_people)), v).unwrap()
     }
@@ -325,30 +361,40 @@ impl Iterator for PlinkColChunkIter {
     type Item = Array<f32, Ix2>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.current_snp_index >= self.end_snp_index {
+        if self.range_cursor >= self.num_snps_in_range {
             return None;
         }
-        let chunk_size = min(self.num_snps_per_iter, self.end_snp_index - self.current_snp_index);
+        let chunk_size = min(self.num_snps_per_iter, self.num_snps_in_range - self.range_cursor);
         Some(self.read_chunk(chunk_size))
     }
 }
 
 impl ExactSizeIterator for PlinkColChunkIter {
     fn len(&self) -> usize {
-        PlinkBed::usize_div_ceil(self.end_snp_index - self.current_snp_index, self.num_snps_per_iter)
+        PlinkBed::usize_div_ceil(self.num_snps_in_range - self.range_cursor, self.num_snps_per_iter)
     }
 }
 
 impl DoubleEndedIterator for PlinkColChunkIter {
     fn next_back(&mut self) -> Option<Self::Item> {
-        if self.current_snp_index >= self.end_snp_index {
+        if self.range_cursor >= self.num_snps_in_range {
             return None;
         }
-        let chunk_size = min(self.num_snps_per_iter, self.end_snp_index - self.current_snp_index);
-        self.end_snp_index -= chunk_size;
-        self.seek_to_snp(self.end_snp_index);
+        let chunk_size = min(self.num_snps_per_iter, self.num_snps_in_range - self.range_cursor);
+        // reading from the back is equivalent to reducing the number of SNPs in range
+        self.num_snps_in_range -= chunk_size;
+
+        // save and restore self.last_read_snp_index after the call to self.read_chunk
+        // we set the self.last_read_snp_index to None to prevent self.read_chunk from performing seek_relative on the buffer
+        let last_read_snp_index = self.last_read_snp_index;
+        self.last_read_snp_index = None;
+
+        let snp = self.range.slice(self.num_snps_in_range..self.num_snps_in_range + 1).first().unwrap();
+        self.seek_to_snp(snp).unwrap();
         let chunk = self.read_chunk(chunk_size);
-        self.seek_to_snp(self.current_snp_index);
+        self.seek_to_snp(last_read_snp_index.unwrap_or(0)).unwrap();
+
+        self.last_read_snp_index = last_read_snp_index;
         Some(chunk)
     }
 }
@@ -361,14 +407,21 @@ impl Producer for ColChunkIterProducer {
     type Item = <PlinkColChunkIter as Iterator>::Item;
     type IntoIter = PlinkColChunkIter;
 
+    #[inline]
     fn into_iter(self) -> Self::IntoIter {
         self.iter
     }
 
     fn split_at(self, index: usize) -> (Self, Self) {
-        let mid_snp_index = min(self.iter.start_snp_index + self.iter.num_snps_per_iter * index, self.iter.end_snp_index);
-        (ColChunkIterProducer { iter: self.iter.clone_with_start_end_index(self.iter.start_snp_index, mid_snp_index) },
-         ColChunkIterProducer { iter: self.iter.clone_with_start_end_index(mid_snp_index, self.iter.end_snp_index) })
+        let mid_range_index = min(self.iter.num_snps_per_iter * index, self.iter.range.size());
+        (
+            ColChunkIterProducer {
+                iter: self.iter.clone_with_range(self.iter.range.slice(0..mid_range_index))
+            },
+            ColChunkIterProducer {
+                iter: self.iter.clone_with_range(self.iter.range.slice(mid_range_index..self.iter.range.size()))
+            }
+        )
     }
 }
 
@@ -376,6 +429,7 @@ impl IntoIterator for ColChunkIterProducer {
     type Item = <PlinkColChunkIter as Iterator>::Item;
     type IntoIter = PlinkColChunkIter;
 
+    #[inline]
     fn into_iter(self) -> Self::IntoIter {
         self.iter
     }
@@ -429,6 +483,8 @@ mod tests {
     use tempfile::NamedTempFile;
 
     use super::PlinkBed;
+    use math::set::ordered_integer_set::OrderedIntegerSet;
+    use math::traits::ToIterator;
 
     fn create_dummy_bim_fam(bim: &mut NamedTempFile, fam: &mut NamedTempFile, num_people: usize, num_snps: usize) -> Result<(), io::Error> {
         for i in 1..=num_people {
@@ -479,9 +535,18 @@ mod tests {
         ).unwrap();
         let true_geno_arr = bed.get_genotype_matrix().unwrap();
         let chunk_size = 5;
-        for (i, snps) in bed.col_chunk_iter(chunk_size).enumerate() {
+        for (i, snps) in bed.col_chunk_iter(chunk_size, None).enumerate() {
             let end_index = min((i + 1) * chunk_size, true_geno_arr.dim().1);
             assert!(true_geno_arr.slice(s![..,i * chunk_size..end_index]) == snps);
+        }
+
+        let snp_index_slices = OrderedIntegerSet::from_slice(&[[2, 4], [6, 9], [20, 46], [70, 70]]);
+        for (i, snps) in bed.col_chunk_iter(chunk_size, Some(snp_index_slices.clone())).enumerate() {
+            let end_index = min((i + 1) * chunk_size, true_geno_arr.dim().1);
+            let snp_indices = snp_index_slices.slice(i * chunk_size..end_index);
+            for (k, j) in snp_indices.to_iter().enumerate() {
+                assert_eq!(true_geno_arr.slice(s![.., j]), snps.slice(s![.., k]));
+            }
         }
     }
 }

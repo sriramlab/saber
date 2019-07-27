@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use crate::set::traits::{Finite, Set};
+use std::hash::Hash;
 
 impl<T> Finite for Vec<T> {
     fn size(&self) -> usize {
@@ -14,9 +15,17 @@ impl<T> Finite for HashSet<T> {
     }
 }
 
-impl<T> Set for HashSet<T> {
+impl<T: Clone + Eq + Hash> Set<&T, HashSet<T>> for HashSet<T> {
     fn is_empty(&self) -> bool {
         self.is_empty()
+    }
+
+    fn contains(&self, item: &T) -> bool {
+        self.contains(item)
+    }
+
+    fn intersect(&self, other: &HashSet<T>) -> HashSet<T> {
+        self.intersection(other).map(|x| x.clone()).collect()
     }
 }
 
@@ -38,8 +47,11 @@ mod tests {
     #[test]
     fn test_set() {
         let mut s = HashSet::new();
-        assert_eq!(Set::is_empty(&s), true);
+        assert_eq!(s.is_empty(), true);
         s.insert(3);
-        assert_eq!(Set::is_empty(&s), false);
+        assert_eq!(s.is_empty(), false);
+        assert_eq!(Set::<&i32, HashSet<i32>>::contains(&s, &3), true);
+        assert_eq!(Set::<&i32, HashSet<i32>>::contains(&s, &4), false);
+        assert_eq!(Set::<&i32, HashSet<i32>>::contains(&s, &2), false);
     }
 }

@@ -66,7 +66,7 @@ pub fn estimate_heritability(mut geno_arr_bed: PlinkBed, mut pheno_arr: Array<f3
     use rayon::iter::*;
 
     let y_g_arr: Vec<f32> = geno_arr_bed
-        .col_chunk_iter(chunk_size)
+        .col_chunk_iter(chunk_size, None)
         .into_par_iter()
         .flat_map(|mut snp_chunk| {
             normalize_matrix_columns_inplace(&mut snp_chunk, 0);
@@ -222,7 +222,7 @@ fn get_yky_gxg_yky_and_yy(geno_arr: &mut PlinkBed, normalized_pheno_arr: &Array<
 
     use rayon::prelude::*;
     let yky = geno_arr
-        .col_chunk_iter(1000)
+        .col_chunk_iter(1000, None)
         .into_par_iter()
         .fold_with(0f32, |mut acc, mut snp_chunk| {
             normalize_matrix_columns_inplace(&mut snp_chunk, 0);
