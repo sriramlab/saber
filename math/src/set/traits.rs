@@ -1,5 +1,9 @@
-pub trait Set {
+pub trait Set<E, R> {
     fn is_empty(&self) -> bool;
+
+    fn contains(&self, element: E) -> bool;
+
+    fn intersect(&self, other: &Self) -> R;
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]

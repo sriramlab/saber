@@ -16,7 +16,7 @@ pub fn estimate_tr_kk(geno_arr_bed: &mut PlinkBed, num_random_vecs: usize, num_s
     use rayon::prelude::*;
     let chunk_size = num_snps_per_chunk.unwrap_or(DEFAULT_NUM_SNPS_PER_CHUNK);
     let xxz_arr: Vec<f32> = geno_arr_bed
-        .col_chunk_iter(chunk_size)
+        .col_chunk_iter(chunk_size, None)
         .into_par_iter()
         .fold_with(vec![0f32; num_people * num_random_vecs], |mut acc, mut snp_chunk| {
             normalize_matrix_columns_inplace(&mut snp_chunk, 0);
@@ -52,7 +52,7 @@ pub fn estimate_tr_k_gxg_k(geno_arr: &mut PlinkBed, le_snps_arr: &Array<f32, Ix2
     use rayon::prelude::*;
     let chunk_size = num_snps_per_chunk.unwrap_or(DEFAULT_NUM_SNPS_PER_CHUNK);
     let ssq = geno_arr
-        .col_chunk_iter(chunk_size)
+        .col_chunk_iter(chunk_size, None)
         .into_par_iter()
         .fold_with(0f32, |mut acc, mut snp_chunk| {
             normalize_matrix_columns_inplace(&mut snp_chunk, 0);
