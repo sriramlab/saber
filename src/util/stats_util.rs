@@ -2,6 +2,7 @@ use std::ops::Deref;
 
 use num_traits::ToPrimitive;
 
+#[inline]
 pub fn n_choose_2(n: usize) -> usize {
     n * (n - 1) / 2
 }
@@ -62,6 +63,7 @@ pub fn sum_f32<'a, A, T: Iterator<Item=&'a A>>(element_iterator: T) -> f32
     kahan_sigma_f32(element_iterator, |a| a.to_f32().unwrap())
 }
 
+#[inline]
 pub fn sum_of_squares<'a, A, T: Iterator<Item=&'a A>>(element_iterator: T) -> f64
     where A: Copy + ToPrimitive + 'a, &'a A: Deref {
     kahan_sigma(element_iterator, |a| {
@@ -70,6 +72,7 @@ pub fn sum_of_squares<'a, A, T: Iterator<Item=&'a A>>(element_iterator: T) -> f6
     })
 }
 
+#[inline]
 pub fn sum_of_squares_f32<'a, A, T: Iterator<Item=&'a A>>(element_iterator: T) -> f32
     where A: Copy + ToPrimitive + 'a, &'a A: Deref {
     kahan_sigma_f32(element_iterator, |a| {
@@ -78,6 +81,7 @@ pub fn sum_of_squares_f32<'a, A, T: Iterator<Item=&'a A>>(element_iterator: T) -
     })
 }
 
+#[inline]
 pub fn mean<'a, A, T: Iterator<Item=&'a A>>(element_iterator: T) -> f64
     where A: Copy + ToPrimitive + 'a, &'a A: Deref {
     let (sum, count) = kahan_sigma_return_counter(element_iterator, |a| a.to_f64().unwrap());
@@ -88,6 +92,7 @@ pub fn mean<'a, A, T: Iterator<Item=&'a A>>(element_iterator: T) -> f64
 /// where `count` is the number of elements
 /// for population variance, set `ddof` to 0
 /// for sample variance, set `ddof` to 1
+#[inline]
 pub fn variance<'a, T: Clone + Iterator<Item=&'a A>, A>(element_iterator: T, ddof: usize) -> f64
     where A: Copy + ToPrimitive + 'a, &'a A: Deref {
     let mean = mean(element_iterator.clone());
