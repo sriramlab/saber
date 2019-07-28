@@ -102,6 +102,7 @@ pub fn variance<'a, T: Clone + Iterator<Item=&'a A>, A>(element_iterator: T, ddo
 /// where `count` is the number of elements
 /// for population standard deviation, set `ddof` to 0
 /// for sample standard deviation, set `ddof` to 1
+#[inline]
 pub fn std<'a, T: Clone + Iterator<Item=&'a A>, A>(element_iterator: T, ddof: usize) -> f64
     where A: Copy + ToPrimitive + 'a, &'a A: Deref {
     variance(element_iterator, ddof).sqrt()
