@@ -6,8 +6,8 @@ pub fn n_choose_2(n: usize) -> usize {
     n * (n - 1) / 2
 }
 
-pub fn kahan_sigma<'a, A, T: Iterator<Item=&'a A>>(element_iterator: T, op: Box<dyn Fn(A) -> f64>) -> f64
-    where A: Copy + 'a, &'a A: Deref {
+pub fn kahan_sigma<'a, E, I: Iterator<Item=&'a E>, F>(element_iterator: I, op: F) -> f64
+    where E: Copy + 'a, &'a E: Deref, F: Fn(E) -> f64 {
     // Kahan summation algorithm
     let mut sum = 0f64;
     let mut lower_bits = 0f64;
@@ -20,8 +20,8 @@ pub fn kahan_sigma<'a, A, T: Iterator<Item=&'a A>>(element_iterator: T, op: Box<
     sum
 }
 
-pub fn kahan_sigma_f32<'a, A, T: Iterator<Item=&'a A>>(element_iterator: T, op: Box<dyn Fn(A) -> f32>) -> f32
-    where A: Copy + 'a, &'a A: Deref {
+pub fn kahan_sigma_f32<'a, E, I: Iterator<Item=&'a E>, F>(element_iterator: I, op: F) -> f32
+    where E: Copy + 'a, &'a E: Deref, F: Fn(E) -> f32 {
     // Kahan summation algorithm
     let mut sum = 0f32;
     let mut lower_bits = 0f32;
@@ -34,8 +34,8 @@ pub fn kahan_sigma_f32<'a, A, T: Iterator<Item=&'a A>>(element_iterator: T, op: 
     sum
 }
 
-pub fn kahan_sigma_return_counter<'a, A, T: Iterator<Item=&'a A>>(element_iterator: T, op: Box<dyn Fn(A) -> f64>) -> (f64, usize)
-    where A: Copy + 'a, &'a A: Deref {
+pub fn kahan_sigma_return_counter<'a, E, I: Iterator<Item=&'a E>, F>(element_iterator: I, op: F) -> (f64, usize)
+    where E: Copy + 'a, &'a E: Deref, F: Fn(E) -> f64 {
     let mut count = 0usize;
     // Kahan summation algorithm
     let mut sum = 0f64;
@@ -53,34 +53,34 @@ pub fn kahan_sigma_return_counter<'a, A, T: Iterator<Item=&'a A>>(element_iterat
 #[inline]
 pub fn sum<'a, A, T: Iterator<Item=&'a A>>(element_iterator: T) -> f64
     where A: Copy + ToPrimitive + 'a, &'a A: Deref {
-    kahan_sigma(element_iterator, Box::new(|a| a.to_f64().unwrap()))
+    kahan_sigma(element_iterator, |a| a.to_f64().unwrap())
 }
 
 #[inline]
 pub fn sum_f32<'a, A, T: Iterator<Item=&'a A>>(element_iterator: T) -> f32
     where A: Copy + ToPrimitive + 'a, &'a A: Deref {
-    kahan_sigma_f32(element_iterator, Box::new(|a| a.to_f32().unwrap()))
+    kahan_sigma_f32(element_iterator, |a| a.to_f32().unwrap())
 }
 
 pub fn sum_of_squares<'a, A, T: Iterator<Item=&'a A>>(element_iterator: T) -> f64
     where A: Copy + ToPrimitive + 'a, &'a A: Deref {
-    kahan_sigma(element_iterator, Box::new(|a| {
+    kahan_sigma(element_iterator, |a| {
         let a_f64 = a.to_f64().unwrap();
         a_f64 * a_f64
-    }))
+    })
 }
 
 pub fn sum_of_squares_f32<'a, A, T: Iterator<Item=&'a A>>(element_iterator: T) -> f32
     where A: Copy + ToPrimitive + 'a, &'a A: Deref {
-    kahan_sigma_f32(element_iterator, Box::new(|a| {
+    kahan_sigma_f32(element_iterator, |a| {
         let a_f32 = a.to_f32().unwrap();
         a_f32 * a_f32
-    }))
+    })
 }
 
 pub fn mean<'a, A, T: Iterator<Item=&'a A>>(element_iterator: T) -> f64
     where A: Copy + ToPrimitive + 'a, &'a A: Deref {
-    let (sum, count) = kahan_sigma_return_counter(element_iterator, Box::new(|a| a.to_f64().unwrap()));
+    let (sum, count) = kahan_sigma_return_counter(element_iterator, |a| a.to_f64().unwrap());
     sum / count as f64
 }
 
@@ -91,10 +91,10 @@ pub fn mean<'a, A, T: Iterator<Item=&'a A>>(element_iterator: T) -> f64
 pub fn variance<'a, T: Clone + Iterator<Item=&'a A>, A>(element_iterator: T, ddof: usize) -> f64
     where A: Copy + ToPrimitive + 'a, &'a A: Deref {
     let mean = mean(element_iterator.clone());
-    let (sum, count) = kahan_sigma_return_counter(element_iterator, Box::new(move |a| {
+    let (sum, count) = kahan_sigma_return_counter(element_iterator, move |a| {
         let a_f64 = a.to_f64().unwrap() - mean;
         a_f64 * a_f64
-    }));
+    });
     sum / (count - ddof) as f64
 }
 
