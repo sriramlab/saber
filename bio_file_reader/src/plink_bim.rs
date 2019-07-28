@@ -32,7 +32,16 @@ impl PlinkBim {
         })
     }
 
-    //    pub fn new_with_partitions(filepath: &str, partitions: OrderedIntegerSet<usize>) -> PlinkBim {}
+    pub fn new_with_partitions(filepath: &str, partitions: HashMap<PartitionKeyType, OrderedIntegerSet<usize>>) -> Result<PlinkBim, Error> {
+        let mut bim = PlinkBim::new(filepath)?;
+        bim.set_fileline_partitions(Some(partitions));
+        Ok(bim)
+    }
+
+    pub fn new_with_partition_file(bim_filepath: &str, partition_filepath: &str) -> Result<PlinkBim, Error> {
+        let bim = PlinkBim::new(bim_filepath)?;
+        bim.into_partitioned_by_file(partition_filepath)
+    }
 
     fn get_id_and_partition_from_partition_fileline_iter<'a, T: Iterator<Item=&'a str>>(iter: &'a mut T) -> Option<(String, String)> {
         let id = match iter.next() {
@@ -125,19 +134,19 @@ impl PlinkBim {
         Ok(chrom_to_positions)
     }
 
-    pub fn set_fileline_partitions(&mut self, partitions: HashMap<PartitionKeyType, OrderedIntegerSet<usize>>) {
-        self.fileline_partitions = Some(partitions);
+    pub fn set_fileline_partitions(&mut self, partitions: Option<HashMap<PartitionKeyType, OrderedIntegerSet<usize>>>) {
+        self.fileline_partitions = partitions;
     }
 
     pub fn into_partitioned_by_chrom(mut self) -> Result<PlinkBim, Error> {
         let partitions = self.get_chrom_to_fileline_positions()?;
-        self.set_fileline_partitions(partitions);
+        self.set_fileline_partitions(Some(partitions));
         Ok(self)
     }
 
     pub fn into_partitioned_by_file(mut self, partition_file: &str) -> Result<PlinkBim, Error> {
         let partitions = self.get_fileline_partitions_from_partition_file(partition_file)?;
-        self.set_fileline_partitions(partitions);
+        self.set_fileline_partitions(Some(partitions));
         Ok(self)
     }
 }
