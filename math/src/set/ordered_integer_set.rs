@@ -1,7 +1,8 @@
 use std::cmp::{max, min};
 use std::iter::Sum;
-use std::ops::{Sub, SubAssign, Range};
+use std::ops::{Range, Sub, SubAssign};
 
+use num::FromPrimitive;
 use num::integer::Integer;
 use num::traits::cast::ToPrimitive;
 
@@ -9,7 +10,6 @@ use crate::interval::traits::{Coalesce, CoalesceIntervals, Interval};
 use crate::sample::Sample;
 use crate::set::traits::{Finite, Set};
 use crate::traits::{Collecting, Constructable, ToIterator};
-use num::FromPrimitive;
 
 /// represents the set of integers in [start, end]
 #[derive(Copy, Clone, PartialEq, Debug)]
