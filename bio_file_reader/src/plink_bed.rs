@@ -8,11 +8,11 @@ use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterato
 use rayon::iter::plumbing::{bridge, Consumer, Producer, ProducerCallback, UnindexedConsumer};
 
 use math::set::ordered_integer_set::OrderedIntegerSet;
-use math::set::traits::{Set, Finite};
+use math::set::traits::{Finite, Set};
+use math::traits::ToIterator;
 
 use crate::byte_chunk_iter::ByteChunkIter;
 use crate::error::Error;
-use math::traits::ToIterator;
 
 const NUM_PEOPLE_PER_BYTE: usize = 4;
 
@@ -482,9 +482,10 @@ mod tests {
     use rand::distributions::Uniform;
     use tempfile::NamedTempFile;
 
-    use super::PlinkBed;
     use math::set::ordered_integer_set::OrderedIntegerSet;
     use math::traits::ToIterator;
+
+    use super::PlinkBed;
 
     fn create_dummy_bim_fam(bim: &mut NamedTempFile, fam: &mut NamedTempFile, num_people: usize, num_snps: usize) -> Result<(), io::Error> {
         for i in 1..=num_people {
