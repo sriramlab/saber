@@ -17,7 +17,7 @@ fn main() {
     );
     app = app.arg(
         Arg::with_name("leave_out_ratio")
-            .long("leave-out-ratio").short("l").takes_value(true).default_value("0.1")
+            .long("leave-out-ratio").short("l").takes_value(true).default_value("0.05")
             .help("The number of subsamples to use for the heritability estimation for each Jackknife iteration")
     );
     app = app.arg(

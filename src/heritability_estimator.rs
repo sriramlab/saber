@@ -1,6 +1,7 @@
 use colored::Colorize;
 use ndarray::{Array, array, Ix1, Ix2};
 use ndarray_linalg::Solve;
+use rayon::prelude::*;
 
 use bio_file_reader::error::Error as PlinkBedError;
 use bio_file_reader::plink_bed::PlinkBed;
@@ -12,7 +13,9 @@ use std::{fmt, io};
 use std::collections::HashMap;
 use std::iter::FromIterator;
 
-use crate::trace_estimator::{estimate_gxg_dot_y_norm_sq, estimate_gxg_gram_trace, estimate_gxg_kk_trace, estimate_tr_gxg_ki_gxg_kj, estimate_tr_k, estimate_tr_k1_k2, estimate_tr_k_gxg_k, estimate_tr_kk};
+use crate::trace_estimator::{estimate_gxg_dot_y_norm_sq, estimate_gxg_gram_trace, estimate_gxg_kk_trace,
+                             estimate_tr_gxg_ki_gxg_kj, estimate_tr_k, estimate_tr_k1_k2, estimate_tr_k_gxg_k,
+                             estimate_tr_kk};
 use crate::util::matrix_util::{generate_plus_minus_one_bernoulli_matrix, normalize_matrix_columns_inplace,
                                normalize_vector_inplace};
 use crate::util::stats_util::{mean, n_choose_2, std, sum_of_squares, sum_of_squares_f32};
@@ -61,6 +64,25 @@ impl From<String> for Error {
     }
 }
 
+pub fn pheno_dot_geno(pheno_arr: &Array<f32, Ix1>,
+                      geno_bed: &PlinkBed, snp_range: &OrderedIntegerSet<usize>,
+                      chunk_size: usize) -> Vec<f32> {
+    geno_bed.col_chunk_iter(chunk_size, Some(snp_range.clone()))
+            .into_par_iter()
+            .flat_map(|mut snp_chunk| {
+                normalize_matrix_columns_inplace(&mut snp_chunk, 0);
+                pheno_arr.dot(&snp_chunk).as_slice().unwrap().to_owned()
+            })
+            .collect()
+}
+
+#[inline]
+pub fn pheno_k_pheno(pheno_arr: &Array<f32, Ix1>, snp_range: &OrderedIntegerSet<usize>, geno_bed: &PlinkBed,
+                     chunk_size: usize) -> f64 {
+    let y_g_arr = pheno_dot_geno(pheno_arr, geno_bed, snp_range, chunk_size);
+    sum_of_squares(y_g_arr.iter()) / snp_range.size() as f64
+}
+
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct JackknifeConfig {
     pub leave_out: LeaveOutConfig,
@@ -101,9 +123,6 @@ pub fn estimate_heritability_single_component(mut geno_arr_bed: PlinkBed, mut ph
     println!("\n=> normalizing the phenotype vector");
     normalize_vector_inplace(&mut pheno_arr, 0);
 
-    let chunk_size = 50;
-    use rayon::iter::*;
-
     let yy = sum_of_squares(pheno_arr.iter());
 
     let mut heritability_estimates = Vec::new();
@@ -116,16 +135,7 @@ pub fn estimate_heritability_single_component(mut geno_arr_bed: PlinkBed, mut ph
         let trace_kk_est = estimate_tr_kk(&mut geno_arr_bed, Some(snp_range.clone()), num_random_vecs, None);
         println!("trace_kk_est: {}", trace_kk_est);
 
-        let y_g_arr: Vec<f32> = geno_arr_bed
-            .col_chunk_iter(chunk_size, Some(snp_range.clone()))
-            .into_par_iter()
-            .flat_map(|mut snp_chunk| {
-                normalize_matrix_columns_inplace(&mut snp_chunk, 0);
-                pheno_arr.dot(&snp_chunk).as_slice().unwrap().to_owned()
-            })
-            .collect();
-
-        let yky = sum_of_squares(y_g_arr.iter()) / num_snps_per_iter as f64;
+        let yky = pheno_k_pheno(&pheno_arr, &snp_range, &geno_arr_bed, DEFAULT_CHUNK_SIZE);
         println!("yky: {}\nyy: {}", yky, yy);
 
         let n = num_people as f64;
@@ -152,8 +162,6 @@ pub fn estimate_heritability_single_component(mut geno_arr_bed: PlinkBed, mut ph
 
 pub fn estimate_heritability(mut geno_arr_bed: PlinkBed, plink_bim: PlinkBim, mut pheno_arr: Array<f32, Ix1>,
                              num_random_vecs: usize, jackknife_config: JackknifeConfig) -> Result<HeritabilityEstimate, String> {
-    use rayon::iter::*;
-
     let key_to_partition = plink_bim.get_fileline_partitions().unwrap_or(
         HashMap::from_iter(vec![
             (DEFAULT_PARTITION_NAME.to_string(), OrderedIntegerSet::from_slice(&[[0, geno_arr_bed.num_snps - 1]]))
@@ -207,15 +215,7 @@ pub fn estimate_heritability(mut geno_arr_bed: PlinkBed, plink_bim: PlinkBim, mu
             println!("partition {} tr(KK) estimate: {}", key_i, trace_kk_est);
             a[[i, i]] = trace_kk_est;
 
-            let y_g_arr: Vec<f32> = geno_arr_bed
-                .col_chunk_iter(DEFAULT_CHUNK_SIZE, Some(snp_sample_i_range.clone()))
-                .into_par_iter()
-                .flat_map(|mut snp_chunk| {
-                    normalize_matrix_columns_inplace(&mut snp_chunk, 0);
-                    pheno_arr.dot(&snp_chunk).as_slice().unwrap().to_owned()
-                })
-                .collect();
-            b[i] = sum_of_squares(y_g_arr.iter()) / partition_i_sampling_size as f64;
+            b[i] = pheno_k_pheno(&pheno_arr, &snp_sample_i_range, &geno_arr_bed, DEFAULT_CHUNK_SIZE);
 
             for j in i + 1..num_partitions {
                 let key_j = &partition_keys[j];
@@ -373,7 +373,6 @@ fn get_yky_gxg_yky_and_yy(geno_arr: &mut PlinkBed, normalized_pheno_arr: &Array<
 
     let mut b = Array::<f64, Ix1>::zeros(num_gxg_components + 2);
 
-    use rayon::prelude::*;
     let yky = geno_arr
         .col_chunk_iter(1000, None)
         .into_par_iter()
