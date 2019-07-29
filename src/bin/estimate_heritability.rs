@@ -61,16 +61,13 @@ fn main() {
     let leave_out = LeaveOutConfig::Ratio(leave_out_ratio);
     println!("leaving out {:?} SNPs during each Jackknife iteration", leave_out);
 
-    let mut bim = match &partition_filepath {
+    let bim = match &partition_filepath {
         Some(partition_filepath) => PlinkBim::new_with_partition_file(&plink_bim_path, partition_filepath)
             .unwrap_or_exit(Some(format!("failed to create PlinkBim from bim file: {} and partition file: {}",
                                          &plink_bim_path, partition_filepath))),
         None => PlinkBim::new(&plink_bim_path)
             .unwrap_or_exit(Some(format!("failed to create PlinkBim from {}", &plink_bim_path))),
     };
-
-    let chrom_partitions = bim.get_chrom_to_fileline_positions().unwrap();
-    bim.set_fileline_partitions(Some(chrom_partitions));
 
     match estimate_heritability(bed,
                                 bim,

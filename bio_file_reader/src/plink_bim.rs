@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::fs::{File, OpenOptions};
-use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
+use std::io::{BufRead, BufReader, Lines, Read, Seek, SeekFrom};
 
 use math::set::ordered_integer_set::OrderedIntegerSet;
 use math::traits::Collecting;
@@ -114,6 +114,10 @@ impl PlinkBim {
         Ok(())
     }
 
+    pub fn lines(&mut self) -> Lines<&mut BufReader<File>> {
+        self.buf.by_ref().lines()
+    }
+
     pub fn get_all_chroms(&mut self) -> Result<HashSet<String>, Error> {
         self.reset_buf()?;
         return Ok(self.buf.by_ref().lines().filter_map(|l|
@@ -164,6 +168,7 @@ impl PlinkBim {
 #[cfg(test)]
 mod tests {
     use std::collections::{HashMap, HashSet};
+    use std::fs::OpenOptions;
     use std::io::{BufWriter, Write};
 
     use tempfile::NamedTempFile;
@@ -171,7 +176,6 @@ mod tests {
     use math::set::ordered_integer_set::{ContiguousIntegerSet, OrderedIntegerSet};
 
     use super::PlinkBim;
-    use std::fs::OpenOptions;
 
     #[inline]
     fn write_bim_line<W: Write>(buf_writer: &mut BufWriter<W>, chrom: &str, id: &str, coordinate: u64,
