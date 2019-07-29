@@ -1,4 +1,4 @@
-use ndarray::{Array, Axis, Ix1, Ix2};
+use ndarray::{Array, Axis, Ix1, Ix2, s};
 use ndarray_parallel::prelude::*;
 
 use bio_file_reader::plink_bed::PlinkBed;
@@ -10,25 +10,24 @@ use crate::util::stats_util::{n_choose_2, sum_f32, sum_of_squares, sum_of_square
 
 const DEFAULT_NUM_SNPS_PER_CHUNK: usize = 1000;
 
-/// geno_arr has shape num_people x num_snps
-pub fn estimate_tr_kk(geno_arr_bed: &mut PlinkBed, snp_range: Option<OrderedIntegerSet<usize>>,
+/// geno_bed has shape num_people x num_snps
+pub fn estimate_tr_kk(geno_bed: &mut PlinkBed, snp_range: Option<OrderedIntegerSet<usize>>,
                       num_random_vecs: usize, num_snps_per_chunk: Option<usize>) -> f64 {
-    let num_people = geno_arr_bed.num_people;
-    let num_snps = match &snp_range {
-        None => geno_arr_bed.num_snps,
-        Some(range) => range.size()
-    };
-    let rand_mat = generate_plus_minus_one_bernoulli_matrix(num_people, num_random_vecs);
-
     use rayon::prelude::*;
     let chunk_size = num_snps_per_chunk.unwrap_or(DEFAULT_NUM_SNPS_PER_CHUNK);
-    let xxz_arr: Vec<f32> = geno_arr_bed
+
+    let num_people = geno_bed.num_people;
+    let num_snps = match &snp_range {
+        Some(range) => range.size(),
+        None => geno_bed.num_snps,
+    };
+    let rand_mat = generate_plus_minus_one_bernoulli_matrix(num_people, num_random_vecs);
+    let xxz_arr: Vec<f32> = geno_bed
         .col_chunk_iter(chunk_size, snp_range)
         .into_par_iter()
         .fold_with(vec![0f32; num_people * num_random_vecs], |mut acc, mut snp_chunk| {
             normalize_matrix_columns_inplace(&mut snp_chunk, 0);
-            let arr = snp_chunk.dot(&snp_chunk.t().dot(&rand_mat)).as_slice().unwrap().to_owned();
-            for (i, val) in arr.into_iter().enumerate() {
+            for (i, val) in snp_chunk.dot(&snp_chunk.t().dot(&rand_mat)).as_slice().unwrap().into_iter().enumerate() {
                 acc[i] += val;
             }
             acc
@@ -41,6 +40,76 @@ pub fn estimate_tr_kk(geno_arr_bed: &mut PlinkBed, snp_range: Option<OrderedInte
         });
 
     sum_of_squares(xxz_arr.iter()) / (num_snps * num_snps * num_random_vecs) as f64
+}
+
+pub fn estimate_tr_k1_k2(geno_bed: &mut PlinkBed,
+                         snp_range_i: Option<OrderedIntegerSet<usize>>,
+                         snp_range_j: Option<OrderedIntegerSet<usize>>,
+                         num_random_vecs: usize,
+                         num_snps_per_chunk: Option<usize>) -> f64 {
+    use rayon::prelude::*;
+    let chunk_size = num_snps_per_chunk.unwrap_or(DEFAULT_NUM_SNPS_PER_CHUNK);
+
+    let num_people = geno_bed.num_people;
+    let num_snps_i = match &snp_range_i {
+        Some(range) => range.size(),
+        None => geno_bed.num_snps,
+    };
+    let num_snps_j = match &snp_range_j {
+        Some(range) => range.size(),
+        None => geno_bed.num_snps,
+    };
+    let rand_mat = generate_plus_minus_one_bernoulli_matrix(num_snps_i, num_random_vecs);
+    let gi_z_vec = geno_bed.col_chunk_iter(chunk_size, snp_range_i)
+                           .enumerate()
+                           .fold(vec![0f32; num_people * num_random_vecs], |mut acc, (i, mut snp_chunk_i)| {
+                               normalize_matrix_columns_inplace(&mut snp_chunk_i, 0);
+                               let start = i * chunk_size;
+                               for (i, val) in snp_chunk_i.dot(&rand_mat.slice(s![start..start + snp_chunk_i.dim().1, ..])).as_slice().unwrap().into_iter().enumerate() {
+                                   acc[i] += val;
+                               }
+                               acc
+                           });
+    let gi_z = Array::from_shape_vec((num_people, num_random_vecs), gi_z_vec).unwrap();
+    let xxz_arr: Vec<f32> = geno_bed
+        .col_chunk_iter(chunk_size, snp_range_j)
+        .into_par_iter()
+        .fold_with(vec![0f32; num_people * num_random_vecs], |mut acc, mut snp_chunk_j| {
+            normalize_matrix_columns_inplace(&mut snp_chunk_j, 0);
+            for (i, val) in snp_chunk_j.t().dot(&gi_z).as_slice().unwrap().into_iter().enumerate() {
+                acc[i] += val;
+            }
+            acc
+        })
+        .reduce(|| vec![0f32; num_people * num_random_vecs], |mut a, b| {
+            for (i, val) in b.iter().enumerate() {
+                a[i] += val;
+            }
+            a
+        });
+    sum_of_squares(xxz_arr.iter()) / (num_snps_i * num_snps_j * num_random_vecs) as f64
+}
+
+pub fn estimate_tr_k(geno_bed: &mut PlinkBed, snp_range: Option<OrderedIntegerSet<usize>>,
+                     num_random_vecs: usize, num_snps_per_chunk: Option<usize>) -> f64 {
+    use rayon::prelude::*;
+    let chunk_size = num_snps_per_chunk.unwrap_or(DEFAULT_NUM_SNPS_PER_CHUNK);
+
+    let num_people = geno_bed.num_people;
+    let num_snps = match &snp_range {
+        Some(range) => range.size(),
+        None => geno_bed.num_snps,
+    };
+    let rand_mat = generate_plus_minus_one_bernoulli_matrix(num_people, num_random_vecs);
+    let sum_of_squares: f64 = geno_bed
+        .col_chunk_iter(chunk_size, snp_range)
+        .into_par_iter()
+        .fold_with(0f64, |mut acc, mut snp_chunk| {
+            normalize_matrix_columns_inplace(&mut snp_chunk, 0);
+            acc += sum_of_squares_f32(snp_chunk.t().dot(&rand_mat).as_slice().unwrap().into_iter()) as f64;
+            acc
+        }).sum();
+    sum_of_squares / (num_snps * num_random_vecs) as f64
 }
 
 pub fn estimate_tr_k_gxg_k(geno_arr: &mut PlinkBed, le_snps_arr: &Array<f32, Ix2>, num_random_vecs: usize,
@@ -63,8 +132,7 @@ pub fn estimate_tr_k_gxg_k(geno_arr: &mut PlinkBed, le_snps_arr: &Array<f32, Ix2
         .into_par_iter()
         .fold_with(0f32, |mut acc, mut snp_chunk| {
             normalize_matrix_columns_inplace(&mut snp_chunk, 0);
-            let arr = snp_chunk.t().dot(&corrected).as_slice().unwrap().to_owned();
-            acc += sum_of_squares_f32(arr.iter());
+            acc += sum_of_squares_f32(snp_chunk.t().dot(&corrected).as_slice().unwrap().iter());
             acc
         })
         .reduce(|| 0f32, |a, b| {

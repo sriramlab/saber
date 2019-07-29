@@ -4,16 +4,23 @@ use ndarray_linalg::Solve;
 
 use bio_file_reader::error::Error as PlinkBedError;
 use bio_file_reader::plink_bed::PlinkBed;
+use bio_file_reader::plink_bim::{PartitionKeyType, PlinkBim};
 use math::sample::Sample;
 use math::set::ordered_integer_set::OrderedIntegerSet;
+use math::set::traits::Finite;
 use std::{fmt, io};
+use std::collections::HashMap;
+use std::iter::FromIterator;
 
-use crate::trace_estimator::{estimate_gxg_dot_y_norm_sq, estimate_gxg_gram_trace, estimate_gxg_kk_trace,
-                             estimate_tr_gxg_ki_gxg_kj, estimate_tr_k_gxg_k, estimate_tr_kk};
+use crate::trace_estimator::{estimate_gxg_dot_y_norm_sq, estimate_gxg_gram_trace, estimate_gxg_kk_trace, estimate_tr_gxg_ki_gxg_kj, estimate_tr_k, estimate_tr_k1_k2, estimate_tr_k_gxg_k, estimate_tr_kk};
 use crate::util::matrix_util::{generate_plus_minus_one_bernoulli_matrix, normalize_matrix_columns_inplace,
                                normalize_vector_inplace};
 use crate::util::stats_util::{mean, n_choose_2, std, sum_of_squares, sum_of_squares_f32};
 
+const DEFAULT_PARTITION_NAME: &str = "default_partition";
+const DEFAULT_CHUNK_SIZE: usize = 50;
+
+#[inline]
 fn bold_print(msg: &String) {
     println!("{}", msg.bold());
 }
@@ -56,12 +63,18 @@ impl From<String> for Error {
 
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct JackknifeConfig {
-    pub leave_out: usize,
+    pub leave_out: LeaveOutConfig,
     pub num_reps: usize,
 }
 
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum LeaveOutConfig {
+    LeaveOutForEachPartition(usize),
+    Ratio(f64),
+}
+
 impl JackknifeConfig {
-    pub fn new(leave_out: usize, num_reps: usize) -> JackknifeConfig {
+    pub fn new(leave_out: LeaveOutConfig, num_reps: usize) -> JackknifeConfig {
         JackknifeConfig {
             leave_out,
             num_reps,
@@ -75,11 +88,14 @@ pub struct HeritabilityEstimate {
     pub standard_error: f64,
 }
 
-pub fn estimate_heritability(mut geno_arr_bed: PlinkBed, mut pheno_arr: Array<f32, Ix1>, num_random_vecs: usize,
-                             jackknife_config: JackknifeConfig) -> Result<HeritabilityEstimate, String> {
+pub fn estimate_heritability_single_component(mut geno_arr_bed: PlinkBed, mut pheno_arr: Array<f32, Ix1>, num_random_vecs: usize,
+                                              jackknife_config: JackknifeConfig) -> Result<HeritabilityEstimate, String> {
     let num_people = geno_arr_bed.num_people;
     let total_num_snps = geno_arr_bed.num_snps;
-    let num_snps_per_iter = total_num_snps - jackknife_config.leave_out;
+    let num_snps_per_iter = match jackknife_config.leave_out {
+        LeaveOutConfig::Ratio(ratio) => (total_num_snps as f64 * (1. - ratio)) as usize,
+        LeaveOutConfig::LeaveOutForEachPartition(count) => total_num_snps - count
+    };
     println!("num_people: {}\ntotal_num_snps: {}\nnum_snps_per_iter: {}", num_people, total_num_snps, num_snps_per_iter);
 
     println!("\n=> normalizing the phenotype vector");
@@ -131,6 +147,102 @@ pub fn estimate_heritability(mut geno_arr_bed: PlinkBed, mut pheno_arr: Array<f3
         heritability: mean(heritability_estimates.iter()),
         standard_error,
 
+    })
+}
+
+pub fn estimate_heritability(mut geno_arr_bed: PlinkBed, plink_bim: PlinkBim, mut pheno_arr: Array<f32, Ix1>,
+                             num_random_vecs: usize, jackknife_config: JackknifeConfig) -> Result<HeritabilityEstimate, String> {
+    use rayon::iter::*;
+
+    let key_to_partition = plink_bim.get_fileline_partitions().unwrap_or(
+        HashMap::from_iter(vec![
+            (DEFAULT_PARTITION_NAME.to_string(), OrderedIntegerSet::from_slice(&[[0, geno_arr_bed.num_snps - 1]]))
+        ].into_iter())
+    );
+    let partition_keys = {
+        let mut keys: Vec<PartitionKeyType> = key_to_partition.keys().map(|s| s.to_string()).collect::<Vec<PartitionKeyType>>();
+        keys.sort();
+        keys
+    };
+    let num_partitions = partition_keys.len();
+    let total_num_snps = key_to_partition.values().fold(0, |acc, partition| acc + partition.size());
+    let partition_to_num_leave_out: HashMap<String, usize> = match jackknife_config.leave_out {
+        LeaveOutConfig::Ratio(ratio) => key_to_partition.iter().map(|(k, p)| (k.to_string(), (p.size() as f64 * ratio) as usize)).collect(),
+        LeaveOutConfig::LeaveOutForEachPartition(count) => key_to_partition.iter().map(|(k, _p)| (k.to_string(), count)).collect()
+    };
+    let num_people = geno_arr_bed.num_people;
+    println!("num_people: {}\ntotal_num_snps: {}\n", num_people, total_num_snps);
+    for key in partition_keys.iter() {
+        println!("partition {} has {} SNPs", key, key_to_partition[key].size());
+    }
+
+    println!("\n=> normalizing the phenotype vector");
+    normalize_vector_inplace(&mut pheno_arr, 0);
+
+    println!("\n=> computing yy");
+    let yy = sum_of_squares(pheno_arr.iter());
+
+    let mut heritability_estimates = Vec::new();
+
+    for iter in 1..=jackknife_config.num_reps {
+        let mut a = Array::zeros((num_partitions + 1, num_partitions + 1));
+        let mut b = Array::zeros(num_partitions + 1);
+        a[[num_partitions, num_partitions]] = num_people as f64;
+        b[num_partitions] = yy;
+        println!("\n===> starting Jackknife iteration: {}", iter);
+        for (i, key_i) in partition_keys.iter().enumerate() {
+            println!("==> processing {}", key_i);
+            let partition_i = &key_to_partition[key_i];
+            let partition_i_sampling_size = partition_i.size() - partition_to_num_leave_out[key_i];
+            let snp_sample_i_range = partition_i.sample_subset_without_replacement(partition_i_sampling_size)?;
+
+            println!("\n=> estimating partition {} tr(K)", key_i);
+            let tr_k_i_est = estimate_tr_k(&mut geno_arr_bed, Some(snp_sample_i_range.clone()), num_random_vecs, None);
+            a[[i, num_partitions]] = tr_k_i_est;
+            a[[num_partitions, i]] = tr_k_i_est;
+            println!("partition {} tr(K) estimate: {}", key_i, tr_k_i_est);
+
+            println!("\n=> estimating partition {} tr(KK)", key_i);
+            let trace_kk_est = estimate_tr_kk(&mut geno_arr_bed, Some(snp_sample_i_range.clone()), num_random_vecs, None);
+            println!("partition {} tr(KK) estimate: {}", key_i, trace_kk_est);
+            a[[i, i]] = trace_kk_est;
+
+            let y_g_arr: Vec<f32> = geno_arr_bed
+                .col_chunk_iter(DEFAULT_CHUNK_SIZE, Some(snp_sample_i_range.clone()))
+                .into_par_iter()
+                .flat_map(|mut snp_chunk| {
+                    normalize_matrix_columns_inplace(&mut snp_chunk, 0);
+                    pheno_arr.dot(&snp_chunk).as_slice().unwrap().to_owned()
+                })
+                .collect();
+            b[i] = sum_of_squares(y_g_arr.iter()) / partition_i_sampling_size as f64;
+
+            for j in i + 1..num_partitions {
+                let key_j = &partition_keys[j];
+                println!("=> processing parition pair {} and {}", key_i, key_j);
+                let partition_j = &key_to_partition[key_j];
+                let snp_range_j = partition_j.sample_subset_without_replacement(partition_j.size() - partition_to_num_leave_out[key_j])?;
+                let tr_k1_k2_est = estimate_tr_k1_k2(&mut geno_arr_bed, Some(snp_sample_i_range.clone()), Some(snp_range_j), num_random_vecs, None);
+                a[[i, j]] = tr_k1_k2_est;
+                a[[j, i]] = tr_k1_k2_est;
+            }
+        }
+        println!("solving ax=b\na = {:?}\nb = {:?}", a, b);
+        let sig_sq = a.solve_into(b).unwrap().as_slice().unwrap().to_owned();
+        println!("sig_sq: {:?}", sig_sq);
+        let total_var: f64 = sig_sq[..num_partitions].iter().map(|x| *x as f64).sum();
+        for i in 0..num_partitions {
+            println!("{} variance estimate: {}", partition_keys[i], sig_sq[i] as f64);
+        }
+        println!("total var estimate: {}", total_var);
+        println!("noise estimate: {}", sig_sq[num_partitions]);
+        heritability_estimates.push(sig_sq);
+    }
+    let total_heritability_estimates: Vec<f64> = heritability_estimates.iter().map(|v| v[..num_partitions].iter().map(|&x| x as f64).sum()).collect();
+    let standard_error = std(total_heritability_estimates.iter(), 0);
+    Ok(HeritabilityEstimate {
+        heritability: mean(total_heritability_estimates.iter()),
+        standard_error,
     })
 }
 

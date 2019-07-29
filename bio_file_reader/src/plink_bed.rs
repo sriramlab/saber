@@ -178,7 +178,7 @@ impl PlinkBed {
         Ok(geno_arr)
     }
 
-    pub fn col_chunk_iter(&mut self, num_snps_per_iter: usize, range: Option<OrderedIntegerSet<usize>>) -> PlinkColChunkIter {
+    pub fn col_chunk_iter(&self, num_snps_per_iter: usize, range: Option<OrderedIntegerSet<usize>>) -> PlinkColChunkIter {
         let buf = PlinkBed::get_buf(&self.filepath).unwrap();
         match range {
             Some(range) => PlinkColChunkIter::new(buf,
