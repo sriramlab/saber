@@ -54,7 +54,14 @@ impl PlinkBim {
         }
     }
 
-    pub fn get_fileline_partitions(&self) -> Option<&HashMap<String, OrderedIntegerSet<usize>>> {
+    pub fn get_fileline_partitions(&self) -> Option<HashMap<String, OrderedIntegerSet<usize>>> {
+        match &self.fileline_partitions {
+            None => None,
+            Some(p) => Some(p.clone())
+        }
+    }
+
+    pub fn get_fileline_partitions_by_ref(&self) -> Option<&HashMap<String, OrderedIntegerSet<usize>>> {
         match &self.fileline_partitions {
             None => None,
             Some(p) => Some(p)
@@ -96,10 +103,12 @@ impl PlinkBim {
         }
     }
 
+    #[inline]
     pub fn get_filepath(&self) -> &str {
         &self.filepath
     }
 
+    #[inline]
     pub fn reset_buf(&mut self) -> Result<(), Error> {
         self.buf.seek(SeekFrom::Start(0))?;
         Ok(())
@@ -134,6 +143,7 @@ impl PlinkBim {
         Ok(chrom_to_positions)
     }
 
+    #[inline]
     pub fn set_fileline_partitions(&mut self, partitions: Option<HashMap<PartitionKeyType, OrderedIntegerSet<usize>>>) {
         self.fileline_partitions = partitions;
     }
@@ -258,7 +268,7 @@ mod tests {
         assert_eq!(partitions.get("p4").unwrap(), &OrderedIntegerSet::from_slice(&[[9, 9]]));
 
         let mut new_bim = bim.into_partitioned_by_file(partition_file_path.to_str().unwrap()).unwrap();
-        assert_eq!(new_bim.get_fileline_partitions().unwrap(), &partitions);
+        assert_eq!(new_bim.get_fileline_partitions_by_ref().unwrap(), &partitions);
 
         {
             let mut writer = BufWriter::new(
