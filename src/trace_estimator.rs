@@ -61,14 +61,21 @@ pub fn estimate_tr_k1_k2(geno_bed: &mut PlinkBed,
     };
     let rand_mat = generate_plus_minus_one_bernoulli_matrix(num_snps_i, num_random_vecs);
     let gi_z_vec = geno_bed.col_chunk_iter(chunk_size, snp_range_i)
+                           .into_par_iter()
                            .enumerate()
-                           .fold(vec![0f32; num_people * num_random_vecs], |mut acc, (i, mut snp_chunk_i)| {
+                           .fold_with(vec![0f32; num_people * num_random_vecs], |mut acc, (i, mut snp_chunk_i)| {
                                normalize_matrix_columns_inplace(&mut snp_chunk_i, 0);
                                let start = i * chunk_size;
                                for (i, val) in snp_chunk_i.dot(&rand_mat.slice(s![start..start + snp_chunk_i.dim().1, ..])).as_slice().unwrap().into_iter().enumerate() {
                                    acc[i] += val;
                                }
                                acc
+                           })
+                           .reduce(|| vec![0f32; num_people * num_random_vecs], |mut a, b| {
+                               for (i, val) in b.iter().enumerate() {
+                                   a[i] += val;
+                               }
+                               a
                            });
     let gi_z = Array::from_shape_vec((num_people, num_random_vecs), gi_z_vec).unwrap();
     let xxz_arr: Vec<f32> = geno_bed
