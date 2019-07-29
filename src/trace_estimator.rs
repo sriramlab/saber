@@ -1,5 +1,6 @@
 use ndarray::{Array, Axis, Ix1, Ix2, s};
 use ndarray_parallel::prelude::*;
+use rayon::prelude::*;
 
 use bio_file_reader::plink_bed::PlinkBed;
 use math::set::ordered_integer_set::OrderedIntegerSet;
@@ -13,7 +14,6 @@ const DEFAULT_NUM_SNPS_PER_CHUNK: usize = 1000;
 /// geno_bed has shape num_people x num_snps
 pub fn estimate_tr_kk(geno_bed: &mut PlinkBed, snp_range: Option<OrderedIntegerSet<usize>>,
                       num_random_vecs: usize, num_snps_per_chunk: Option<usize>) -> f64 {
-    use rayon::prelude::*;
     let chunk_size = num_snps_per_chunk.unwrap_or(DEFAULT_NUM_SNPS_PER_CHUNK);
 
     let num_people = geno_bed.num_people;
@@ -47,7 +47,6 @@ pub fn estimate_tr_k1_k2(geno_bed: &mut PlinkBed,
                          snp_range_j: Option<OrderedIntegerSet<usize>>,
                          num_random_vecs: usize,
                          num_snps_per_chunk: Option<usize>) -> f64 {
-    use rayon::prelude::*;
     let chunk_size = num_snps_per_chunk.unwrap_or(DEFAULT_NUM_SNPS_PER_CHUNK);
 
     let num_people = geno_bed.num_people;
@@ -99,7 +98,6 @@ pub fn estimate_tr_k1_k2(geno_bed: &mut PlinkBed,
 
 pub fn estimate_tr_k(geno_bed: &mut PlinkBed, snp_range: Option<OrderedIntegerSet<usize>>,
                      num_random_vecs: usize, num_snps_per_chunk: Option<usize>) -> f64 {
-    use rayon::prelude::*;
     let chunk_size = num_snps_per_chunk.unwrap_or(DEFAULT_NUM_SNPS_PER_CHUNK);
 
     let num_people = geno_bed.num_people;
@@ -132,7 +130,6 @@ pub fn estimate_tr_k_gxg_k(geno_arr: &mut PlinkBed, le_snps_arr: &Array<f32, Ix2
     squashed.par_iter_mut().for_each(|x| *x = (*x) * (*x));
     let corrected = (squashed - geno_ssq) / 2.;
 
-    use rayon::prelude::*;
     let chunk_size = num_snps_per_chunk.unwrap_or(DEFAULT_NUM_SNPS_PER_CHUNK);
     let ssq = geno_arr
         .col_chunk_iter(chunk_size, None)
