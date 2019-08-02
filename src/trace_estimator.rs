@@ -22,24 +22,29 @@ pub fn estimate_tr_kk(geno_bed: &mut PlinkBed, snp_range: Option<OrderedIntegerS
         None => geno_bed.num_snps,
     };
     let rand_mat = generate_plus_minus_one_bernoulli_matrix(num_people, num_random_vecs);
-    let xxz_arr: Vec<f32> = geno_bed
+//    let xxz_arr: Vec<f32> =
+    let tr_gg = geno_bed
         .col_chunk_iter(chunk_size, snp_range)
         .into_par_iter()
-        .fold_with(vec![0f32; num_people * num_random_vecs], |mut acc, mut snp_chunk| {
+        .fold_with(0f32, |acc, mut snp_chunk| {
             normalize_matrix_columns_inplace(&mut snp_chunk, 0);
-            for (i, val) in snp_chunk.dot(&snp_chunk.t().dot(&rand_mat)).as_slice().unwrap().into_iter().enumerate() {
-                acc[i] += val;
-            }
-            acc
+            let arr = snp_chunk.dot(&snp_chunk.t().dot(&rand_mat));
+            acc + sum_of_squares_f32(arr.iter())
+//            for (i, val) in snp_chunk.dot(&snp_chunk.t().dot(&rand_mat)).as_slice().unwrap().into_iter().enumerate() {
+//                acc[i] += val;
+//            }
+//            acc
         })
-        .reduce(|| vec![0f32; num_people * num_random_vecs], |mut a, b| {
-            for (i, val) in b.iter().enumerate() {
-                a[i] += val;
-            }
-            a
-        });
+        .sum::<f32>() as f64;
+//        .reduce(|| vec![0f32; num_people * num_random_vecs], |mut a, b| {
+//            for (i, val) in b.iter().enumerate() {
+//                a[i] += val;
+//            }
+//            a
+//        });
 
-    sum_of_squares(xxz_arr.iter()) / (num_snps * num_snps * num_random_vecs) as f64
+//    sum_of_squares(xxz_arr.iter()) / (num_snps * num_snps * num_random_vecs) as f64
+    tr_gg / (num_snps * num_snps * num_random_vecs) as f64
 }
 
 pub fn estimate_tr_k1_k2(geno_bed: &mut PlinkBed,
