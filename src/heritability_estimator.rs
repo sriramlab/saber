@@ -443,7 +443,7 @@ pub fn estimate_gxg_heritability(gxg_basis_arr: Array<f32, Ix2>, mut pheno_arr: 
 pub fn estimate_g_and_single_gxg_heritability(geno_arr_bed: &mut PlinkBed, mut le_snps_arr: Array<f32, Ix2>,
                                               mut pheno_arr: Array<f32, Ix1>, num_random_vecs: usize,
 ) -> Result<(f64, f64, f64), Error> {
-    let mut geno_arr: Array<f32, Ix2> = geno_arr_bed.get_genotype_matrix()?;
+    let mut geno_arr: Array<f32, Ix2> = geno_arr_bed.get_genotype_matrix(None)?;
     let (num_people, num_snps) = geno_arr.dim();
     let num_independent_snps = le_snps_arr.dim().1;
     println!("\n=> estimating heritability due to G and GxG\nnum_people: {}\nnum_snps: {}\nnum_independent_snps: {}",

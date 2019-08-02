@@ -145,35 +145,49 @@ impl PlinkBed {
         (((a | b) ^ 1) << 1) | (a & (!b))
     }
 
-    pub fn get_genotype_matrix(&mut self) -> Result<Array<f32, Ix2>, io::Error> {
+    pub fn get_genotype_matrix(&mut self, snps_range: Option<OrderedIntegerSet<usize>>) -> Result<Array<f32, Ix2>, io::Error> {
         self.reset_bed_buf()?;
 
         let last_byte_index = self.num_bytes_per_snp - 1;
         let num_people_last_byte = get_num_people_last_byte(self.num_people);
 
-        let mut v = Vec::with_capacity(self.num_people * self.num_snps);
-        unsafe {
-            v.set_len(self.num_people * self.num_snps);
-        }
+        let num_snps = match &snps_range {
+            None => self.num_snps,
+            Some(range) => range.size()
+        };
+        let mut v = Vec::with_capacity(self.num_people * num_snps);
         let mut vi = 0usize;
 
         let mut snp_bytes = vec![0u8; self.num_bytes_per_snp];
-        for _ in 0..self.num_snps {
-            self.bed_buf.read_exact(&mut snp_bytes)?;
-            for i in 0..last_byte_index {
-                v[vi] = PlinkBed::lowest_two_bits_to_geno(snp_bytes[i]) as f32;
-                v[vi + 1] = PlinkBed::lowest_two_bits_to_geno(snp_bytes[i] >> 2) as f32;
-                v[vi + 2] = PlinkBed::lowest_two_bits_to_geno(snp_bytes[i] >> 4) as f32;
-                v[vi + 3] = PlinkBed::lowest_two_bits_to_geno(snp_bytes[i] >> 6) as f32;
-                vi += 4;
+        match snps_range {
+            None => {
+                unsafe {
+                    v.set_len(self.num_people * num_snps);
+                }
+                for _ in 0..self.num_snps {
+                    self.bed_buf.read_exact(&mut snp_bytes)?;
+                    for i in 0..last_byte_index {
+                        v[vi] = PlinkBed::lowest_two_bits_to_geno(snp_bytes[i]) as f32;
+                        v[vi + 1] = PlinkBed::lowest_two_bits_to_geno(snp_bytes[i] >> 2) as f32;
+                        v[vi + 2] = PlinkBed::lowest_two_bits_to_geno(snp_bytes[i] >> 4) as f32;
+                        v[vi + 3] = PlinkBed::lowest_two_bits_to_geno(snp_bytes[i] >> 6) as f32;
+                        vi += 4;
+                    }
+                    // last byte
+                    for k in 0..num_people_last_byte {
+                        v[vi] = PlinkBed::lowest_two_bits_to_geno(snp_bytes[last_byte_index] >> (k << 1)) as f32;
+                        vi += 1;
+                    }
+                }
             }
-            // last byte
-            for k in 0..num_people_last_byte {
-                v[vi] = PlinkBed::lowest_two_bits_to_geno(snp_bytes[last_byte_index] >> (k << 1)) as f32;
-                vi += 1;
+            Some(range) => {
+                for (i, snp_chunk) in self.col_chunk_iter(1000, Some(range)).enumerate() {
+                    v.extend_from_slice(snp_chunk.t().to_owned().as_slice().unwrap());
+                }
             }
-        }
-        let geno_arr = Array::from_shape_vec((self.num_people, self.num_snps)
+        };
+
+        let geno_arr = Array::from_shape_vec((self.num_people, num_snps)
                                                  .strides((1, self.num_people)), v).unwrap();
         Ok(geno_arr)
     }
@@ -483,6 +497,7 @@ mod tests {
     use tempfile::NamedTempFile;
 
     use math::set::ordered_integer_set::OrderedIntegerSet;
+    use math::set::traits::Set;
     use math::traits::ToIterator;
 
     use super::PlinkBed;
@@ -514,7 +529,7 @@ mod tests {
         let mut geno_bed = PlinkBed::new(&path,
                                          bim.into_temp_path().to_str().unwrap(),
                                          fam.into_temp_path().to_str().unwrap()).unwrap();
-        assert_eq!(geno.mapv(|x| x as f32), geno_bed.get_genotype_matrix().unwrap());
+        assert_eq!(geno.mapv(|x| x as f32), geno_bed.get_genotype_matrix(None).unwrap());
     }
 
     #[test]
@@ -534,7 +549,7 @@ mod tests {
             bim.into_temp_path().to_str().unwrap(),
             fam.into_temp_path().to_str().unwrap(),
         ).unwrap();
-        let true_geno_arr = bed.get_genotype_matrix().unwrap();
+        let true_geno_arr = bed.get_genotype_matrix(None).unwrap();
         let chunk_size = 5;
         for (i, snps) in bed.col_chunk_iter(chunk_size, None).enumerate() {
             let end_index = min((i + 1) * chunk_size, true_geno_arr.dim().1);
@@ -549,6 +564,16 @@ mod tests {
                 assert_eq!(true_geno_arr.slice(s![.., j]), snps.slice(s![.., k]));
             }
         }
+        let geno = bed.get_genotype_matrix(Some(snp_index_slices.clone())).unwrap();
+        let mut arr = Array::zeros((num_people, 35));
+        let mut jj = 0;
+        for j in snp_index_slices.to_iter() {
+            for i in 0..num_people {
+                arr[[i, jj]] = true_geno_arr[[i, j]];
+            }
+            jj += 1;
+        }
+        assert_eq!(arr, geno);
     }
 }
 

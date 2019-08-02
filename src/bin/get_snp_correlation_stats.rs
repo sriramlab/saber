@@ -43,7 +43,7 @@ fn main() {
                                 &fam_path)
         .unwrap_or_exit(None::<String>);
 
-    let geno_arr = bed.get_genotype_matrix()
+    let geno_arr = bed.get_genotype_matrix(None)
                       .unwrap_or_exit(Some("failed to get the genotype matrix"));
     let (_num_people, num_snps) = geno_arr.dim();
 

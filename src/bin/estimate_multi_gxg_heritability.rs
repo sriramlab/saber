@@ -1,24 +1,12 @@
-use std::fs::OpenOptions;
-use std::io::{BufRead, BufReader};
-
 use clap::{Arg, clap_app};
 
 use bio_file_reader::plink_bed::PlinkBed;
-use ndarray::s;
+use bio_file_reader::plink_bim::PlinkBim;
 use saber::heritability_estimator::{estimate_g_and_multi_gxg_heritability,
                                     estimate_g_and_multi_gxg_heritability_from_saved_traces};
 use saber::program_flow::OrExit;
 use saber::util::{extract_optional_str_arg, extract_str_arg, extract_str_vec_arg, get_bed_bim_fam_path, get_pheno_arr,
                   load_trace_estimates, write_trace_estimates};
-
-fn get_le_snp_counts(count_filename: &String) -> Result<Vec<usize>, String> {
-    let buf = match OpenOptions::new().read(true).open(count_filename.as_str()) {
-        Err(why) => return Err(format!("failed to open {}: {}", count_filename, why)),
-        Ok(f) => BufReader::new(f)
-    };
-    let count_vec: Vec<usize> = buf.lines().map(|l| l.unwrap().parse::<usize>().unwrap()).collect();
-    Ok(count_vec)
-}
 
 fn main() {
     let mut app = clap_app!(estimate_multi_gxg_heritability =>
@@ -26,7 +14,6 @@ fn main() {
         (author: "Aaron Zhou")
         (@arg bfile: --bfile -b <BFILE> "The PLINK prefix for x.bed, x.bim, x.fam is x; required")
         (@arg le_snps_path: --le <LE_SNPS> "Plink file prefix to the SNPs in linkage equilibrium to construct the GxG matrix; required")
-        (@arg gxg_component_count_filename: --counts -c <COUNTS> "A file where each line is the number of LE SNPs for the corresponding GxG component; required")
         (@arg num_random_vecs: --nrv <NUM_RAND_VECS> "Number of random vectors used to estimate traces; required")
     );
     app = app
@@ -61,7 +48,6 @@ fn main() {
     let num_random_vecs = extract_str_arg(&matches, "num_random_vecs")
         .parse::<usize>()
         .unwrap_or_exit(Some("failed to parse num_random_vecs"));
-    let gxg_component_count_filename = extract_str_arg(&matches, "gxg_component_count_filename");
 
     println!("PLINK bed path: {}\nPLINK bim path: {}\nPLINK fam path: {}", bed_path, bim_path, fam_path);
     println!("LE SNPs bed path: {}\nLE SNPs bim path: {}\nLE SNPs fam path: {}", le_snps_bed_path, le_snps_bim_path, le_snps_fam_path);
@@ -69,29 +55,30 @@ fn main() {
     for (i, path) in pheno_path_vec.iter().enumerate() {
         println!("[{}/{}] {}", i + 1, pheno_path_vec.len(), path);
     }
-    println!("gxg_component_count_filename: {}\nnum_random_vecs: {}", gxg_component_count_filename, num_random_vecs);
+    println!("num_random_vecs: {}", num_random_vecs);
 
     println!("\n=> generating the phenotype array and the genotype matrix");
 
-    let mut geno_arr = PlinkBed::new(&bed_path, &bim_path, &fam_path)
+    let mut geno_bed = PlinkBed::new(&bed_path, &bim_path, &fam_path)
         .unwrap_or_exit(None::<String>);
 
     let mut le_snps_bed = PlinkBed::new(&le_snps_bed_path, &le_snps_bim_path, &le_snps_fam_path)
         .unwrap_or_exit(None::<String>);
-    let le_snps_arr = le_snps_bed.get_genotype_matrix()
-                                 .unwrap_or_exit(Some("failed to get the le_snps genotype matrix"));
-
-    let counts = get_le_snp_counts(&gxg_component_count_filename)
-        .unwrap_or_exit(Some("failed to get GxG component LE SNP counts"));
-    let num_gxg_components = counts.len();
-
+    let mut le_snps_bim = PlinkBim::new(&le_snps_bim_path)
+        .unwrap_or_exit(Some(format!("failed to create PlinkBim for {}", le_snps_bim_path)));
+    let le_snps_partition = le_snps_bim.get_chrom_to_fileline_positions()
+                                       .unwrap_or_exit(Some(format!("failed to get chrom partitions from {}", le_snps_bim_path)));
+    let le_snps_partition_keys = {
+        let mut keys: Vec<String> = le_snps_partition.keys().map(|s| s.to_string()).collect();
+        keys.sort();
+        keys
+    };
     let mut le_snps_arr_vec = Vec::new();
-    let mut acc = 0usize;
-    for c in counts.into_iter() {
-        println!("GxG component {} expects {} LE SNPs", le_snps_arr_vec.len() + 1, c);
-        le_snps_arr_vec.push(le_snps_arr.slice(s![..,acc..acc+c]).to_owned());
-        acc += c;
+    for key in le_snps_partition_keys.iter() {
+        let range = &le_snps_partition[key];
+        le_snps_arr_vec.push(le_snps_bed.get_genotype_matrix(Some(range.clone())).unwrap());
     }
+    let num_gxg_components = le_snps_arr_vec.len();
 
     let mut saved_traces_in_memory = None;
     for (pheno_index, pheno_path) in pheno_path_vec.iter().enumerate() {
@@ -100,14 +87,14 @@ fn main() {
             .unwrap_or_exit(None::<String>);
 
         let heritability_estimate_result = match saved_traces_in_memory {
-            Some(saved_traces) => estimate_g_and_multi_gxg_heritability_from_saved_traces(&mut geno_arr,
+            Some(saved_traces) => estimate_g_and_multi_gxg_heritability_from_saved_traces(&mut geno_bed,
                                                                                           le_snps_arr_vec,
                                                                                           pheno_arr,
                                                                                           num_random_vecs,
                                                                                           saved_traces),
             None => {
                 match &load_trace {
-                    None => estimate_g_and_multi_gxg_heritability(&mut geno_arr,
+                    None => estimate_g_and_multi_gxg_heritability(&mut geno_bed,
                                                                   le_snps_arr_vec,
                                                                   pheno_arr,
                                                                   num_random_vecs),
@@ -119,7 +106,7 @@ fn main() {
                         assert_eq!(trace_estimates.dim(), expected_dim,
                                    "the loaded trace has dim: {:?} which does not match the expected dimension of {:?}",
                                    trace_estimates.dim(), expected_dim);
-                        estimate_g_and_multi_gxg_heritability_from_saved_traces(&mut geno_arr,
+                        estimate_g_and_multi_gxg_heritability_from_saved_traces(&mut geno_bed,
                                                                                 le_snps_arr_vec,
                                                                                 pheno_arr,
                                                                                 num_random_vecs,
@@ -133,8 +120,8 @@ fn main() {
             Ok((a, _b, h, normalized_le_snps_arr, _)) => {
                 println!("\nvariance estimates on the normalized phenotype at {}:\nG variance: {}", pheno_path, h[0]);
                 let mut gxg_var_sum = 0.;
-                for i in 1..=num_gxg_components {
-                    println!("GxG component {} variance: {}", i, h[i]);
+                for (i, key) in (1..=num_gxg_components).zip(le_snps_partition_keys.iter()) {
+                    println!("GxG component {}: {} variance: {}", i, key, h[i]);
                     gxg_var_sum += h[i];
                 }
                 println!("noise variance: {}", h[num_gxg_components + 1]);
