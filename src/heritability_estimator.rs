@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use std::iter::FromIterator;
 
 use crate::trace_estimator::{estimate_gxg_dot_y_norm_sq, estimate_gxg_gram_trace, estimate_gxg_kk_trace,
-                             estimate_tr_gxg_ki_gxg_kj, estimate_tr_k, estimate_tr_k1_k2, estimate_tr_k_gxg_k,
+                             estimate_tr_gxg_ki_gxg_kj, estimate_tr_k1_k2, estimate_tr_k_gxg_k,
                              estimate_tr_kk};
 use crate::util::matrix_util::{generate_plus_minus_one_bernoulli_matrix, normalize_matrix_columns_inplace,
                                normalize_vector_inplace};
@@ -204,11 +204,11 @@ pub fn estimate_heritability(mut geno_arr_bed: PlinkBed, plink_bim: PlinkBim, mu
             let partition_i_sampling_size = partition_i.size() - partition_to_num_leave_out[key_i];
             let snp_sample_i_range = partition_i.sample_subset_without_replacement(partition_i_sampling_size)?;
 
-            println!("\n=> estimating partition {} tr(K)", key_i);
-            let tr_k_i_est = estimate_tr_k(&mut geno_arr_bed, Some(snp_sample_i_range.clone()), num_random_vecs, None);
-            a[[i, num_partitions]] = tr_k_i_est;
-            a[[num_partitions, i]] = tr_k_i_est;
-            println!("partition {} tr(K) estimate: {}", key_i, tr_k_i_est);
+//            println!("\n=> estimating partition {} tr(K)", key_i);
+//            let tr_k_i_est = estimate_tr_k(&mut geno_arr_bed, Some(snp_sample_i_range.clone()), num_random_vecs, None);
+            a[[i, num_partitions]] = num_people as f64;
+            a[[num_partitions, i]] = num_people as f64;
+//            println!("partition {} tr(K) estimate: {}", key_i, tr_k_i_est);
 
             println!("\n=> estimating partition {} tr(KK)", key_i);
             let trace_kk_est = estimate_tr_kk(&mut geno_arr_bed, Some(snp_sample_i_range.clone()), num_random_vecs, None);
@@ -329,10 +329,10 @@ pub fn estimate_g_and_multi_gxg_heritability(geno_arr: &mut PlinkBed, mut le_snp
 }
 
 /// `saved_traces` is the matrix A in the normal equation Ax = y for heritability estimation
-pub fn estimate_g_and_multi_gxg_heritability_from_saved_traces(geno_arr: &mut PlinkBed, mut le_snps_arr: Vec<Array<f32, Ix2>>,
+pub fn estimate_g_and_multi_gxg_heritability_from_saved_traces(geno_bed: &mut PlinkBed, mut le_snps_arr: Vec<Array<f32, Ix2>>,
                                                                mut pheno_arr: Array<f32, Ix1>, num_random_vecs: usize, saved_traces: Array<f64, Ix2>)
     -> Result<(Array<f64, Ix2>, Array<f64, Ix1>, Vec<f64>, Vec<Array<f32, Ix2>>, Array<f32, Ix1>), Error> {
-    let (num_people, num_snps) = (geno_arr.num_people, geno_arr.num_snps);
+    let (num_people, num_snps) = (geno_bed.num_people, geno_bed.num_snps);
     let num_gxg_components = le_snps_arr.len();
     println!("\n=> estimating heritability due to G and GxG\nnum_people: {}\nnum_snps: {}\nnumber of GxG components: {}",
              num_people, num_snps, num_gxg_components);
@@ -349,7 +349,7 @@ pub fn estimate_g_and_multi_gxg_heritability_from_saved_traces(geno_arr: &mut Pl
     normalize_vector_inplace(&mut pheno_arr, 0);
 
     println!("\n=> computing yy yky and estimating gxg_yky");
-    let b = get_yky_gxg_yky_and_yy(geno_arr,
+    let b = get_yky_gxg_yky_and_yy(geno_bed,
                                    &pheno_arr,
                                    &le_snps_arr,
                                    num_random_vecs);

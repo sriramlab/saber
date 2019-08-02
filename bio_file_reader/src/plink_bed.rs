@@ -181,7 +181,7 @@ impl PlinkBed {
                 }
             }
             Some(range) => {
-                for (i, snp_chunk) in self.col_chunk_iter(1000, Some(range)).enumerate() {
+                for snp_chunk in self.col_chunk_iter(1000, Some(range)) {
                     v.extend_from_slice(snp_chunk.t().to_owned().as_slice().unwrap());
                 }
             }
