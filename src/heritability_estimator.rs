@@ -165,6 +165,32 @@ pub fn estimate_heritability_single_component(mut geno_arr_bed: PlinkBed, mut ph
     })
 }
 
+// TODO: test
+fn get_column_mean_and_std(geno_bed: &PlinkBed, snp_range: &OrderedIntegerSet<usize>) -> (Array<f32, Ix1>, Array<f32, Ix1>) {
+    let num_snps = snp_range.size();
+    let chunk_size = DEFAULT_CHUNK_SIZE;
+    let snp_means: Vec<f32> = geno_bed.col_chunk_iter(chunk_size, Some(snp_range.clone()))
+                                      .into_par_iter()
+                                      .flat_map(|snp_chunk| {
+                                          let mut m = Vec::new();
+                                          for col in snp_chunk.gencolumns() {
+                                              m.push(mean(col.iter()) as f32);
+                                          }
+                                          m
+                                      }).collect();
+    let snp_stds: Vec<f32> = geno_bed.col_chunk_iter(chunk_size, Some(snp_range.clone()))
+                                     .into_par_iter()
+                                     .flat_map(|snp_chunk| {
+                                         let mut s = Vec::new();
+                                         for col in snp_chunk.gencolumns() {
+                                             s.push(std(col.iter(), 0) as f32);
+                                         }
+                                         s
+                                     }).collect();
+
+    (Array::from_shape_vec(snp_means.len(), snp_means).unwrap(), Array::from_shape_vec(snp_stds.len(), snp_stds).unwrap())
+}
+
 pub fn estimate_heritability(mut geno_arr_bed: PlinkBed, plink_bim: PlinkBim, mut pheno_arr: Array<f32, Ix1>,
                              num_random_vecs: usize, jackknife_config: JackknifeConfig) -> Result<HeritabilityEstimate, String> {
     let key_to_partition = plink_bim.get_fileline_partitions().unwrap_or(
@@ -209,11 +235,9 @@ pub fn estimate_heritability(mut geno_arr_bed: PlinkBed, plink_bim: PlinkBim, mu
             let partition_i_sampling_size = partition_i.size() - partition_to_num_leave_out[key_i];
             let snp_sample_i_range = partition_i.sample_subset_without_replacement(partition_i_sampling_size)?;
 
-//            println!("\n=> estimating partition {} tr(K)", key_i);
 //            let tr_k_i_est = estimate_tr_k(&mut geno_arr_bed, Some(snp_sample_i_range.clone()), num_random_vecs, None);
             a[[i, num_partitions]] = num_people as f64;
             a[[num_partitions, i]] = num_people as f64;
-//            println!("partition {} tr(K) estimate: {}", key_i, tr_k_i_est);
 
             println!("\n=> estimating partition {} tr(KK)", key_i);
             let trace_kk_est = estimate_tr_kk(&mut geno_arr_bed, Some(snp_sample_i_range.clone()), num_random_vecs, None);
@@ -226,8 +250,19 @@ pub fn estimate_heritability(mut geno_arr_bed: PlinkBed, plink_bim: PlinkBim, mu
                 let key_j = &partition_keys[j];
                 println!("=> processing parition pair {} and {}", key_i, key_j);
                 let partition_j = &key_to_partition[key_j];
-                let snp_range_j = partition_j.sample_subset_without_replacement(partition_j.size() - partition_to_num_leave_out[key_j])?;
-                let tr_k1_k2_est = estimate_tr_k1_k2(&mut geno_arr_bed, Some(snp_sample_i_range.clone()), Some(snp_range_j), num_random_vecs, None);
+                let snp_sample_j_range = partition_j.sample_subset_without_replacement(partition_j.size() - partition_to_num_leave_out[key_j])?;
+
+                let (snp_mean_i, snp_std_i) = get_column_mean_and_std(&geno_arr_bed, &snp_sample_i_range);
+                let (snp_mean_j, snp_std_j) = get_column_mean_and_std(&geno_arr_bed, &snp_sample_j_range);
+                let tr_k1_k2_est = estimate_tr_k1_k2(&mut geno_arr_bed,
+                                                     Some(snp_sample_i_range.clone()),
+                                                     Some(snp_sample_j_range),
+                                                     &snp_mean_i,
+                                                     &snp_std_i,
+                                                     &snp_mean_j,
+                                                     &snp_std_j,
+                                                     num_random_vecs,
+                                                     None);
                 a[[i, j]] = tr_k1_k2_est;
                 a[[j, i]] = tr_k1_k2_est;
             }

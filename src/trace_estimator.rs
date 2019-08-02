@@ -45,6 +45,10 @@ pub fn estimate_tr_kk(geno_bed: &mut PlinkBed, snp_range: Option<OrderedIntegerS
 pub fn estimate_tr_k1_k2(geno_bed: &mut PlinkBed,
                          snp_range_i: Option<OrderedIntegerSet<usize>>,
                          snp_range_j: Option<OrderedIntegerSet<usize>>,
+                         snp_mean_i: &Array<f32, Ix1>,
+                         snp_std_i: &Array<f32, Ix1>,
+                         snp_mean_j: &Array<f32, Ix1>,
+                         snp_std_j: &Array<f32, Ix1>,
                          num_random_vecs: usize,
                          num_snps_per_chunk: Option<usize>) -> f64 {
     let chunk_size = num_snps_per_chunk.unwrap_or(DEFAULT_NUM_SNPS_PER_CHUNK);
@@ -58,16 +62,24 @@ pub fn estimate_tr_k1_k2(geno_bed: &mut PlinkBed,
         Some(range) => range.size(),
         None => geno_bed.num_snps,
     };
-    let rand_mat = generate_plus_minus_one_bernoulli_matrix(num_snps_i, num_random_vecs);
+    let mut rand_mat = generate_plus_minus_one_bernoulli_matrix(num_snps_i, num_random_vecs);
+    rand_mat /= snp_std_i;
+    let mean_dot_rand = snp_mean_i.dot(&rand_mat);
     let gi_z_vec = geno_bed.col_chunk_iter(chunk_size, snp_range_i)
                            .into_par_iter()
                            .enumerate()
-                           .fold_with(vec![0f32; num_people * num_random_vecs], |mut acc, (i, mut snp_chunk_i)| {
-                               normalize_matrix_columns_inplace(&mut snp_chunk_i, 0);
+                           .fold_with(vec![0f32; num_people * num_random_vecs], |mut acc, (i, snp_chunk_i)| {
                                let start = i * chunk_size;
-                               for (i, val) in snp_chunk_i.dot(&rand_mat.slice(s![start..start + snp_chunk_i.dim().1, ..])).as_slice().unwrap().into_iter().enumerate() {
-                                   acc[i] += val;
+                               let arr = snp_chunk_i.dot(&rand_mat.slice(s![start..start + snp_chunk_i.dim().1, ..])).as_slice().unwrap().to_owned();
+                               for j in 0..num_random_vecs {
+                                   let m = mean_dot_rand[j];
+                                   for n in 0..num_people {
+                                       acc[j * num_people + n] += arr[j * num_people + n] - m;
+                                   }
                                }
+//                               for (i, val) in arr.as_slice().unwrap().into_iter().enumerate() {
+//                                   acc[i] += val;
+//                               }
                                acc
                            })
                            .reduce(|| vec![0f32; num_people * num_random_vecs], |mut a, b| {
@@ -77,23 +89,34 @@ pub fn estimate_tr_k1_k2(geno_bed: &mut PlinkBed,
                                a
                            });
     let gi_z = Array::from_shape_vec((num_people, num_random_vecs), gi_z_vec).unwrap();
-    let xxz_arr: Vec<f32> = geno_bed
+    let gi_z_col_sum = Array::ones(num_people).dot(&gi_z);
+//    let xxz_arr: Vec<f32> =
+    let ssq = geno_bed
         .col_chunk_iter(chunk_size, snp_range_j)
         .into_par_iter()
-        .fold_with(vec![0f32; num_people * num_random_vecs], |mut acc, mut snp_chunk_j| {
-            normalize_matrix_columns_inplace(&mut snp_chunk_j, 0);
-            for (i, val) in snp_chunk_j.t().dot(&gi_z).as_slice().unwrap().into_iter().enumerate() {
-                acc[i] += val;
+        .fold(|| 0f32, |mut acc, snp_chunk_j| {
+            let arr = snp_chunk_j.t().dot(&gi_z).as_slice().unwrap().to_owned();
+//            normalize_matrix_columns_inplace(&mut snp_chunk_j, 0);
+            for n in 0..snp_chunk_j.dim().0 {
+                for j in 0..num_random_vecs {
+                    let x = (arr[n * num_people + j] - snp_mean_j[n] * gi_z_col_sum[j]) / snp_std_j[n];
+                    acc += x * x;
+                }
             }
+//            for (i, val) in snp_chunk_j.t().dot(&gi_z).as_slice().unwrap().into_iter().enumerate() {
+//                acc[i] += val;
+//            }
             acc
         })
-        .reduce(|| vec![0f32; num_people * num_random_vecs], |mut a, b| {
-            for (i, val) in b.iter().enumerate() {
-                a[i] += val;
-            }
-            a
-        });
-    sum_of_squares(xxz_arr.iter()) / (num_snps_i * num_snps_j * num_random_vecs) as f64
+        .sum::<f32>();
+//        .reduce(|| vec![0f32; num_people * num_random_vecs], |mut a, b| {
+//            for (i, val) in b.iter().enumerate() {
+//                a[i] += val;
+//            }
+//            a
+//        });
+//    sum_of_squares(xxz_arr.iter()) / (num_snps_i * num_snps_j * num_random_vecs) as f64
+    ssq as f64 / (num_snps_i * num_snps_j * num_random_vecs) as f64
 }
 
 pub fn estimate_tr_k(geno_bed: &mut PlinkBed, snp_range: Option<OrderedIntegerSet<usize>>,
