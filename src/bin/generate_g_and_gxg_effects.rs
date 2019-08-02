@@ -74,7 +74,7 @@ fn main() {
             println!("\nPLINK bed path: {}\nPLINK bim path: {}\nPLINK fam path: {}", bed_path, bim_path, fam_path);
             let mut bed = PlinkBed::new(&bed_path, &bim_path, &fam_path)
                 .unwrap_or_exit(None::<String>);
-            let geno_arr = bed.get_genotype_matrix()
+            let geno_arr = bed.get_genotype_matrix(None)
                               .unwrap_or_exit(Some("failed to get the genotype matrix"));
 
             let out_path = get_gxg_output_filepath(&out_path_prefix, EffectMechanism::G);
@@ -94,7 +94,7 @@ fn main() {
         println!("gxg_component_count_filename: {}", gxg_component_count_filename);
         let mut le_snps_bed = PlinkBed::new(&le_snps_bed_path, &le_snps_bim_path, &le_snps_fam_path)
             .unwrap_or_exit(None::<String>);
-        let le_snps_arr = le_snps_bed.get_genotype_matrix()
+        let le_snps_arr = le_snps_bed.get_genotype_matrix(None)
                                      .unwrap_or_exit(Some("failed to get the le_snps genotype matrix"));
 
         let counts_and_effect_sizes = get_le_snp_counts_and_effect_sizes(&gxg_component_count_filename)
