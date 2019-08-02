@@ -76,11 +76,16 @@ pub fn pheno_dot_geno(pheno_arr: &Array<f32, Ix1>,
             .collect()
 }
 
-#[inline]
 pub fn pheno_k_pheno(pheno_arr: &Array<f32, Ix1>, snp_range: &OrderedIntegerSet<usize>, geno_bed: &PlinkBed,
                      chunk_size: usize) -> f64 {
-    let y_g_arr = pheno_dot_geno(pheno_arr, geno_bed, snp_range, chunk_size);
-    sum_of_squares(y_g_arr.iter()) / snp_range.size() as f64
+    let yggy = geno_bed.col_chunk_iter(chunk_size, Some(snp_range.clone()))
+                       .into_par_iter()
+                       .map(|mut snp_chunk| {
+                           normalize_matrix_columns_inplace(&mut snp_chunk, 0);
+                           sum_of_squares_f32(pheno_arr.dot(&snp_chunk).as_slice().unwrap().iter())
+                       })
+                       .sum::<f32>();
+    yggy as f64 / snp_range.size() as f64
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]

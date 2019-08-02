@@ -25,7 +25,7 @@ pub fn estimate_tr_kk(geno_bed: &mut PlinkBed, snp_range: Option<OrderedIntegerS
     let xxz_arr: Vec<f32> = geno_bed
         .col_chunk_iter(chunk_size, snp_range)
         .into_par_iter()
-        .fold_with(vec![0f32; num_people * num_random_vecs], |mut acc, mut snp_chunk| {
+        .fold(|| vec![0f32; num_people * num_random_vecs], |mut acc, mut snp_chunk| {
             normalize_matrix_columns_inplace(&mut snp_chunk, 0);
             for (i, val) in snp_chunk.dot(&snp_chunk.t().dot(&rand_mat)).as_slice().unwrap().into_iter().enumerate() {
                 acc[i] += val;
