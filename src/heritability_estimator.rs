@@ -167,7 +167,6 @@ pub fn estimate_heritability_single_component(mut geno_arr_bed: PlinkBed, mut ph
 
 // TODO: test
 fn get_column_mean_and_std(geno_bed: &PlinkBed, snp_range: &OrderedIntegerSet<usize>) -> (Array<f32, Ix1>, Array<f32, Ix1>) {
-    let num_snps = snp_range.size();
     let chunk_size = DEFAULT_CHUNK_SIZE;
     let snp_means: Vec<f32> = geno_bed.col_chunk_iter(chunk_size, Some(snp_range.clone()))
                                       .into_par_iter()
@@ -229,40 +228,49 @@ pub fn estimate_heritability(mut geno_arr_bed: PlinkBed, plink_bim: PlinkBim, mu
         a[[num_partitions, num_partitions]] = num_people as f64;
         b[num_partitions] = yy;
         println!("\n===> starting Jackknife iteration: {}", iter);
+
+        let mut snp_sample_ranges = Vec::new();
+        let mut snp_means = Vec::new();
+        let mut snp_stds = Vec::new();
         for (i, key_i) in partition_keys.iter().enumerate() {
-            println!("==> processing {}", key_i);
+            println!("=> computing column means and std for partiton named {}", key_i);
             let partition_i = &key_to_partition[key_i];
             let partition_i_sampling_size = partition_i.size() - partition_to_num_leave_out[key_i];
-            let snp_sample_i_range = partition_i.sample_subset_without_replacement(partition_i_sampling_size)?;
+            let range = partition_i.sample_subset_without_replacement(partition_i_sampling_size)?;
+            let (snp_mean_i, snp_std_i) = get_column_mean_and_std(&geno_arr_bed, &range);
+            snp_means.push(snp_mean_i);
+            snp_stds.push(snp_std_i);
+            snp_sample_ranges.push(range);
+        }
 
-//            let tr_k_i_est = estimate_tr_k(&mut geno_arr_bed, Some(snp_sample_i_range.clone()), num_random_vecs, None);
+        for (i, key_i) in partition_keys.iter().enumerate() {
+            println!("==> processing {}", key_i);
+            let snp_sample_i_range = &snp_sample_ranges[i];
+
             a[[i, num_partitions]] = num_people as f64;
             a[[num_partitions, i]] = num_people as f64;
 
-            println!("\n=> estimating partition {} tr(KK)", key_i);
+            println!("\n=> estimating tr(KK) for partition named {}", key_i);
             let trace_kk_est = estimate_tr_kk(&mut geno_arr_bed, Some(snp_sample_i_range.clone()), num_random_vecs, None);
             println!("partition {} tr(KK) estimate: {}", key_i, trace_kk_est);
             a[[i, i]] = trace_kk_est;
 
-            b[i] = pheno_k_pheno(&pheno_arr, &snp_sample_i_range, &geno_arr_bed, DEFAULT_CHUNK_SIZE);
+            b[i] = pheno_k_pheno(&pheno_arr, snp_sample_i_range, &geno_arr_bed, DEFAULT_CHUNK_SIZE);
 
             for j in i + 1..num_partitions {
                 let key_j = &partition_keys[j];
                 println!("=> processing parition pair {} and {}", key_i, key_j);
-                let partition_j = &key_to_partition[key_j];
-                let snp_sample_j_range = partition_j.sample_subset_without_replacement(partition_j.size() - partition_to_num_leave_out[key_j])?;
-
-                let (snp_mean_i, snp_std_i) = get_column_mean_and_std(&geno_arr_bed, &snp_sample_i_range);
-                let (snp_mean_j, snp_std_j) = get_column_mean_and_std(&geno_arr_bed, &snp_sample_j_range);
+                let snp_sample_j_range = &snp_sample_ranges[j];
                 let tr_k1_k2_est = estimate_tr_k1_k2(&mut geno_arr_bed,
                                                      Some(snp_sample_i_range.clone()),
-                                                     Some(snp_sample_j_range),
-                                                     &snp_mean_i,
-                                                     &snp_std_i,
-                                                     &snp_mean_j,
-                                                     &snp_std_j,
+                                                     Some(snp_sample_j_range.clone()),
+                                                     &snp_means[i],
+                                                     &snp_stds[i],
+                                                     &snp_means[j],
+                                                     &snp_stds[j],
                                                      num_random_vecs,
                                                      None);
+                println!("tr(k_{}_k_{})_est: {}", key_i, key_j, tr_k1_k2_est);
                 a[[i, j]] = tr_k1_k2_est;
                 a[[j, i]] = tr_k1_k2_est;
             }
