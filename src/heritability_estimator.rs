@@ -268,6 +268,7 @@ pub fn estimate_heritability(mut geno_arr_bed: PlinkBed, plink_bim: PlinkBim, mu
                                                      &snp_stds[i],
                                                      &snp_means[j],
                                                      &snp_stds[j],
+                                                     None,
                                                      num_random_vecs,
                                                      None);
                 println!("tr(k_{}_k_{})_est: {}", key_i, key_j, tr_k1_k2_est);
