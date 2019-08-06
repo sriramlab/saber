@@ -40,7 +40,47 @@ pub fn estimate_tr_kk(geno_bed: &mut PlinkBed, snp_range: Option<OrderedIntegerS
             a
         });
 
-    sum_of_squares(xxz_arr.iter()) / (num_snps * num_snps * num_random_vecs) as f64
+    sum_of_squares_f32(xxz_arr.iter()) as f64 / (num_snps * num_snps * num_random_vecs) as f64
+}
+
+pub fn normalized_g_dot_rand(geno_bed: &mut PlinkBed,
+                             snp_range: Option<OrderedIntegerSet<usize>>,
+                             snp_mean: &Array<f32, Ix1>,
+                             snp_std: &Array<f32, Ix1>,
+                             num_random_vecs: usize,
+                             num_snps_per_chunk: Option<usize>) -> Array<f32, Ix2> {
+    let chunk_size = num_snps_per_chunk.unwrap_or(DEFAULT_NUM_SNPS_PER_CHUNK);
+
+    let num_people = geno_bed.num_people;
+    let num_snps = match &snp_range {
+        Some(range) => range.size(),
+        None => geno_bed.num_snps,
+    };
+    let mut rand_mat = generate_plus_minus_one_bernoulli_matrix(num_snps, num_random_vecs);
+    rand_mat /= &snp_std.to_owned().into_shape((snp_std.dim(), 1)).unwrap();
+    let mean_dot_rand = snp_mean.dot(&rand_mat);
+    let g_z_vec = geno_bed
+        .col_chunk_iter(chunk_size, snp_range)
+        .into_par_iter()
+        .enumerate()
+        .fold_with(vec![0f32; num_people * num_random_vecs], |mut acc, (i, snp_chunk)| {
+            let start = i * chunk_size;
+            let arr = snp_chunk.dot(&rand_mat.slice(s![start..start + snp_chunk.dim().1, ..])).as_slice().unwrap().to_owned();
+            for n in 0..num_people {
+                let offset = n * num_random_vecs;
+                for j in 0..num_random_vecs {
+                    acc[offset + j] += arr[offset + j] - mean_dot_rand[j];
+                }
+            }
+            acc
+        })
+        .reduce(|| vec![0f32; num_people * num_random_vecs], |mut a, b| {
+            for (i, val) in b.iter().enumerate() {
+                a[i] += val;
+            }
+            a
+        });
+    Array::from_shape_vec((num_people, num_random_vecs), g_z_vec).unwrap()
 }
 
 pub fn estimate_tr_k1_k2(geno_bed: &mut PlinkBed,
@@ -63,30 +103,8 @@ pub fn estimate_tr_k1_k2(geno_bed: &mut PlinkBed,
         Some(range) => range.size(),
         None => geno_bed.num_snps,
     };
-    let mut rand_mat = generate_plus_minus_one_bernoulli_matrix(num_snps_i, num_random_vecs);
-    rand_mat /= &snp_std_i.to_owned().into_shape((snp_std_i.dim(), 1)).unwrap();
-    let mean_i_dot_rand = snp_mean_i.dot(&rand_mat);
-    let gi_z_vec = geno_bed.col_chunk_iter(chunk_size, snp_range_i)
-                           .into_par_iter()
-                           .enumerate()
-                           .fold_with(vec![0f32; num_people * num_random_vecs], |mut acc, (i, snp_chunk_i)| {
-                               let start = i * chunk_size;
-                               let arr = snp_chunk_i.dot(&rand_mat.slice(s![start..start + snp_chunk_i.dim().1, ..])).as_slice().unwrap().to_owned();
-                               for n in 0..num_people {
-                                   let offset = n * num_random_vecs;
-                                   for j in 0..num_random_vecs {
-                                       acc[offset + j] += arr[offset + j] - mean_i_dot_rand[j];
-                                   }
-                               }
-                               acc
-                           })
-                           .reduce(|| vec![0f32; num_people * num_random_vecs], |mut a, b| {
-                               for (i, val) in b.iter().enumerate() {
-                                   a[i] += val;
-                               }
-                               a
-                           });
-    let gi_z = Array::from_shape_vec((num_people, num_random_vecs), gi_z_vec).unwrap();
+
+    let gi_z = normalized_g_dot_rand(geno_bed, snp_range_i, snp_mean_i, snp_std_i, num_random_vecs, Some(chunk_size));
     let gi_z_col_sum = Array::ones(num_people).dot(&gi_z);
     let ssq = geno_bed
         .col_chunk_iter(chunk_size, snp_range_j)
