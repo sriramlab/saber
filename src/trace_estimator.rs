@@ -106,10 +106,9 @@ pub fn estimate_tr_k1_k2(geno_bed: &mut PlinkBed,
     };
 
     let gj_z = match precomputed_normalized_g_j_dot_rand {
+        Some(arr) => arr.to_owned(),
         None => normalized_g_dot_rand(geno_bed, snp_range_j, snp_mean_j, snp_std_j, num_random_vecs, Some(chunk_size)),
-        Some(arr) => arr.to_owned()
     };
-//    let gj_z = normalized_g_dot_rand(geno_bed, snp_range_j, snp_mean_j, snp_std_j, num_random_vecs, Some(chunk_size));
     let gj_z_col_sum = Array::ones(num_people).dot(&gj_z);
     let ssq = geno_bed
         .col_chunk_iter(chunk_size, snp_range_i)
