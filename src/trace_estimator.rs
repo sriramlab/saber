@@ -90,6 +90,7 @@ pub fn estimate_tr_k1_k2(geno_bed: &mut PlinkBed,
                          snp_std_i: &Array<f32, Ix1>,
                          snp_mean_j: &Array<f32, Ix1>,
                          snp_std_j: &Array<f32, Ix1>,
+                         precomputed_normalized_g_j_dot_rand: Option<&Array<f32, Ix2>>,
                          num_random_vecs: usize,
                          num_snps_per_chunk: Option<usize>) -> f64 {
     let chunk_size = num_snps_per_chunk.unwrap_or(DEFAULT_NUM_SNPS_PER_CHUNK);
@@ -104,20 +105,24 @@ pub fn estimate_tr_k1_k2(geno_bed: &mut PlinkBed,
         None => geno_bed.num_snps,
     };
 
-    let gi_z = normalized_g_dot_rand(geno_bed, snp_range_i, snp_mean_i, snp_std_i, num_random_vecs, Some(chunk_size));
-    let gi_z_col_sum = Array::ones(num_people).dot(&gi_z);
+    let gj_z = match precomputed_normalized_g_j_dot_rand {
+        None => normalized_g_dot_rand(geno_bed, snp_range_j, snp_mean_j, snp_std_j, num_random_vecs, Some(chunk_size)),
+        Some(arr) => arr.to_owned()
+    };
+//    let gj_z = normalized_g_dot_rand(geno_bed, snp_range_j, snp_mean_j, snp_std_j, num_random_vecs, Some(chunk_size));
+    let gj_z_col_sum = Array::ones(num_people).dot(&gj_z);
     let ssq = geno_bed
-        .col_chunk_iter(chunk_size, snp_range_j)
+        .col_chunk_iter(chunk_size, snp_range_i)
         .into_par_iter()
         .enumerate()
-        .fold(|| 0f32, |mut acc, (i, snp_chunk_j)| {
-            let arr = snp_chunk_j.t().dot(&gi_z).as_slice().unwrap().to_owned();
-            for n in 0..snp_chunk_j.dim().1 {
+        .fold(|| 0f32, |mut acc, (i, snp_chunk)| {
+            let arr = snp_chunk.t().dot(&gj_z).as_slice().unwrap().to_owned();
+            for n in 0..snp_chunk.dim().1 {
                 let offset = n * num_random_vecs;
-                let m = snp_mean_j[i * chunk_size + n];
-                let s = snp_std_j[i * chunk_size + n];
+                let m = snp_mean_i[i * chunk_size + n];
+                let s = snp_std_i[i * chunk_size + n];
                 for j in 0..num_random_vecs {
-                    let x = (arr[offset + j] - m * gi_z_col_sum[j]) / s;
+                    let x = (arr[offset + j] - m * gj_z_col_sum[j]) / s;
                     acc += x * x;
                 }
             }
