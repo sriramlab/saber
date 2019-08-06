@@ -13,9 +13,7 @@ use std::{fmt, io};
 use std::collections::HashMap;
 use std::iter::FromIterator;
 
-use crate::trace_estimator::{estimate_gxg_dot_y_norm_sq, estimate_gxg_gram_trace, estimate_gxg_kk_trace,
-                             estimate_tr_gxg_ki_gxg_kj, estimate_tr_k1_k2, estimate_tr_k_gxg_k,
-                             estimate_tr_kk};
+use crate::trace_estimator::{estimate_gxg_dot_y_norm_sq, estimate_gxg_gram_trace, estimate_gxg_kk_trace, estimate_tr_gxg_ki_gxg_kj, estimate_tr_k1_k2, estimate_tr_k_gxg_k, estimate_tr_kk, normalized_g_dot_rand};
 use crate::util::matrix_util::{generate_plus_minus_one_bernoulli_matrix, normalize_matrix_columns_inplace,
                                normalize_vector_inplace};
 use crate::util::stats_util::{mean, n_choose_2, std, sum_of_squares, sum_of_squares_f32};
@@ -232,12 +230,16 @@ pub fn estimate_heritability(mut geno_arr_bed: PlinkBed, plink_bim: PlinkBim, mu
         let mut snp_sample_ranges = Vec::new();
         let mut snp_means = Vec::new();
         let mut snp_stds = Vec::new();
+        let mut precomputed_normalized_g_dot_rand = Vec::new();
         for (i, key_i) in partition_keys.iter().enumerate() {
             println!("=> computing column means and std for partiton named {}", key_i);
             let partition_i = &key_to_partition[key_i];
             let partition_i_sampling_size = partition_i.size() - partition_to_num_leave_out[key_i];
             let range = partition_i.sample_subset_without_replacement(partition_i_sampling_size)?;
             let (snp_mean_i, snp_std_i) = get_column_mean_and_std(&geno_arr_bed, &range);
+            precomputed_normalized_g_dot_rand.push(
+                normalized_g_dot_rand(&mut geno_arr_bed, Some(range.clone()), &snp_mean_i, &snp_std_i, num_random_vecs, None)
+            );
             snp_means.push(snp_mean_i);
             snp_stds.push(snp_std_i);
             snp_sample_ranges.push(range);
@@ -268,7 +270,7 @@ pub fn estimate_heritability(mut geno_arr_bed: PlinkBed, plink_bim: PlinkBim, mu
                                                      &snp_stds[i],
                                                      &snp_means[j],
                                                      &snp_stds[j],
-                                                     None,
+                                                     Some(&precomputed_normalized_g_dot_rand[j]),
                                                      num_random_vecs,
                                                      None);
                 println!("tr(k_{}_k_{})_est: {}", key_i, key_j, tr_k1_k2_est);
