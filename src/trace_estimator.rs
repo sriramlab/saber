@@ -83,7 +83,7 @@ pub fn normalized_g_dot_rand(geno_bed: &mut PlinkBed,
     Array::from_shape_vec((num_people, num_random_vecs), g_z_vec).unwrap()
 }
 
-pub fn estimate_tr_k1_k2(geno_bed: &mut PlinkBed,
+pub fn estimate_tr_ki_kj(geno_bed: &mut PlinkBed,
                          snp_range_i: Option<OrderedIntegerSet<usize>>,
                          snp_range_j: Option<OrderedIntegerSet<usize>>,
                          snp_mean_i: &Array<f32, Ix1>,

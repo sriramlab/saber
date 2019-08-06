@@ -13,7 +13,7 @@ use std::{fmt, io};
 use std::collections::HashMap;
 use std::iter::FromIterator;
 
-use crate::trace_estimator::{estimate_gxg_dot_y_norm_sq, estimate_gxg_gram_trace, estimate_gxg_kk_trace, estimate_tr_gxg_ki_gxg_kj, estimate_tr_k1_k2, estimate_tr_k_gxg_k, estimate_tr_kk, normalized_g_dot_rand};
+use crate::trace_estimator::{estimate_gxg_dot_y_norm_sq, estimate_gxg_gram_trace, estimate_gxg_kk_trace, estimate_tr_gxg_ki_gxg_kj, estimate_tr_ki_kj, estimate_tr_k_gxg_k, estimate_tr_kk, normalized_g_dot_rand};
 use crate::util::matrix_util::{generate_plus_minus_one_bernoulli_matrix, normalize_matrix_columns_inplace,
                                normalize_vector_inplace};
 use crate::util::stats_util::{mean, n_choose_2, std, sum_of_squares, sum_of_squares_f32};
@@ -232,7 +232,7 @@ pub fn estimate_heritability(mut geno_arr_bed: PlinkBed, plink_bim: PlinkBim, mu
         let mut snp_stds = Vec::new();
         let mut precomputed_normalized_g_dot_rand = Vec::new();
         for (i, key_i) in partition_keys.iter().enumerate() {
-            println!("=> computing column means and std for partiton named {}", key_i);
+            println!("=> computing column means, std and normalized_g_dot_rand for partiton named {}", key_i);
             let partition_i = &key_to_partition[key_i];
             let partition_i_sampling_size = partition_i.size() - partition_to_num_leave_out[key_i];
             let range = partition_i.sample_subset_without_replacement(partition_i_sampling_size)?;
@@ -262,10 +262,9 @@ pub fn estimate_heritability(mut geno_arr_bed: PlinkBed, plink_bim: PlinkBim, mu
             for j in i + 1..num_partitions {
                 let key_j = &partition_keys[j];
                 println!("=> processing parition pair {} and {}", key_i, key_j);
-                let snp_sample_j_range = &snp_sample_ranges[j];
-                let tr_k1_k2_est = estimate_tr_k1_k2(&mut geno_arr_bed,
+                let tr_k1_k2_est = estimate_tr_ki_kj(&mut geno_arr_bed,
                                                      Some(snp_sample_i_range.clone()),
-                                                     Some(snp_sample_j_range.clone()),
+                                                     Some(snp_sample_ranges[j].clone()),
                                                      &snp_means[i],
                                                      &snp_stds[i],
                                                      &snp_means[j],
