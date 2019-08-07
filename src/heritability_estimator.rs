@@ -82,7 +82,7 @@ pub fn pheno_k_pheno(pheno_arr: &Array<f32, Ix1>, snp_range: &OrderedIntegerSet<
     let yggy = geno_bed.col_chunk_iter(chunk_size, Some(snp_range.clone()))
                        .into_par_iter()
                        .enumerate()
-                       .fold_with(0f32, |acc, (chunk_index, snp_chunk)| {
+                       .fold(|| 0f32, |acc, (chunk_index, snp_chunk)| {
                            let mut arr = pheno_arr.dot(&snp_chunk).as_slice().unwrap().to_owned();
                            let offset = chunk_index * chunk_size;
                            for (i, x) in arr.iter_mut().enumerate() {
@@ -407,7 +407,7 @@ fn get_yky_gxg_yky_and_yy(geno_arr: &mut PlinkBed, normalized_pheno_arr: &Array<
     let yky = geno_arr
         .col_chunk_iter(1000, None)
         .into_par_iter()
-        .fold_with(0f32, |mut acc, mut snp_chunk| {
+        .fold(|| 0f32, |mut acc, mut snp_chunk| {
             normalize_matrix_columns_inplace(&mut snp_chunk, 0);
             let arr = snp_chunk.t().dot(normalized_pheno_arr).as_slice().unwrap().to_owned();
             acc += sum_of_squares_f32(arr.iter());
