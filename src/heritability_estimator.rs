@@ -114,56 +114,6 @@ pub struct HeritabilityEstimate {
     pub standard_error: f64,
 }
 
-pub fn estimate_heritability_single_component(mut geno_arr_bed: PlinkBed, mut pheno_arr: Array<f32, Ix1>, num_random_vecs: usize,
-                                              jackknife_config: JackknifeConfig) -> Result<HeritabilityEstimate, String> {
-    let num_people = geno_arr_bed.num_people;
-    let total_num_snps = geno_arr_bed.num_snps;
-    let num_snps_per_iter = match jackknife_config.leave_out {
-        LeaveOutConfig::Ratio(ratio) => (total_num_snps as f64 * (1. - ratio)) as usize,
-        LeaveOutConfig::LeaveOutForEachPartition(count) => total_num_snps - count
-    };
-    println!("num_people: {}\ntotal_num_snps: {}\nnum_snps_per_iter: {}", num_people, total_num_snps, num_snps_per_iter);
-
-    println!("\n=> normalizing the phenotype vector");
-    normalize_vector_inplace(&mut pheno_arr, 0);
-
-    let yy = sum_of_squares(pheno_arr.iter());
-
-    let mut heritability_estimates = Vec::new();
-    let total_range = OrderedIntegerSet::from_slice(&[[0, total_num_snps - 1]]);
-
-    for i in 1..=jackknife_config.num_reps {
-        println!("\n=> starting Jackknife iteration: {}", i);
-        let snp_range = total_range.sample_subset_without_replacement(num_snps_per_iter)?;
-        println!("\n=> estimating tr(KK)");
-        let trace_kk_est = estimate_tr_kk(&mut geno_arr_bed, Some(snp_range.clone()), num_random_vecs, None);
-        println!("trace_kk_est: {}", trace_kk_est);
-
-        let yky = pheno_k_pheno(&pheno_arr, &snp_range, &geno_arr_bed, DEFAULT_NUM_SNPS_PER_CHUNK);
-        println!("yky: {}\nyy: {}", yky, yy);
-
-        let n = num_people as f64;
-        let a = array![[trace_kk_est, n],[n, n]];
-        let b = array![yky, yy];
-        println!("solving ax=b\na = {:?}\nb = {:?}", a, b);
-        let sig_sq = a.solve_into(b).unwrap();
-        println!("sig_sq: {:?}", sig_sq);
-
-        let g_var = sig_sq[0] as f64;
-        let noise_var = sig_sq[1] as f64;
-        let heritability = g_var / (g_var + noise_var);
-        println!("== iteration {} heritability estimate: {}", i, heritability);
-        heritability_estimates.push(heritability);
-    }
-
-    let standard_error = std(heritability_estimates.iter(), 0);
-    Ok(HeritabilityEstimate {
-        heritability: mean(heritability_estimates.iter()),
-        standard_error,
-
-    })
-}
-
 // TODO: test
 fn get_column_mean_and_std(geno_bed: &PlinkBed, snp_range: &OrderedIntegerSet<usize>) -> (Array<f32, Ix1>, Array<f32, Ix1>) {
     let chunk_size = DEFAULT_NUM_SNPS_PER_CHUNK;
@@ -508,6 +458,57 @@ pub fn estimate_gxg_heritability(gxg_basis_arr: Array<f32, Ix2>, mut pheno_arr: 
     bold_print(&format!("heritability: {}", heritability));
 
     Ok(heritability)
+}
+
+#[deprecated(note = "use estimate_heritability instead")]
+pub fn estimate_heritability_single_component(mut geno_arr_bed: PlinkBed, mut pheno_arr: Array<f32, Ix1>, num_random_vecs: usize,
+                                              jackknife_config: JackknifeConfig) -> Result<HeritabilityEstimate, String> {
+    let num_people = geno_arr_bed.num_people;
+    let total_num_snps = geno_arr_bed.num_snps;
+    let num_snps_per_iter = match jackknife_config.leave_out {
+        LeaveOutConfig::Ratio(ratio) => (total_num_snps as f64 * (1. - ratio)) as usize,
+        LeaveOutConfig::LeaveOutForEachPartition(count) => total_num_snps - count
+    };
+    println!("num_people: {}\ntotal_num_snps: {}\nnum_snps_per_iter: {}", num_people, total_num_snps, num_snps_per_iter);
+
+    println!("\n=> normalizing the phenotype vector");
+    normalize_vector_inplace(&mut pheno_arr, 0);
+
+    let yy = sum_of_squares(pheno_arr.iter());
+
+    let mut heritability_estimates = Vec::new();
+    let total_range = OrderedIntegerSet::from_slice(&[[0, total_num_snps - 1]]);
+
+    for i in 1..=jackknife_config.num_reps {
+        println!("\n=> starting Jackknife iteration: {}", i);
+        let snp_range = total_range.sample_subset_without_replacement(num_snps_per_iter)?;
+        println!("\n=> estimating tr(KK)");
+        let trace_kk_est = estimate_tr_kk(&mut geno_arr_bed, Some(snp_range.clone()), num_random_vecs, None);
+        println!("trace_kk_est: {}", trace_kk_est);
+
+        let yky = pheno_k_pheno(&pheno_arr, &snp_range, &geno_arr_bed, DEFAULT_NUM_SNPS_PER_CHUNK);
+        println!("yky: {}\nyy: {}", yky, yy);
+
+        let n = num_people as f64;
+        let a = array![[trace_kk_est, n],[n, n]];
+        let b = array![yky, yy];
+        println!("solving ax=b\na = {:?}\nb = {:?}", a, b);
+        let sig_sq = a.solve_into(b).unwrap();
+        println!("sig_sq: {:?}", sig_sq);
+
+        let g_var = sig_sq[0] as f64;
+        let noise_var = sig_sq[1] as f64;
+        let heritability = g_var / (g_var + noise_var);
+        println!("== iteration {} heritability estimate: {}", i, heritability);
+        heritability_estimates.push(heritability);
+    }
+
+    let standard_error = std(heritability_estimates.iter(), 0);
+    Ok(HeritabilityEstimate {
+        heritability: mean(heritability_estimates.iter()),
+        standard_error,
+
+    })
 }
 
 /// `geno_arr` is the genotype matrix for the G component
