@@ -7,8 +7,6 @@ use bio_file_reader::plink_bim::{CHROM_FIELD_INDEX, PlinkBim, VARIANT_ID_FIELD_I
 use saber::program_flow::OrExit;
 use saber::util::extract_str_arg;
 
-const PARTITION_ID_PREFIX: &str = "partition:";
-
 fn main() {
     let mut app = clap_app!(partition_by_chrom =>
         (version: "0.1")
@@ -38,10 +36,9 @@ fn main() {
         let l = line.unwrap_or_exit(Some("failed to get lines from the bim file object"));
         let mut toks = l.split_whitespace();
 
-        let mut partition = String::from(PARTITION_ID_PREFIX);
-        partition.push_str(toks.next()
-                               .unwrap_or_exit(Some(format!("failed to extract the chrom from line {} in {}",
-                                                            i, bim_path))));
+        let partition = toks.next()
+                            .unwrap_or_exit(Some(format!("failed to extract the chrom from line {} in {}", i, bim_path)))
+                            .to_string();
 
         let variant_id = toks.next()
                              .unwrap_or_exit(Some(format!("failed to extract variant id from line {} in {}",
