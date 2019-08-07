@@ -236,6 +236,7 @@ pub fn estimate_heritability(mut geno_arr_bed: PlinkBed, plink_bim: PlinkBim, mu
         let mut snp_means = Vec::new();
         let mut snp_stds = Vec::new();
         let mut precomputed_normalized_g_dot_rand = Vec::new();
+        let mut num_snps = Vec::new();
         for key_i in partition_keys.iter() {
             println!("=> computing column means, std and normalized_g_dot_rand for partiton named {}", key_i);
             let partition_i = &key_to_partition[key_i];
@@ -245,6 +246,7 @@ pub fn estimate_heritability(mut geno_arr_bed: PlinkBed, plink_bim: PlinkBim, mu
             precomputed_normalized_g_dot_rand.push(
                 normalized_g_dot_rand(&mut geno_arr_bed, Some(range.clone()), &snp_mean_i, &snp_std_i, num_random_vecs, None)
             );
+            num_snps.push(range.size());
             snp_means.push(snp_mean_i);
             snp_stds.push(snp_std_i);
             snp_sample_ranges.push(range);
@@ -268,7 +270,9 @@ pub fn estimate_heritability(mut geno_arr_bed: PlinkBed, plink_bim: PlinkBim, mu
             for j in i + 1..num_partitions {
                 let key_j = &partition_keys[j];
                 println!("=> processing parition pair {} and {}", key_i, key_j);
-                let tr_k1_k2_est = estimate_tr_ki_kj(&mut geno_arr_bed,
+                let tr_k1_k2_est;
+                if num_snps[i] <= num_snps[j] {
+                    tr_k1_k2_est = estimate_tr_ki_kj(&mut geno_arr_bed,
                                                      Some(snp_sample_i_range.clone()),
                                                      Some(snp_sample_ranges[j].clone()),
                                                      &snp_means[i],
@@ -278,6 +282,19 @@ pub fn estimate_heritability(mut geno_arr_bed: PlinkBed, plink_bim: PlinkBim, mu
                                                      Some(&precomputed_normalized_g_dot_rand[j]),
                                                      num_random_vecs,
                                                      None);
+                } else {
+                    tr_k1_k2_est = estimate_tr_ki_kj(&mut geno_arr_bed,
+                                                     Some(snp_sample_ranges[j].clone()),
+                                                     Some(snp_sample_i_range.clone()),
+                                                     &snp_means[j],
+                                                     &snp_stds[j],
+                                                     &snp_means[i],
+                                                     &snp_stds[i],
+                                                     Some(&precomputed_normalized_g_dot_rand[i]),
+                                                     num_random_vecs,
+                                                     None);
+                }
+
                 println!("tr(k_{}_k_{})_est: {}", key_i, key_j, tr_k1_k2_est);
                 a[[i, j]] = tr_k1_k2_est;
                 a[[j, i]] = tr_k1_k2_est;
