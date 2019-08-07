@@ -198,7 +198,11 @@ pub fn estimate_heritability(mut geno_arr_bed: PlinkBed, plink_bim: PlinkBim, mu
     );
     let partition_keys = {
         let mut keys: Vec<PartitionKeyType> = key_to_partition.keys().map(|s| s.to_string()).collect::<Vec<PartitionKeyType>>();
-        keys.sort();
+        if keys.iter().filter(|&k| k.parse::<i32>().is_err()).count() > 0 {
+            keys.sort();
+        } else {
+            keys.sort_by_key(|k| k.parse::<i32>().unwrap());
+        }
         keys
     };
     let num_partitions = partition_keys.len();
@@ -210,7 +214,7 @@ pub fn estimate_heritability(mut geno_arr_bed: PlinkBed, plink_bim: PlinkBim, mu
     let num_people = geno_arr_bed.num_people;
     println!("num_people: {}\ntotal_num_snps: {}\n", num_people, total_num_snps);
     for key in partition_keys.iter() {
-        println!("partition {} has {} SNPs", key, key_to_partition[key].size());
+        println!("partition named {} has {} SNPs", key, key_to_partition[key].size());
     }
 
     println!("\n=> normalizing the phenotype vector");
@@ -247,17 +251,18 @@ pub fn estimate_heritability(mut geno_arr_bed: PlinkBed, plink_bim: PlinkBim, mu
         }
 
         for (i, key_i) in partition_keys.iter().enumerate() {
-            println!("==> processing {}", key_i);
+            println!("\n==> processing partition named {}", key_i);
             let snp_sample_i_range = &snp_sample_ranges[i];
 
             a[[i, num_partitions]] = num_people as f64;
             a[[num_partitions, i]] = num_people as f64;
 
-            println!("\n=> estimating tr(KK) for partition named {}", key_i);
+            println!("=> estimating tr(KK) for partition named {}", key_i);
             let trace_kk_est = estimate_tr_kk(&mut geno_arr_bed, Some(snp_sample_i_range.clone()), num_random_vecs, None);
-            println!("partition {} tr(KK) estimate: {}", key_i, trace_kk_est);
+            println!("tr(KK) estimate for partition named {}: {}", key_i, trace_kk_est);
             a[[i, i]] = trace_kk_est;
 
+            println!("=> computing yky");
             b[i] = pheno_k_pheno(&pheno_arr, snp_sample_i_range, &geno_arr_bed, DEFAULT_NUM_SNPS_PER_CHUNK);
 
             for j in i + 1..num_partitions {
@@ -283,7 +288,7 @@ pub fn estimate_heritability(mut geno_arr_bed: PlinkBed, plink_bim: PlinkBim, mu
         println!("sig_sq: {:?}", sig_sq);
         let total_var: f64 = sig_sq[..num_partitions].iter().map(|x| *x as f64).sum();
         for i in 0..num_partitions {
-            println!("{} variance estimate: {}", partition_keys[i], sig_sq[i] as f64);
+            println!("variance estimate for partition named {}: {}", partition_keys[i], sig_sq[i] as f64);
         }
         println!("total var estimate: {}", total_var);
         println!("noise estimate: {}", sig_sq[num_partitions]);
