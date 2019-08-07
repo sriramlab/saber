@@ -9,7 +9,7 @@ use math::set::traits::Finite;
 use crate::util::matrix_util::{generate_plus_minus_one_bernoulli_matrix, normalize_matrix_columns_inplace};
 use crate::util::stats_util::{n_choose_2, sum_f32, sum_of_squares, sum_of_squares_f32};
 
-const DEFAULT_NUM_SNPS_PER_CHUNK: usize = 25;
+pub const DEFAULT_NUM_SNPS_PER_CHUNK: usize = 50;
 
 /// geno_bed has shape num_people x num_snps
 pub fn estimate_tr_kk(geno_bed: &mut PlinkBed, snp_range: Option<OrderedIntegerSet<usize>>,
