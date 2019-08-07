@@ -8,9 +8,8 @@ use math::set::traits::Finite;
 
 use crate::util::matrix_util::{generate_plus_minus_one_bernoulli_matrix, normalize_matrix_columns_inplace};
 use crate::util::stats_util::{n_choose_2, sum_f32, sum_of_squares, sum_of_squares_f32};
-use crate::util::timer::Timer;
 
-const DEFAULT_NUM_SNPS_PER_CHUNK: usize = 1000;
+const DEFAULT_NUM_SNPS_PER_CHUNK: usize = 25;
 
 /// geno_bed has shape num_people x num_snps
 pub fn estimate_tr_kk(geno_bed: &mut PlinkBed, snp_range: Option<OrderedIntegerSet<usize>>,
@@ -95,7 +94,6 @@ pub fn estimate_tr_ki_kj(geno_bed: &mut PlinkBed,
                          num_snps_per_chunk: Option<usize>) -> f64 {
     let chunk_size = num_snps_per_chunk.unwrap_or(DEFAULT_NUM_SNPS_PER_CHUNK);
 
-    let num_people = geno_bed.num_people;
     let num_snps_i = match &snp_range_i {
         Some(range) => range.size(),
         None => geno_bed.num_snps,
@@ -109,17 +107,21 @@ pub fn estimate_tr_ki_kj(geno_bed: &mut PlinkBed,
         Some(arr) => arr.to_owned(),
         None => normalized_g_dot_rand(geno_bed, snp_range_j, snp_mean_j, snp_std_j, num_random_vecs, Some(chunk_size)),
     };
-    let gj_z_col_sum = Array::ones(num_people).dot(&gj_z);
+    let gj_z_col_sum = {
+        let mut col_sums = Vec::new();
+        gj_z.axis_iter(Axis(1)).into_par_iter().map(|col| sum_f32(col.iter())).collect_into_vec(&mut col_sums);
+        Array::from_shape_vec(num_random_vecs, col_sums).unwrap()
+    };
     let ssq = geno_bed
         .col_chunk_iter(chunk_size, snp_range_i)
         .into_par_iter()
         .enumerate()
-        .fold(|| 0f32, |mut acc, (i, snp_chunk)| {
+        .fold_with(0f32, |mut acc, (chunk_index, snp_chunk)| {
             let arr = snp_chunk.t().dot(&gj_z).as_slice().unwrap().to_owned();
-            for n in 0..snp_chunk.dim().1 {
-                let offset = n * num_random_vecs;
-                let m = snp_mean_i[i * chunk_size + n];
-                let s = snp_std_i[i * chunk_size + n];
+            for local_snp_index in 0..snp_chunk.dim().1 {
+                let offset = local_snp_index * num_random_vecs;
+                let m = snp_mean_i[chunk_index * chunk_size + local_snp_index];
+                let s = snp_std_i[chunk_index * chunk_size + local_snp_index];
                 for j in 0..num_random_vecs {
                     let x = (arr[offset + j] - m * gj_z_col_sum[j]) / s;
                     acc += x * x;

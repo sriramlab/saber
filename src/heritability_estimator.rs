@@ -231,7 +231,7 @@ pub fn estimate_heritability(mut geno_arr_bed: PlinkBed, plink_bim: PlinkBim, mu
         let mut snp_means = Vec::new();
         let mut snp_stds = Vec::new();
         let mut precomputed_normalized_g_dot_rand = Vec::new();
-        for (i, key_i) in partition_keys.iter().enumerate() {
+        for key_i in partition_keys.iter() {
             println!("=> computing column means, std and normalized_g_dot_rand for partiton named {}", key_i);
             let partition_i = &key_to_partition[key_i];
             let partition_i_sampling_size = partition_i.size() - partition_to_num_leave_out[key_i];
