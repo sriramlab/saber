@@ -13,13 +13,14 @@ use std::{fmt, io};
 use std::collections::HashMap;
 use std::iter::FromIterator;
 
-use crate::trace_estimator::{estimate_gxg_dot_y_norm_sq, estimate_gxg_gram_trace, estimate_gxg_kk_trace, estimate_tr_gxg_ki_gxg_kj, estimate_tr_ki_kj, estimate_tr_k_gxg_k, estimate_tr_kk, normalized_g_dot_rand};
+use crate::trace_estimator::{DEFAULT_NUM_SNPS_PER_CHUNK, estimate_gxg_dot_y_norm_sq, estimate_gxg_gram_trace,
+                             estimate_gxg_kk_trace, estimate_tr_gxg_ki_gxg_kj, estimate_tr_k_gxg_k, estimate_tr_ki_kj,
+                             estimate_tr_kk, normalized_g_dot_rand};
 use crate::util::matrix_util::{generate_plus_minus_one_bernoulli_matrix, normalize_matrix_columns_inplace,
                                normalize_vector_inplace};
 use crate::util::stats_util::{mean, n_choose_2, std, sum_of_squares, sum_of_squares_f32};
 
 const DEFAULT_PARTITION_NAME: &str = "default_partition";
-const DEFAULT_CHUNK_SIZE: usize = 50;
 
 #[inline]
 fn bold_print(msg: &String) {
@@ -138,7 +139,7 @@ pub fn estimate_heritability_single_component(mut geno_arr_bed: PlinkBed, mut ph
         let trace_kk_est = estimate_tr_kk(&mut geno_arr_bed, Some(snp_range.clone()), num_random_vecs, None);
         println!("trace_kk_est: {}", trace_kk_est);
 
-        let yky = pheno_k_pheno(&pheno_arr, &snp_range, &geno_arr_bed, DEFAULT_CHUNK_SIZE);
+        let yky = pheno_k_pheno(&pheno_arr, &snp_range, &geno_arr_bed, DEFAULT_NUM_SNPS_PER_CHUNK);
         println!("yky: {}\nyy: {}", yky, yy);
 
         let n = num_people as f64;
@@ -165,7 +166,7 @@ pub fn estimate_heritability_single_component(mut geno_arr_bed: PlinkBed, mut ph
 
 // TODO: test
 fn get_column_mean_and_std(geno_bed: &PlinkBed, snp_range: &OrderedIntegerSet<usize>) -> (Array<f32, Ix1>, Array<f32, Ix1>) {
-    let chunk_size = DEFAULT_CHUNK_SIZE;
+    let chunk_size = DEFAULT_NUM_SNPS_PER_CHUNK;
     let snp_means: Vec<f32> = geno_bed.col_chunk_iter(chunk_size, Some(snp_range.clone()))
                                       .into_par_iter()
                                       .flat_map(|snp_chunk| {
@@ -257,7 +258,7 @@ pub fn estimate_heritability(mut geno_arr_bed: PlinkBed, plink_bim: PlinkBim, mu
             println!("partition {} tr(KK) estimate: {}", key_i, trace_kk_est);
             a[[i, i]] = trace_kk_est;
 
-            b[i] = pheno_k_pheno(&pheno_arr, snp_sample_i_range, &geno_arr_bed, DEFAULT_CHUNK_SIZE);
+            b[i] = pheno_k_pheno(&pheno_arr, snp_sample_i_range, &geno_arr_bed, DEFAULT_NUM_SNPS_PER_CHUNK);
 
             for j in i + 1..num_partitions {
                 let key_j = &partition_keys[j];
