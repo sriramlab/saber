@@ -124,25 +124,24 @@ pub struct HeritabilityEstimate {
 // TODO: test
 fn get_column_mean_and_std(geno_bed: &PlinkBed, snp_range: &OrderedIntegerSet<usize>) -> (Array<f32, Ix1>, Array<f32, Ix1>) {
     let chunk_size = DEFAULT_NUM_SNPS_PER_CHUNK;
-    let snp_means: Vec<f32> = geno_bed.col_chunk_iter(chunk_size, Some(snp_range.clone()))
-                                      .into_par_iter()
-                                      .flat_map(|snp_chunk| {
-                                          let mut m = Vec::new();
-                                          for col in snp_chunk.gencolumns() {
-                                              m.push(mean(col.iter()) as f32);
-                                          }
-                                          m
-                                      }).collect();
-    let snp_stds: Vec<f32> = geno_bed.col_chunk_iter(chunk_size, Some(snp_range.clone()))
-                                     .into_par_iter()
-                                     .flat_map(|snp_chunk| {
-                                         let mut s = Vec::new();
-                                         for col in snp_chunk.gencolumns() {
-                                             s.push(std(col.iter(), 0) as f32);
-                                         }
-                                         s
-                                     }).collect();
-
+    let mut snp_means = Vec::new();
+    let mut snp_stds = Vec::new();
+    geno_bed
+        .col_chunk_iter(chunk_size, Some(snp_range.clone()))
+        .into_par_iter()
+        .flat_map(|snp_chunk| {
+            let mut m_and_s = Vec::new();
+            for col in snp_chunk.gencolumns() {
+                m_and_s.push((mean(col.iter()) as f32, std(col.iter(), 0) as f32));
+            }
+            m_and_s
+        })
+        .collect::<Vec<(f32, f32)>>()
+        .into_iter()
+        .for_each(|(m, s)| {
+            snp_means.push(m);
+            snp_stds.push(s);
+        });
     (Array::from_shape_vec(snp_means.len(), snp_means).unwrap(), Array::from_shape_vec(snp_stds.len(), snp_stds).unwrap())
 }
 
