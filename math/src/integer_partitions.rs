@@ -1,5 +1,5 @@
 use crate::set::ordered_integer_set::{OrderedIntegerSet, ContiguousIntegerSet};
-use crate::interval::traits::CoalesceIntervals;
+use std::ops::Index;
 
 pub type Partition = OrderedIntegerSet<usize>;
 
@@ -28,6 +28,13 @@ impl IntegerPartitions {
     pub fn union(&self) -> Partition {
         let intervals: Vec<ContiguousIntegerSet<usize>> = self.partitions.iter().flat_map(|p| p.get_intervals_by_ref().clone()).collect();
         OrderedIntegerSet::from_contiguous_integer_sets(intervals)
+    }
+}
+
+impl Index<usize> for IntegerPartitions {
+    type Output = Partition;
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.partitions[index]
     }
 }
 

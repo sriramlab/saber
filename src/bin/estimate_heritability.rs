@@ -18,7 +18,7 @@ fn main() {
     );
     app = app.arg(
         Arg::with_name("num_jackknife_partitions")
-            .long("--num-jackknifes").short("k").takes_value(true).default_value("100")
+            .long("--num-jackknifes").short("k").takes_value(true).default_value("10")
             .help("The number of jackknife partitions")
     );
     app = app.arg(
@@ -43,7 +43,7 @@ fn main() {
     println!("PLINK bed path: {}\nPLINK bim path: {}\nPLINK fam path: {}",
              plink_bed_path, plink_bim_path, plink_fam_path);
     println!("pheno_filepath: {}\nnum_random_vecs: {}", pheno_filename, num_random_vecs);
-    println!("partition_filepath: {}\nnum_jackknife_partitions: {}\n",
+    println!("partition_filepath: {}\nnum_jackknife_partitions: {}",
              partition_filepath.as_ref().unwrap_or(&"".to_string()), num_jackknife_partitions);
 
     let pheno_arr = get_pheno_arr(&pheno_filename)
