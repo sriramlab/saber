@@ -1,6 +1,6 @@
 use std::cmp::{max, min};
 use std::iter::Sum;
-use std::ops::{Range };
+use std::ops::Range;
 
 use num::FromPrimitive;
 use num::integer::Integer;
