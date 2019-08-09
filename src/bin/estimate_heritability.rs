@@ -2,10 +2,11 @@ use clap::{Arg, clap_app};
 
 use bio_file_reader::plink_bed::PlinkBed;
 use bio_file_reader::plink_bim::PlinkBim;
-use saber::heritability_estimator::{estimate_heritability, LeaveOutConfig};
-use saber::heritability_estimator::JackknifeConfig;
+use saber::heritability_estimator::estimate_heritability;
+use saber::jackknife::JackknifeConfig;
 use saber::program_flow::OrExit;
 use saber::util::{extract_numeric_arg, extract_optional_str_arg, extract_str_arg, get_pheno_arr};
+use math::set::ordered_integer_set::OrderedIntegerSet;
 
 fn main() {
     let mut app = clap_app!(estimate_heritability =>
@@ -21,7 +22,9 @@ fn main() {
             .help("The number of subsamples to use for the heritability estimation for each Jackknife iteration")
     );
     app = app.arg(
-        Arg::with_name("num_reps").default_value("10").long("num-reps").takes_value(true)
+        Arg::with_name("jackknife_block_size")
+            .short("-b").takes_value(true).default_value("5")
+            .help("the Jackknife block size")
     );
     app = app.arg(
         Arg::with_name("partition_file").long("partition").takes_value(true)
@@ -32,8 +35,8 @@ fn main() {
     let pheno_filename = extract_str_arg(&matches, "pheno_filename");
     let leave_out_ratio = extract_numeric_arg::<f64>(&matches, "leave_out_ratio")
         .unwrap_or_exit(Some(format!("failed to extract sample-ratio")));
-    let num_reps = extract_numeric_arg(&matches, "num_reps")
-        .unwrap_or_exit(Some(format!("failed to extract num-reps")));
+    let jackknife_block_size = extract_numeric_arg::<usize>(&matches, "jackknife_block_size")
+        .unwrap_or_exit(Some(format!("failed to extract jackknife_block_size")));
     let partition_filepath = extract_optional_str_arg(&matches, "partition_file");
 
     let plink_bed_path = format!("{}.bed", plink_filename_prefix);
@@ -47,8 +50,8 @@ fn main() {
     println!("PLINK bed path: {}\nPLINK bim path: {}\nPLINK fam path: {}",
              plink_bed_path, plink_bim_path, plink_fam_path);
     println!("pheno_filepath: {}\nnum_random_vecs: {}", pheno_filename, num_random_vecs);
-    println!("partition_filepath: {}\nleave_out_ratio: {}\nnum_reps: {}",
-             partition_filepath.as_ref().unwrap_or(&"".to_string()), leave_out_ratio, num_reps);
+    println!("partition_filepath: {}\nleave_out_ratio: {}\njackknife_block_size: {}",
+             partition_filepath.as_ref().unwrap_or(&"".to_string()), leave_out_ratio, jackknife_block_size);
 
     let pheno_arr = get_pheno_arr(&pheno_filename)
         .unwrap_or_exit(None::<String>);
@@ -58,9 +61,6 @@ fn main() {
                             &plink_fam_path)
         .unwrap_or_exit(None::<String>);
 
-    let leave_out = LeaveOutConfig::Ratio(leave_out_ratio);
-    println!("leaving out {:?} SNPs during each Jackknife iteration", leave_out);
-
     let bim = match &partition_filepath {
         Some(partition_filepath) => PlinkBim::new_with_partition_file(&plink_bim_path, partition_filepath)
             .unwrap_or_exit(Some(format!("failed to create PlinkBim from bim file: {} and partition file: {}",
@@ -69,11 +69,13 @@ fn main() {
             .unwrap_or_exit(Some(format!("failed to create PlinkBim from {}", &plink_bim_path))),
     };
 
+    let num_snps = bed.num_snps;
     match estimate_heritability(bed,
                                 bim,
                                 pheno_arr,
                                 num_random_vecs,
-                                JackknifeConfig::new(leave_out, num_reps)) {
+                                JackknifeConfig::from_integer_set(
+                                    OrderedIntegerSet::from_slice(&[[0, num_snps - 1]]), num_snps / jackknife_block_size)) {
         Ok(h) => {
             println!("\nheritability estimate: {}\nstandard error estimate: {}", h.heritability, h.standard_error);
         }
