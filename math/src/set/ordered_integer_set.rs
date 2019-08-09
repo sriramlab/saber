@@ -1,6 +1,6 @@
 use std::cmp::{max, min};
 use std::iter::Sum;
-use std::ops::{Range, Sub, SubAssign};
+use std::ops::{Range };
 
 use num::FromPrimitive;
 use num::integer::Integer;
@@ -10,6 +10,8 @@ use crate::interval::traits::{Coalesce, CoalesceIntervals, Interval};
 use crate::sample::Sample;
 use crate::set::traits::{Finite, Set};
 use crate::traits::{Collecting, Constructable, ToIterator};
+
+pub mod arithmetic;
 
 /// represents the set of integers in [start, end]
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -287,6 +289,10 @@ impl<E: Integer + Copy + ToPrimitive> OrderedIntegerSet<E> {
         self.intervals
     }
 
+    pub fn intervals_iter(&self) -> std::slice::Iter<ContiguousIntegerSet<E>> {
+        self.intervals.iter()
+    }
+
     pub fn num_intervals(&self) -> usize {
         self.intervals.len()
     }
@@ -350,70 +356,6 @@ impl<E: Integer + Copy + ToPrimitive> CoalesceIntervals<ContiguousIntegerSet<E>,
     fn coalesce_intervals_inplace(&mut self) {
         self.remove_empty_intervals();
         self.intervals.coalesce_intervals_inplace();
-    }
-}
-
-impl<E: Integer + Copy + ToPrimitive> Sub for ContiguousIntegerSet<E> {
-    type Output = OrderedIntegerSet<E>;
-    fn sub(self, rhs: ContiguousIntegerSet<E>) -> Self::Output {
-        let a = self.get_start();
-        let b = self.get_end();
-        let c = rhs.get_start();
-        let d = rhs.get_end();
-        if self.is_empty() || rhs.is_empty() {
-            return OrderedIntegerSet::from(vec![self]);
-        }
-        // [a, b] - [c, d]
-        let set = OrderedIntegerSet::from(vec![
-            ContiguousIntegerSet::new(a, min(b, c - E::one())),
-            ContiguousIntegerSet::new(max(d + E::one(), a), b),
-        ]);
-        set.into_non_empty_intervals()
-    }
-}
-
-impl<E: Integer + Copy + ToPrimitive> Sub<ContiguousIntegerSet<E>> for OrderedIntegerSet<E> {
-    type Output = Self;
-    fn sub(self, rhs: ContiguousIntegerSet<E>) -> Self::Output {
-        let diff_intervals: Vec<ContiguousIntegerSet<E>> = self.intervals.iter()
-                                                               .flat_map(|i| (*i - rhs).intervals)
-                                                               .collect();
-        let diff = OrderedIntegerSet::from(diff_intervals);
-        diff.into_coalesced()
-    }
-}
-
-impl<E: Integer + Copy + ToPrimitive> SubAssign<ContiguousIntegerSet<E>> for OrderedIntegerSet<E> {
-    fn sub_assign(&mut self, rhs: ContiguousIntegerSet<E>) {
-        *self = self.to_owned() - rhs
-    }
-}
-
-impl<E: Integer + Copy + ToPrimitive> Sub<OrderedIntegerSet<E>> for ContiguousIntegerSet<E> {
-    type Output = OrderedIntegerSet<E>;
-    fn sub(self, rhs: OrderedIntegerSet<E>) -> Self::Output {
-        let mut diff = OrderedIntegerSet::from(vec![self]);
-        for interval in rhs.into_intervals().into_iter() {
-            diff -= interval;
-        }
-        diff.into_coalesced()
-    }
-}
-
-impl<E: Integer + Copy + ToPrimitive> Sub for OrderedIntegerSet<E> {
-    type Output = Self;
-    fn sub(self, rhs: OrderedIntegerSet<E>) -> Self::Output {
-        let mut diff = self;
-        for interval in rhs.into_intervals().into_iter() {
-            diff -= interval;
-        }
-        diff.into_coalesced()
-    }
-}
-
-impl<E: Integer + Copy + ToPrimitive> SubAssign for OrderedIntegerSet<E> {
-    fn sub_assign(&mut self, rhs: OrderedIntegerSet<E>) {
-        *self = self.to_owned() - rhs
     }
 }
 
