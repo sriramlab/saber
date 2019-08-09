@@ -42,8 +42,7 @@ impl<E: Integer + Copy + ToPrimitive> Sub<&ContiguousIntegerSet<E>> for OrderedI
         let diff_intervals: Vec<ContiguousIntegerSet<E>> = self.intervals.iter()
                                                                .flat_map(|i| (*i - rhs).intervals)
                                                                .collect();
-        let diff = OrderedIntegerSet::from(diff_intervals);
-        diff.into_coalesced()
+        OrderedIntegerSet::from(diff_intervals)
     }
 }
 
@@ -92,11 +91,26 @@ impl<E: Integer + Copy + ToPrimitive> Sub<OrderedIntegerSet<E>> for ContiguousIn
 impl<E: Integer + Copy + ToPrimitive> Sub<&OrderedIntegerSet<E>> for OrderedIntegerSet<E> {
     type Output = Self;
     fn sub(self, rhs: &OrderedIntegerSet<E>) -> Self::Output {
-        let mut diff = self;
-        for interval in rhs.intervals_iter() {
-            diff -= interval;
+        let mut diff = Vec::new();
+        let mut rhs_i = 0;
+        let num_rhs_intervals = rhs.intervals.len();
+        for interval in self.intervals.iter() {
+            let mut d = OrderedIntegerSet::from_contiguous_integer_sets(vec![*interval]);
+            while rhs_i < num_rhs_intervals && rhs.intervals[rhs_i].end < interval.start {
+                rhs_i += 1;
+            }
+            while rhs_i < num_rhs_intervals && rhs.intervals[rhs_i].end <= interval.end {
+                d -= rhs.intervals[rhs_i];
+                rhs_i += 1;
+            }
+            if rhs_i < num_rhs_intervals && rhs.intervals[rhs_i].start <= interval.end {
+                d -= rhs.intervals[rhs_i];
+            }
+            for i in d.intervals.into_iter() {
+                diff.push(i);
+            }
         }
-        diff.into_coalesced()
+        OrderedIntegerSet::from_contiguous_integer_sets(diff)
     }
 }
 
