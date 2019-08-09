@@ -1,41 +1,72 @@
-use ndarray::{Array, Ix2};
+use std::ops::{Add, Sub};
 
 use math::integer_partitions::{IntegerPartitionIter, IntegerPartitions, Partition};
 use math::sample::Sample;
 use math::set::ordered_integer_set::OrderedIntegerSet;
 use math::set::traits::Finite;
 
-pub struct JackknifeMatrix {
-    pub additive_components: Vec<Array<f32, Ix2>>,
-    matrix_sum: Option<Array<f32, Ix2>>,
+pub struct Jackknife<C> {
+    pub components: Vec<C>,
+    component_union: C,
 }
 
-impl JackknifeMatrix {
-    pub fn from_op_over_jackknife_partitions<F>(jackknife_partitions: &JackknifePartitions, mut op: F) -> JackknifeMatrix
-        where F: FnMut(&Partition) -> Array<f32, Ix2> {
-        let additive_components: Vec<Array<f32, Ix2>> = jackknife_partitions.iter().map(|p| op(p)).collect();
+impl<C> Jackknife<C> {
+    pub fn from_op_over_jackknife_partitions<F>(jackknife_partitions: &JackknifePartitions, mut op: F) -> Jackknife<C>
+        where F: FnMut(&Partition) -> C {
+        let components: Vec<C> = jackknife_partitions.iter().map(|p| op(p)).collect();
+        let component_union = op(&jackknife_partitions.union());
+        Jackknife {
+            components,
+            component_union,
+        }
+    }
+
+    pub fn get_component_union(&self) -> &C {
+        &self.component_union
+    }
+}
+
+pub struct AdditiveJackknife<C> {
+    pub additive_components: Vec<C>,
+    matrix_sum: Option<C>,
+}
+
+impl<C> AdditiveJackknife<C>
+{
+    pub fn from_op_and_add_over_jackknife_partitions<F>(jackknife_partitions: &JackknifePartitions, mut op: F) -> AdditiveJackknife<C>
+        where F: FnMut(usize, &Partition) -> C,
+              C: for<'a> Add<&'a C, Output=C> + Clone {
+        let additive_components: Vec<C> = jackknife_partitions.iter().enumerate().map(|(i, p)| op(i, p)).collect();
         let matrix_sum = match additive_components.first() {
-            Some(first) => Some(additive_components.iter().fold(Array::zeros(first.dim()), |acc, x| acc + x)),
+            Some(first) => {
+                let sum = additive_components.iter().skip(1).fold(first.clone(), |acc, x| acc + x);
+                Some(sum)
+            }
             None => None
         };
-        JackknifeMatrix {
+        AdditiveJackknife {
             additive_components,
             matrix_sum,
         }
     }
 
-    pub fn get_matrix_sum(&self) -> Option<&Array<f32, Ix2>> {
+    pub fn get_matrix_sum(&self) -> Option<&C> {
         match &self.matrix_sum {
             Some(matrix_sum) => Some(matrix_sum),
             None => None,
         }
     }
 
-    pub fn into_matrix_sum(self) -> Option<Array<f32, Ix2>> {
+    pub fn into_matrix_sum(self) -> Option<C> {
         match self.matrix_sum {
             Some(matrix_sum) => Some(matrix_sum),
             None => None,
         }
+    }
+
+    pub fn sum_minus_component<'a>(&'a self, component_index: usize) -> C
+        where &'a C: Sub<Output=C> {
+        self.matrix_sum.as_ref().unwrap() - &self.additive_components[component_index]
     }
 }
 
@@ -54,7 +85,7 @@ impl JackknifePartitions {
     pub fn from_integer_set(mut integer_set: OrderedIntegerSet<usize>, num_partitions: usize) -> JackknifePartitions {
         let partition_size = integer_set.size() / num_partitions;
         let mut partitions = Vec::new();
-        for i in 0..num_partitions - 1 {
+        for _ in 0..num_partitions - 1 {
             let p = integer_set.sample_subset_without_replacement(partition_size).unwrap();
             integer_set -= &p;
             partitions.push(p);
@@ -70,6 +101,10 @@ impl JackknifePartitions {
 
     pub fn num_partitions(&self) -> usize {
         self.partitions.num_partitions()
+    }
+
+    pub fn union(&self) -> Partition {
+        self.partitions.union()
     }
 }
 
