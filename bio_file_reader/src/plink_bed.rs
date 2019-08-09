@@ -497,7 +497,6 @@ mod tests {
     use tempfile::NamedTempFile;
 
     use math::set::ordered_integer_set::OrderedIntegerSet;
-    use math::set::traits::Set;
     use math::traits::ToIterator;
 
     use super::PlinkBed;
