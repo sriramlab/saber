@@ -20,6 +20,19 @@ pub struct ContiguousIntegerSet<E: Integer + Copy> {
     end: E,
 }
 
+impl<E: Integer + Copy> ContiguousIntegerSet<E> {
+    pub fn new(start: E, end: E) -> ContiguousIntegerSet<E> {
+        ContiguousIntegerSet {
+            start,
+            end,
+        }
+    }
+
+    pub fn slice<'a, I: Slicing<&'a ContiguousIntegerSet<E>, Option<ContiguousIntegerSet<E>>>>(&'a self, slicer: I) -> Option<ContiguousIntegerSet<E>> {
+        slicer.slice(self)
+    }
+}
+
 impl<E: Integer + Copy> Set<E, Option<ContiguousIntegerSet<E>>> for ContiguousIntegerSet<E> {
     fn is_empty(&self) -> bool {
         self.start > self.end
@@ -106,19 +119,6 @@ impl<E: Integer + Copy + FromPrimitive + ToPrimitive + std::fmt::Debug> Slicing<
             }
         }
         OrderedIntegerSet::from_contiguous_integer_sets(contiguous_sets)
-    }
-}
-
-impl<E: Integer + Copy> ContiguousIntegerSet<E> {
-    pub fn new(start: E, end: E) -> ContiguousIntegerSet<E> {
-        ContiguousIntegerSet {
-            start,
-            end,
-        }
-    }
-
-    pub fn slice<'a, I: Slicing<&'a ContiguousIntegerSet<E>, Option<ContiguousIntegerSet<E>>>>(&'a self, slicer: I) -> Option<ContiguousIntegerSet<E>> {
-        slicer.slice(self)
     }
 }
 
