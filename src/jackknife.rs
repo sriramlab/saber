@@ -75,8 +75,7 @@ pub struct BipartiteAdditiveJackknife<C> {
     sum: Option<C>,
 }
 
-impl<C> BipartiteAdditiveJackknife<C>
-{
+impl<C> BipartiteAdditiveJackknife<C> {
     pub fn from_op_over_jackknife_partitions<F>(jackknife_partitions: &JackknifePartitions, mut op: F) -> BipartiteAdditiveJackknife<C>
         where F: FnMut(usize, &Partition, usize, &Partition) -> C,
               C: for<'a> Add<&'a C, Output=C> + Clone {
