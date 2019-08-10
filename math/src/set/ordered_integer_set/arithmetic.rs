@@ -15,14 +15,23 @@ impl<E: Integer + Copy + ToPrimitive> Sub<&ContiguousIntegerSet<E>> for Contiguo
         let b = self.get_end();
         let c = rhs.get_start();
         let d = rhs.get_end();
-        if self.is_empty() || rhs.is_empty() {
-            return OrderedIntegerSet::from(vec![self]);
+        if self.is_empty() {
+            return OrderedIntegerSet::from_ordered_coalesced_contiguous_integer_sets(vec![]);
+        }
+        if rhs.is_empty() {
+            return OrderedIntegerSet::from_ordered_coalesced_contiguous_integer_sets(vec![self]);
         }
         // [a, b] - [c, d]
-        OrderedIntegerSet::from(vec![
-            ContiguousIntegerSet::new(a, min(b, c - E::one())),
-            ContiguousIntegerSet::new(max(d + E::one(), a), b),
-        ])
+        let mut diff: Vec<ContiguousIntegerSet<E>> = Vec::with_capacity(2);
+        let i1 = ContiguousIntegerSet::new(a, min(b, c - E::one()));
+        let i2 = ContiguousIntegerSet::new(max(d + E::one(), a), b);
+        if !i1.is_empty() {
+            diff.push(i1);
+        }
+        if !i2.is_empty() {
+            diff.push(i2);
+        }
+        OrderedIntegerSet::from_ordered_coalesced_contiguous_integer_sets(diff)
     }
 }
 
