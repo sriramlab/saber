@@ -71,7 +71,7 @@ fn main() {
                                     OrderedIntegerSet::from_slice(&[[0, num_snps - 1]]),
                                     num_jackknife_partitions)) {
         Ok(h) => {
-            println!("\nheritability estimates: {}", h);
+            println!("\nheritability estimates:\n{}", h);
         }
         Err(why) => {
             eprintln!("{}", why);
