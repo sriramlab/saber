@@ -28,16 +28,19 @@ impl<E: Integer + Copy> ContiguousIntegerSet<E> {
         }
     }
 
+    #[inline]
     pub fn slice<'a, I: Slicing<&'a ContiguousIntegerSet<E>, Option<ContiguousIntegerSet<E>>>>(&'a self, slicer: I) -> Option<ContiguousIntegerSet<E>> {
         slicer.slice(self)
     }
 }
 
 impl<E: Integer + Copy> Set<E, Option<ContiguousIntegerSet<E>>> for ContiguousIntegerSet<E> {
+    #[inline]
     fn is_empty(&self) -> bool {
         self.start > self.end
     }
 
+    #[inline]
     fn contains(&self, item: E) -> bool {
         item >= self.start && item <= self.end
     }
@@ -168,6 +171,7 @@ impl<E: Integer + Copy> Coalesce<E> for ContiguousIntegerSet<E> {
 }
 
 impl<E: Integer + Copy> ToIterator<'_, ContiguousIntegerSetIter<E>, E> for ContiguousIntegerSet<E> {
+    #[inline]
     fn to_iter(&self) -> ContiguousIntegerSetIter<E> {
         ContiguousIntegerSetIter::from(*self)
     }
@@ -274,31 +278,38 @@ impl<E: Integer + Copy + ToPrimitive> OrderedIntegerSet<E> {
         }
     }
 
+    #[inline]
     pub fn to_non_empty_intervals(&self) -> Self {
         self.clone().into_non_empty_intervals()
     }
 
+    #[inline]
     pub fn into_non_empty_intervals(mut self) -> Self {
         self.remove_empty_intervals();
         self
     }
 
+    #[inline]
     pub fn remove_empty_intervals(&mut self) {
         self.intervals.drain_filter(|i| i.is_empty());
     }
 
+    #[inline]
     pub fn get_intervals_by_ref(&self) -> &Vec<ContiguousIntegerSet<E>> {
         &self.intervals
     }
 
+    #[inline]
     pub fn into_intervals(self) -> Vec<ContiguousIntegerSet<E>> {
         self.intervals
     }
 
+    #[inline]
     pub fn intervals_iter(&self) -> std::slice::Iter<ContiguousIntegerSet<E>> {
         self.intervals.iter()
     }
 
+    #[inline]
     pub fn num_intervals(&self) -> usize {
         self.intervals.len()
     }
@@ -320,6 +331,7 @@ impl<E: Integer + Copy + ToPrimitive> From<Vec<ContiguousIntegerSet<E>>> for Ord
 }
 
 impl<E: Integer + Copy + ToPrimitive> Set<E, OrderedIntegerSet<E>> for OrderedIntegerSet<E> {
+    #[inline]
     fn is_empty(&self) -> bool {
         self.to_non_empty_intervals().intervals.is_empty()
     }
@@ -366,6 +378,7 @@ impl<E: Integer + Copy + ToPrimitive> CoalesceIntervals<ContiguousIntegerSet<E>,
 }
 
 impl<E: Integer + Copy + ToPrimitive> Constructable for OrderedIntegerSet<E> {
+    #[inline]
     fn new() -> OrderedIntegerSet<E> {
         OrderedIntegerSet::new()
     }
