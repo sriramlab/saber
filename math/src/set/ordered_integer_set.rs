@@ -268,6 +268,12 @@ impl<E: Integer + Copy + ToPrimitive> OrderedIntegerSet<E> {
         }
     }
 
+    pub fn from_ordered_coalesced_contiguous_integer_sets(sets: Vec<ContiguousIntegerSet<E>>) -> OrderedIntegerSet<E> {
+        OrderedIntegerSet {
+            intervals: sets
+        }
+    }
+
     pub fn to_non_empty_intervals(&self) -> Self {
         self.clone().into_non_empty_intervals()
     }

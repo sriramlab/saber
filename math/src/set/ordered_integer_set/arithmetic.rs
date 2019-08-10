@@ -19,11 +19,10 @@ impl<E: Integer + Copy + ToPrimitive> Sub<&ContiguousIntegerSet<E>> for Contiguo
             return OrderedIntegerSet::from(vec![self]);
         }
         // [a, b] - [c, d]
-        let set = OrderedIntegerSet::from(vec![
+        OrderedIntegerSet::from(vec![
             ContiguousIntegerSet::new(a, min(b, c - E::one())),
             ContiguousIntegerSet::new(max(d + E::one(), a), b),
-        ]);
-        set.into_non_empty_intervals()
+        ])
     }
 }
 
@@ -41,18 +40,40 @@ impl<E: Integer + Copy + ToPrimitive> Sub<&ContiguousIntegerSet<E>> for OrderedI
 
     #[inline]
     fn sub(self, rhs: &ContiguousIntegerSet<E>) -> Self::Output {
-        let mut diff = Vec::new();
-        let mut copy_from_i_to_end = None;
-        for (i, interval) in self.intervals.iter().enumerate() {
-            if interval.end < rhs.start {
-                diff.push(*interval);
-                continue;
+        if rhs.end < self.intervals[0].start || rhs.start > self.intervals.last().unwrap().end {
+            return self;
+        }
+        let num_intervals = self.intervals.len();
+        let mut start = 0;
+        let mut end = num_intervals - 1;
+        let mut mid = end / 2;
+        while end > start {
+            let interval = self.intervals[mid];
+            if interval.start > rhs.end {
+                end = mid;
+                mid = (start + end) / 2;
+            } else if rhs.start > interval.end {
+                start = mid + 1;
+                mid = (start + end) / 2;
+            } else if rhs.start >= interval.start {
+                start = mid;
+                break;
+            } else {
+                end = mid;
+                mid = (start + end) / 2;
             }
+        }
+
+        let mut diff = Vec::new();
+        diff.extend_from_slice(&self.intervals[..start]);
+        let mut copy_from_i_to_end = None;
+        for i in start..num_intervals {
+            let interval = self.intervals[i];
             if interval.start > rhs.end {
                 copy_from_i_to_end = Some(i);
                 break;
             }
-            let mut diff_set = *interval - rhs;
+            let mut diff_set = interval - rhs;
             if !diff_set.is_empty() {
                 diff.append(&mut diff_set.intervals);
             }
@@ -60,7 +81,7 @@ impl<E: Integer + Copy + ToPrimitive> Sub<&ContiguousIntegerSet<E>> for OrderedI
         if let Some(i) = copy_from_i_to_end {
             diff.extend_from_slice(&self.intervals[i..]);
         }
-        OrderedIntegerSet::from_contiguous_integer_sets(diff)
+        OrderedIntegerSet::from_ordered_coalesced_contiguous_integer_sets(diff)
     }
 }
 
