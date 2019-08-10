@@ -33,7 +33,7 @@ pub struct AdditiveJackknife<C> {
 }
 
 impl<C> AdditiveJackknife<C> {
-    pub fn from_op_and_add_over_jackknife_partitions<F>(jackknife_partitions: &JackknifePartitions, mut op: F) -> AdditiveJackknife<C>
+    pub fn from_op_over_jackknife_partitions<F>(jackknife_partitions: &JackknifePartitions, mut op: F) -> AdditiveJackknife<C>
         where F: FnMut(usize, &Partition) -> C,
               C: for<'a> Add<&'a C, Output=C> + Clone {
         let additive_components: Vec<C> = jackknife_partitions.iter().enumerate().map(|(i, p)| op(i, p)).collect();
