@@ -1,6 +1,7 @@
 #![feature(test)]
 
 pub mod heritability_estimator;
+pub mod jackknife;
 pub mod mailman;
 pub mod program_flow;
 pub mod simulation;

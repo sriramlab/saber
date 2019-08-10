@@ -1,6 +1,6 @@
 use std::cmp::{max, min};
 use std::iter::Sum;
-use std::ops::{Range, Sub, SubAssign};
+use std::ops::Range;
 
 use num::FromPrimitive;
 use num::integer::Integer;
@@ -11,6 +11,8 @@ use crate::sample::Sample;
 use crate::set::traits::{Finite, Set};
 use crate::traits::{Collecting, Constructable, ToIterator};
 
+pub mod arithmetic;
+
 /// represents the set of integers in [start, end]
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct ContiguousIntegerSet<E: Integer + Copy> {
@@ -18,11 +20,27 @@ pub struct ContiguousIntegerSet<E: Integer + Copy> {
     end: E,
 }
 
+impl<E: Integer + Copy> ContiguousIntegerSet<E> {
+    pub fn new(start: E, end: E) -> ContiguousIntegerSet<E> {
+        ContiguousIntegerSet {
+            start,
+            end,
+        }
+    }
+
+    #[inline]
+    pub fn slice<'a, I: Slicing<&'a ContiguousIntegerSet<E>, Option<ContiguousIntegerSet<E>>>>(&'a self, slicer: I) -> Option<ContiguousIntegerSet<E>> {
+        slicer.slice(self)
+    }
+}
+
 impl<E: Integer + Copy> Set<E, Option<ContiguousIntegerSet<E>>> for ContiguousIntegerSet<E> {
+    #[inline]
     fn is_empty(&self) -> bool {
         self.start > self.end
     }
 
+    #[inline]
     fn contains(&self, item: E) -> bool {
         item >= self.start && item <= self.end
     }
@@ -107,19 +125,6 @@ impl<E: Integer + Copy + FromPrimitive + ToPrimitive + std::fmt::Debug> Slicing<
     }
 }
 
-impl<E: Integer + Copy> ContiguousIntegerSet<E> {
-    pub fn new(start: E, end: E) -> ContiguousIntegerSet<E> {
-        ContiguousIntegerSet {
-            start,
-            end,
-        }
-    }
-
-    pub fn slice<'a, I: Slicing<&'a ContiguousIntegerSet<E>, Option<ContiguousIntegerSet<E>>>>(&'a self, slicer: I) -> Option<ContiguousIntegerSet<E>> {
-        slicer.slice(self)
-    }
-}
-
 impl<E: Integer + Copy + ToPrimitive> Finite for ContiguousIntegerSet<E> {
     fn size(&self) -> usize {
         if self.is_empty() {
@@ -166,6 +171,7 @@ impl<E: Integer + Copy> Coalesce<E> for ContiguousIntegerSet<E> {
 }
 
 impl<E: Integer + Copy> ToIterator<'_, ContiguousIntegerSetIter<E>, E> for ContiguousIntegerSet<E> {
+    #[inline]
     fn to_iter(&self) -> ContiguousIntegerSetIter<E> {
         ContiguousIntegerSetIter::from(*self)
     }
@@ -266,27 +272,44 @@ impl<E: Integer + Copy + ToPrimitive> OrderedIntegerSet<E> {
         }
     }
 
+    pub fn from_ordered_coalesced_contiguous_integer_sets(sets: Vec<ContiguousIntegerSet<E>>) -> OrderedIntegerSet<E> {
+        OrderedIntegerSet {
+            intervals: sets
+        }
+    }
+
+    #[inline]
     pub fn to_non_empty_intervals(&self) -> Self {
         self.clone().into_non_empty_intervals()
     }
 
+    #[inline]
     pub fn into_non_empty_intervals(mut self) -> Self {
         self.remove_empty_intervals();
         self
     }
 
+    #[inline]
     pub fn remove_empty_intervals(&mut self) {
         self.intervals.drain_filter(|i| i.is_empty());
     }
 
+    #[inline]
     pub fn get_intervals_by_ref(&self) -> &Vec<ContiguousIntegerSet<E>> {
         &self.intervals
     }
 
+    #[inline]
     pub fn into_intervals(self) -> Vec<ContiguousIntegerSet<E>> {
         self.intervals
     }
 
+    #[inline]
+    pub fn intervals_iter(&self) -> std::slice::Iter<ContiguousIntegerSet<E>> {
+        self.intervals.iter()
+    }
+
+    #[inline]
     pub fn num_intervals(&self) -> usize {
         self.intervals.len()
     }
@@ -308,6 +331,7 @@ impl<E: Integer + Copy + ToPrimitive> From<Vec<ContiguousIntegerSet<E>>> for Ord
 }
 
 impl<E: Integer + Copy + ToPrimitive> Set<E, OrderedIntegerSet<E>> for OrderedIntegerSet<E> {
+    #[inline]
     fn is_empty(&self) -> bool {
         self.to_non_empty_intervals().intervals.is_empty()
     }
@@ -353,71 +377,8 @@ impl<E: Integer + Copy + ToPrimitive> CoalesceIntervals<ContiguousIntegerSet<E>,
     }
 }
 
-impl<E: Integer + Copy + ToPrimitive> Sub for ContiguousIntegerSet<E> {
-    type Output = OrderedIntegerSet<E>;
-    fn sub(self, rhs: ContiguousIntegerSet<E>) -> Self::Output {
-        let a = self.get_start();
-        let b = self.get_end();
-        let c = rhs.get_start();
-        let d = rhs.get_end();
-        if self.is_empty() || rhs.is_empty() {
-            return OrderedIntegerSet::from(vec![self]);
-        }
-        // [a, b] - [c, d]
-        let set = OrderedIntegerSet::from(vec![
-            ContiguousIntegerSet::new(a, min(b, c - E::one())),
-            ContiguousIntegerSet::new(max(d + E::one(), a), b),
-        ]);
-        set.into_non_empty_intervals()
-    }
-}
-
-impl<E: Integer + Copy + ToPrimitive> Sub<ContiguousIntegerSet<E>> for OrderedIntegerSet<E> {
-    type Output = Self;
-    fn sub(self, rhs: ContiguousIntegerSet<E>) -> Self::Output {
-        let diff_intervals: Vec<ContiguousIntegerSet<E>> = self.intervals.iter()
-                                                               .flat_map(|i| (*i - rhs).intervals)
-                                                               .collect();
-        let diff = OrderedIntegerSet::from(diff_intervals);
-        diff.into_coalesced()
-    }
-}
-
-impl<E: Integer + Copy + ToPrimitive> SubAssign<ContiguousIntegerSet<E>> for OrderedIntegerSet<E> {
-    fn sub_assign(&mut self, rhs: ContiguousIntegerSet<E>) {
-        *self = self.to_owned() - rhs
-    }
-}
-
-impl<E: Integer + Copy + ToPrimitive> Sub<OrderedIntegerSet<E>> for ContiguousIntegerSet<E> {
-    type Output = OrderedIntegerSet<E>;
-    fn sub(self, rhs: OrderedIntegerSet<E>) -> Self::Output {
-        let mut diff = OrderedIntegerSet::from(vec![self]);
-        for interval in rhs.into_intervals().into_iter() {
-            diff -= interval;
-        }
-        diff.into_coalesced()
-    }
-}
-
-impl<E: Integer + Copy + ToPrimitive> Sub for OrderedIntegerSet<E> {
-    type Output = Self;
-    fn sub(self, rhs: OrderedIntegerSet<E>) -> Self::Output {
-        let mut diff = self;
-        for interval in rhs.into_intervals().into_iter() {
-            diff -= interval;
-        }
-        diff.into_coalesced()
-    }
-}
-
-impl<E: Integer + Copy + ToPrimitive> SubAssign for OrderedIntegerSet<E> {
-    fn sub_assign(&mut self, rhs: OrderedIntegerSet<E>) {
-        *self = self.to_owned() - rhs
-    }
-}
-
 impl<E: Integer + Copy + ToPrimitive> Constructable for OrderedIntegerSet<E> {
+    #[inline]
     fn new() -> OrderedIntegerSet<E> {
         OrderedIntegerSet::new()
     }
