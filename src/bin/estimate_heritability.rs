@@ -2,11 +2,11 @@ use clap::{Arg, clap_app};
 
 use bio_file_reader::plink_bed::PlinkBed;
 use bio_file_reader::plink_bim::PlinkBim;
+use math::set::ordered_integer_set::OrderedIntegerSet;
 use saber::heritability_estimator::estimate_heritability;
 use saber::jackknife::JackknifePartitions;
 use saber::program_flow::OrExit;
 use saber::util::{extract_numeric_arg, extract_optional_str_arg, extract_str_arg, get_pheno_arr};
-use math::set::ordered_integer_set::OrderedIntegerSet;
 
 fn main() {
     let mut app = clap_app!(estimate_heritability =>
@@ -71,7 +71,7 @@ fn main() {
                                     OrderedIntegerSet::from_slice(&[[0, num_snps - 1]]),
                                     num_jackknife_partitions)) {
         Ok(h) => {
-            println!("\nheritability estimate: {}\nstandard error estimate: {}", h.heritability, h.standard_error);
+            println!("\nheritability estimates: {}", h);
         }
         Err(why) => {
             eprintln!("{}", why);
