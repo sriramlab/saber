@@ -38,11 +38,29 @@ impl<E: Integer + Copy + ToPrimitive> Sub for ContiguousIntegerSet<E> {
 
 impl<E: Integer + Copy + ToPrimitive> Sub<&ContiguousIntegerSet<E>> for OrderedIntegerSet<E> {
     type Output = Self;
+
+    #[inline]
     fn sub(self, rhs: &ContiguousIntegerSet<E>) -> Self::Output {
-        let diff_intervals: Vec<ContiguousIntegerSet<E>> = self.intervals.iter()
-                                                               .flat_map(|i| (*i - rhs).intervals)
-                                                               .collect();
-        OrderedIntegerSet::from(diff_intervals)
+        let mut diff = Vec::new();
+        let mut copy_from_i_to_end = None;
+        for (i, interval) in self.intervals.iter().enumerate() {
+            if interval.end < rhs.start {
+                diff.push(*interval);
+                continue;
+            }
+            if interval.start > rhs.end {
+                copy_from_i_to_end = Some(i);
+                break;
+            }
+            let mut diff_set = *interval - rhs;
+            if !diff_set.is_empty() {
+                diff.append(&mut diff_set.intervals);
+            }
+        }
+        if let Some(i) = copy_from_i_to_end {
+            diff.extend_from_slice(&self.intervals[i..]);
+        }
+        OrderedIntegerSet::from_contiguous_integer_sets(diff)
     }
 }
 
