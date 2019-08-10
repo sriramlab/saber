@@ -134,22 +134,29 @@ impl<E: Integer + Copy + ToPrimitive> Sub<&OrderedIntegerSet<E>> for OrderedInte
         let mut rhs_i = 0;
         let num_rhs_intervals = rhs.intervals.len();
         for interval in self.intervals.iter() {
-            let mut d = OrderedIntegerSet::from_contiguous_integer_sets(vec![*interval]);
+            let mut fragments = vec![*interval];
             while rhs_i < num_rhs_intervals && rhs.intervals[rhs_i].end < interval.start {
                 rhs_i += 1;
             }
-            while rhs_i < num_rhs_intervals && rhs.intervals[rhs_i].end <= interval.end {
-                d -= rhs.intervals[rhs_i];
-                rhs_i += 1;
+            while rhs_i < num_rhs_intervals && rhs.intervals[rhs_i].start <= interval.end {
+                match fragments.last() {
+                    None => break,
+                    Some(&l) => {
+                        fragments.pop();
+                        for frag in (l - rhs.intervals[rhs_i]).intervals {
+                            fragments.push(frag);
+                        }
+                    }
+                };
+                if rhs.intervals[rhs_i].end <= interval.end {
+                    rhs_i += 1;
+                } else {
+                    break;
+                }
             }
-            if rhs_i < num_rhs_intervals && rhs.intervals[rhs_i].start <= interval.end {
-                d -= rhs.intervals[rhs_i];
-            }
-            for i in d.intervals.into_iter() {
-                diff.push(i);
-            }
+            diff.append(&mut fragments);
         }
-        OrderedIntegerSet::from_contiguous_integer_sets(diff)
+        OrderedIntegerSet::from_ordered_coalesced_contiguous_integer_sets(diff)
     }
 }
 
