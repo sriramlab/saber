@@ -148,14 +148,21 @@ impl PartitionedJackknifeEstimates {
 
 impl std::fmt::Display for PartitionedJackknifeEstimates {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let num_decimals = 7;
         if let Some(partition_names) = &self.partition_names {
             for (name, (m, s)) in partition_names.iter().zip(self.partition_means.iter().zip(self.partition_stds.iter())) {
-                writeln!(f, "partition named {} estimate: {} standard error: {}", name, m, s)?;
+                writeln!(f, "estimate for partition named {}: {:.*} standard error: {:.*}",
+                         name, num_decimals, m, num_decimals, s)?;
             }
         } else {
             for (i, (m, s)) in self.partition_means.iter().zip(self.partition_stds.iter()).enumerate() {
-                writeln!(f, "partition {} estimate: {} standard error: {}", i, m, s)?;
+                writeln!(f, "estimate for partition {}: {:.*} standard error: {:.*}",
+                         i, num_decimals, m, num_decimals, s)?;
             }
+        }
+        if let Some(sum_estimates) = self.sum_estimates {
+            writeln!(f, "total estimate: {:.*} standard error: {:.*}",
+                     num_decimals, sum_estimates.0, num_decimals, sum_estimates.1)?;
         }
         Ok(())
     }
@@ -188,6 +195,19 @@ fn get_column_mean_and_std(geno_bed: &PlinkBed, snp_range: &OrderedIntegerSet<us
 pub fn estimate_heritability(mut geno_arr_bed: PlinkBed, plink_bim: PlinkBim,
                              mut pheno_arr: Array<f32, Ix1>, num_random_vecs: usize,
                              jackknife_partitions: &JackknifePartitions) -> Result<PartitionedJackknifeEstimates, String> {
+    fn get_normal_eqn_matrices(num_partitions: usize, num_people: usize, yy: f64) -> (Array<f64, Ix2>, Array<f64, Ix1>) {
+        let num_people = num_people as f64;
+        let mut a = Array::zeros((num_partitions + 1, num_partitions + 1));
+        let mut b = Array::zeros(num_partitions + 1);
+        a[[num_partitions, num_partitions]] = num_people;
+        for i in 0..num_partitions {
+            a[[i, num_partitions]] = num_people as f64;
+            a[[num_partitions, i]] = num_people as f64;
+        }
+        b[num_partitions] = yy;
+        (a, b)
+    }
+
     let key_to_partition = plink_bim.get_fileline_partitions().unwrap_or(
         HashMap::from_iter(vec![
             (DEFAULT_PARTITION_NAME.to_string(), OrderedIntegerSet::from_slice(&[[0, geno_arr_bed.num_snps - 1]]))
@@ -218,10 +238,11 @@ pub fn estimate_heritability(mut geno_arr_bed: PlinkBed, plink_bim: PlinkBim,
 
     let mut heritability_estimates = Vec::new();
 
-    let mut a = Array::zeros((num_partitions + 1, num_partitions + 1));
-    let mut b = Array::zeros(num_partitions + 1);
-    a[[num_partitions, num_partitions]] = num_people as f64;
-    b[num_partitions] = yy;
+    let (mut a, mut b) = get_normal_eqn_matrices(num_partitions, num_people, yy);
+//    let mut a = Array::zeros((num_partitions + 1, num_partitions + 1));
+//    let mut b = Array::zeros(num_partitions + 1);
+//    a[[num_partitions, num_partitions]] = num_people as f64;
+//    b[num_partitions] = yy;
 
     let mut snp_partitions = Vec::new();
     let mut snp_partition_means_and_stds = Vec::new();
@@ -253,8 +274,8 @@ pub fn estimate_heritability(mut geno_arr_bed: PlinkBed, plink_bim: PlinkBim,
         println!("\n==> processing partition named {}", key_i);
         let snp_partition_i = &snp_partitions[i];
 
-        a[[i, num_partitions]] = num_people as f64;
-        a[[num_partitions, i]] = num_people as f64;
+//        a[[i, num_partitions]] = num_people as f64;
+//        a[[num_partitions, i]] = num_people as f64;
 
         println!("=> computing yky");
         let yky_jackknife = AdditiveJackknife::from_op_over_jackknife_partitions(jackknife_partitions, |k, knife| {
@@ -331,15 +352,16 @@ pub fn estimate_heritability(mut geno_arr_bed: PlinkBed, plink_bim: PlinkBim,
 
     for (k, p) in jackknife_partitions.iter().enumerate() {
         println!("\n=> leaving out jackknife partition with index {}", k);
-        let mut a = Array::zeros((num_partitions + 1, num_partitions + 1));
-        let mut b = Array::zeros(num_partitions + 1);
-        a[[num_partitions, num_partitions]] = num_people as f64;
-        b[num_partitions] = yy;
+        let (mut a, mut b) = get_normal_eqn_matrices(num_partitions, num_people, yy);
+//        let mut a = Array::zeros((num_partitions + 1, num_partitions + 1));
+//        let mut b = Array::zeros(num_partitions + 1);
+//        a[[num_partitions, num_partitions]] = num_people as f64;
+//        b[num_partitions] = yy;
         let mut current = 0;
         for i in 0..num_partitions {
             let num_snps_i = (num_snps[i] - p.intersect(&snp_partitions[i]).size()) as f64;
-            a[[i, num_partitions]] = num_people as f64;
-            a[[num_partitions, i]] = num_people as f64;
+//            a[[i, num_partitions]] = num_people as f64;
+//            a[[num_partitions, i]] = num_people as f64;
             a[[i, i]] = diagonal_bipartite_ssq[i].sum_minus_component(k) / num_snps_i / num_snps_i;
             b[i] = yky_jackknives[i].sum_minus_component(k) / num_snps_i;
             for j in i + 1..num_partitions {
