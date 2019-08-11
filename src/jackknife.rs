@@ -132,11 +132,16 @@ impl JackknifePartitions {
         }
     }
 
-    pub fn from_integer_set(mut integer_set: OrderedIntegerSet<usize>, num_partitions: usize) -> JackknifePartitions {
+    pub fn from_integer_set(mut integer_set: OrderedIntegerSet<usize>, num_partitions: usize, randomize: bool) -> JackknifePartitions {
         let partition_size = integer_set.size() / num_partitions;
         let mut partitions = Vec::new();
         for _ in 0..num_partitions - 1 {
-            let p = integer_set.sample_subset_without_replacement(partition_size).unwrap();
+            let p;
+            if randomize {
+                p = integer_set.sample_subset_without_replacement(partition_size).unwrap();
+            } else {
+                p = integer_set.slice(0..partition_size);
+            }
             integer_set -= &p;
             partitions.push(p);
         }

@@ -69,7 +69,8 @@ fn main() {
                                 num_random_vecs,
                                 &JackknifePartitions::from_integer_set(
                                     OrderedIntegerSet::from_slice(&[[0, num_snps - 1]]),
-                                    num_jackknife_partitions)) {
+                                    num_jackknife_partitions,
+                                    false)) {
         Ok(h) => {
             println!("\nheritability estimates:\n{}", h);
         }
