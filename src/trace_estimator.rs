@@ -42,44 +42,125 @@ pub fn estimate_tr_kk(geno_bed: &mut PlinkBed, snp_range: Option<OrderedIntegerS
     sum_of_squares_f32(xxz_arr.iter()) as f64 / (num_snps * num_snps * num_random_vecs) as f64
 }
 
+#[inline]
 pub fn normalized_g_dot_rand(geno_bed: &mut PlinkBed,
                              snp_range: Option<OrderedIntegerSet<usize>>,
                              snp_mean: &Array<f32, Ix1>,
                              snp_std: &Array<f32, Ix1>,
                              num_random_vecs: usize,
                              num_snps_per_chunk: Option<usize>) -> Array<f32, Ix2> {
-    let chunk_size = num_snps_per_chunk.unwrap_or(DEFAULT_NUM_SNPS_PER_CHUNK);
-
-    let num_people = geno_bed.num_people;
     let num_snps = match &snp_range {
         Some(range) => range.size(),
         None => geno_bed.num_snps,
     };
-    let mut rand_mat = generate_plus_minus_one_bernoulli_matrix(num_snps, num_random_vecs);
-    rand_mat /= &snp_std.to_owned().into_shape((snp_std.dim(), 1)).unwrap();
-    let mean_dot_rand = snp_mean.dot(&rand_mat);
-    let g_z_vec = geno_bed
+    let rand_mat = generate_plus_minus_one_bernoulli_matrix(num_snps, num_random_vecs);
+    normalized_g_dot_matrix(geno_bed, snp_range, snp_mean, snp_std, &rand_mat, num_snps_per_chunk)
+}
+
+pub fn normalized_g_dot_matrix(geno_bed: &mut PlinkBed,
+                               snp_range: Option<OrderedIntegerSet<usize>>,
+                               snp_mean: &Array<f32, Ix1>,
+                               snp_std: &Array<f32, Ix1>,
+                               rhs_matrix: &Array<f32, Ix2>,
+                               num_snps_per_chunk: Option<usize>) -> Array<f32, Ix2> {
+    let chunk_size = num_snps_per_chunk.unwrap_or(DEFAULT_NUM_SNPS_PER_CHUNK);
+
+    let num_people = geno_bed.num_people;
+    let num_cols = rhs_matrix.dim().1;
+    let rhs_matrix = rhs_matrix / &snp_std.to_owned().into_shape((snp_std.dim(), 1)).unwrap();
+    let mean_dot_rhs_matrix = snp_mean.t().dot(&rhs_matrix);
+    let mut product_vec = geno_bed
         .col_chunk_iter(chunk_size, snp_range)
         .into_par_iter()
         .enumerate()
-        .fold_with(vec![0f32; num_people * num_random_vecs], |mut acc, (i, snp_chunk)| {
-            let start = i * chunk_size;
-            let arr = snp_chunk.dot(&rand_mat.slice(s![start..start + snp_chunk.dim().1, ..])).as_slice().unwrap().to_owned();
-            for n in 0..num_people {
-                let offset = n * num_random_vecs;
-                for j in 0..num_random_vecs {
-                    acc[offset + j] += arr[offset + j] - mean_dot_rand[j];
-                }
+        .fold_with(vec![0f32; num_people * num_cols], |mut acc, (chunk_index, snp_chunk)| {
+            let start = chunk_index * chunk_size;
+            let chunk_product = snp_chunk.dot(&rhs_matrix.slice(s![start..start + snp_chunk.dim().1, ..])).as_slice().unwrap().to_owned();
+            for (i, val) in chunk_product.into_iter().enumerate() {
+                acc[i] += val;
             }
             acc
         })
-        .reduce(|| vec![0f32; num_people * num_random_vecs], |mut a, b| {
+        .reduce(|| vec![0f32; num_people * num_cols], |mut a, b| {
             for (i, val) in b.iter().enumerate() {
                 a[i] += val;
             }
             a
         });
-    Array::from_shape_vec((num_people, num_random_vecs), g_z_vec).unwrap()
+    for i in 0..num_people {
+        let offset = i * num_cols;
+        for j in 0..num_cols {
+            product_vec[offset + j] -= mean_dot_rhs_matrix[j];
+        }
+    }
+    Array::from_shape_vec((num_people, num_cols), product_vec).unwrap()
+}
+
+pub fn normalized_g_transpose_dot_matrix(geno_bed: &mut PlinkBed,
+                                         snp_range: Option<OrderedIntegerSet<usize>>,
+                                         snp_mean: &Array<f32, Ix1>,
+                                         snp_std: &Array<f32, Ix1>,
+                                         random_vecs: &Array<f32, Ix2>,
+                                         num_snps_per_chunk: Option<usize>) -> Array<f32, Ix2> {
+    let chunk_size = num_snps_per_chunk.unwrap_or(DEFAULT_NUM_SNPS_PER_CHUNK);
+
+    let num_snps = match &snp_range {
+        Some(range) => range.size(),
+        None => geno_bed.num_snps,
+    };
+    let num_random_vecs = random_vecs.dim().1;
+
+    let z_col_sum = {
+        let mut col_sums = Vec::new();
+        random_vecs.axis_iter(Axis(1)).into_par_iter().map(|col| sum_f32(col.iter())).collect_into_vec(&mut col_sums);
+        Array::from_shape_vec(num_random_vecs, col_sums).unwrap()
+    };
+
+    let product_vec = geno_bed
+        .col_chunk_iter(chunk_size, snp_range)
+        .into_par_iter()
+        .enumerate()
+        .fold_with(vec![0f32; num_snps * num_random_vecs], |mut acc, (chunk_index, snp_chunk)| {
+            let chunk_product = snp_chunk.t().dot(random_vecs).as_slice().unwrap().to_owned();
+            for local_snp_index in 0..snp_chunk.dim().1 {
+                let global_snp_index = chunk_index * chunk_size + local_snp_index;
+                let m = snp_mean[global_snp_index];
+                let s = snp_std[global_snp_index];
+                let offset = local_snp_index * num_random_vecs;
+                let global_offset = global_snp_index * num_random_vecs;
+                for j in 0..num_random_vecs {
+                    acc[global_offset + j] = (chunk_product[offset + j] - m * z_col_sum[j]) / s;
+                }
+            }
+            acc
+        })
+        .reduce(|| vec![0f32; num_snps * num_random_vecs], |mut acc, x| {
+            for (i, val) in x.into_iter().enumerate() {
+                acc[i] += val;
+            }
+            acc
+        });
+    Array::from_shape_vec((num_snps, num_random_vecs), product_vec).unwrap()
+}
+
+pub fn normalized_g_g_transpose_dot_matrix(geno_bed: &mut PlinkBed,
+                                           snp_range: Option<OrderedIntegerSet<usize>>,
+                                           snp_mean: &Array<f32, Ix1>,
+                                           snp_std: &Array<f32, Ix1>,
+                                           random_vecs: &Array<f32, Ix2>,
+                                           num_snps_per_chunk: Option<usize>) -> Array<f32, Ix2> {
+    let gtz = normalized_g_transpose_dot_matrix(geno_bed,
+                                                snp_range.clone(),
+                                                snp_mean,
+                                                snp_std,
+                                                random_vecs,
+                                                num_snps_per_chunk.clone());
+    normalized_g_dot_matrix(geno_bed,
+                            snp_range,
+                            snp_mean,
+                            snp_std,
+                            &gtz,
+                            num_snps_per_chunk)
 }
 
 pub fn estimate_tr_ki_kj(geno_bed: &mut PlinkBed,
