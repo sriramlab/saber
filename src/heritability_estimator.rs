@@ -194,7 +194,8 @@ fn get_column_mean_and_std(geno_bed: &PlinkBed, snp_range: &OrderedIntegerSet<us
 
 pub fn estimate_heritability(mut geno_arr_bed: PlinkBed, plink_bim: PlinkBim,
                              mut pheno_arr: Array<f32, Ix1>, num_random_vecs: usize,
-                             jackknife_partitions: &JackknifePartitions) -> Result<PartitionedJackknifeEstimates, String> {
+                             num_jackknife_partitions: usize,
+) -> Result<PartitionedJackknifeEstimates, String> {
     fn get_normal_eqn_matrices(num_partitions: usize, num_people: usize, yy: f64) -> (Array<f64, Ix2>, Array<f64, Ix1>) {
         let num_people = num_people as f64;
         let mut a = Array::zeros((num_partitions + 1, num_partitions + 1));
@@ -222,6 +223,12 @@ pub fn estimate_heritability(mut geno_arr_bed: PlinkBed, plink_bim: PlinkBim,
         }
         keys
     };
+
+    let jackknife_partitions = JackknifePartitions::from_integer_set(
+        partition_keys.iter().map(|k| key_to_partition[k].clone()).collect(),
+        num_jackknife_partitions,
+        false);
+
     let num_partitions = partition_keys.len();
     let total_num_snps = key_to_partition.values().fold(0, |acc, partition| acc + partition.size());
     let num_people = geno_arr_bed.num_people;
@@ -252,12 +259,12 @@ pub fn estimate_heritability(mut geno_arr_bed: PlinkBed, plink_bim: PlinkBim,
         println!("=> computing column means, std and normalized_g_dot_rand for partiton named {}", key);
         let partition = key_to_partition[key].clone();
         snp_partition_means_and_stds.push(
-            Jackknife::from_op_over_jackknife_partitions(jackknife_partitions, |jackknife_p|
+            Jackknife::from_op_over_jackknife_partitions(&jackknife_partitions, |jackknife_p|
                 get_column_mean_and_std(&geno_arr_bed, &jackknife_p.intersect(&partition)),
             )
         );
         precomputed_normalized_g_dot_rand.push(
-            AdditiveJackknife::from_op_over_jackknife_partitions(jackknife_partitions, |_, jackknife_p| {
+            AdditiveJackknife::from_op_over_jackknife_partitions(&jackknife_partitions, |_, jackknife_p| {
                 let range_intersect = jackknife_p.intersect(&partition);
                 let (snp_mean_i, snp_std_i) = get_column_mean_and_std(&geno_arr_bed, &range_intersect);
                 normalized_g_dot_rand(&mut geno_arr_bed, Some(range_intersect), &snp_mean_i, &snp_std_i, num_random_vecs, None)
@@ -278,7 +285,7 @@ pub fn estimate_heritability(mut geno_arr_bed: PlinkBed, plink_bim: PlinkBim,
 //        a[[num_partitions, i]] = num_people as f64;
 
         println!("=> computing yky");
-        let yky_jackknife = AdditiveJackknife::from_op_over_jackknife_partitions(jackknife_partitions, |k, knife| {
+        let yky_jackknife = AdditiveJackknife::from_op_over_jackknife_partitions(&jackknife_partitions, |k, knife| {
             let sub_range = knife.intersect(snp_partition_i);
             let num_snps_in_sub_range = sub_range.size() as f64;
             pheno_k_pheno(&pheno_arr,
@@ -296,7 +303,7 @@ pub fn estimate_heritability(mut geno_arr_bed: PlinkBed, plink_bim: PlinkBim,
             println!("=> processing parition pair {} and {}", key_i, key_j);
 
             let bipartite_ssq = BipartiteAdditiveJackknife::from_op_over_jackknife_partitions(
-                jackknife_partitions,
+                &jackknife_partitions,
                 |k1, knife_i, k2, knife_j| {
                     let i_subrange = knife_i.intersect(snp_partition_i);
                     let j_subrange = knife_j.intersect(&snp_partitions[j]);

@@ -2,9 +2,7 @@ use clap::{Arg, clap_app};
 
 use bio_file_reader::plink_bed::PlinkBed;
 use bio_file_reader::plink_bim::PlinkBim;
-use math::set::ordered_integer_set::OrderedIntegerSet;
 use saber::heritability_estimator::estimate_heritability;
-use saber::jackknife::JackknifePartitions;
 use saber::program_flow::OrExit;
 use saber::util::{extract_numeric_arg, extract_optional_str_arg, extract_str_arg, get_pheno_arr};
 
@@ -62,15 +60,11 @@ fn main() {
             .unwrap_or_exit(Some(format!("failed to create PlinkBim from {}", &plink_bim_path))),
     };
 
-    let num_snps = bed.num_snps;
     match estimate_heritability(bed,
                                 bim,
                                 pheno_arr,
                                 num_random_vecs,
-                                &JackknifePartitions::from_integer_set(
-                                    OrderedIntegerSet::from_slice(&[[0, num_snps - 1]]),
-                                    num_jackknife_partitions,
-                                    false)) {
+                                num_jackknife_partitions) {
         Ok(h) => {
             println!("\nheritability estimates:\n{}", h);
         }
