@@ -351,17 +351,28 @@ impl<E: Integer + Copy + ToPrimitive> Set<E, OrderedIntegerSet<E>> for OrderedIn
         self.intervals.iter().filter(|&&interval| interval.contains(item)).count() > 0
     }
 
-    // TODO: optimize
     fn intersect(&self, other: &OrderedIntegerSet<E>) -> OrderedIntegerSet<E> {
-        let mut intervals = Vec::new();
-        for i in self.intervals.iter() {
-            for j in other.intervals.iter() {
-                if let Some(r) = i.intersect(j) {
-                    intervals.push(r);
+        let mut intersection = Vec::new();
+        let rhs_intervals = &other.intervals;
+        let rhs_len = rhs_intervals.len();
+        let mut j = 0;
+        for interval in self.intervals.iter() {
+            while j < rhs_len && rhs_intervals[j].end < interval.start {
+                j += 1;
+            }
+            while j < rhs_len && rhs_intervals[j].start <= interval.end {
+                let rhs_interval = &rhs_intervals[j];
+                if let Some(i) = interval.intersect(&rhs_interval) {
+                    intersection.push(i);
+                }
+                if rhs_interval.end <= interval.end {
+                    j += 1;
+                } else {
+                    break;
                 }
             }
         }
-        OrderedIntegerSet::from_contiguous_integer_sets(intervals)
+        OrderedIntegerSet::from_contiguous_integer_sets(intersection)
     }
 }
 
