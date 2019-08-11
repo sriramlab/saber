@@ -68,7 +68,6 @@ pub fn normalized_g_dot_matrix(geno_bed: &mut PlinkBed,
     let num_people = geno_bed.num_people;
     let num_cols = rhs_matrix.dim().1;
     let rhs_matrix = rhs_matrix / &snp_std.to_owned().into_shape((snp_std.dim(), 1)).unwrap();
-    let mean_dot_rhs_matrix = snp_mean.t().dot(&rhs_matrix);
     let mut product_vec = geno_bed
         .col_chunk_iter(chunk_size, snp_range)
         .into_par_iter()
@@ -76,23 +75,15 @@ pub fn normalized_g_dot_matrix(geno_bed: &mut PlinkBed,
         .fold_with(vec![0f32; num_people * num_cols], |mut acc, (chunk_index, snp_chunk)| {
             let start = chunk_index * chunk_size;
             let chunk_product = snp_chunk.dot(&rhs_matrix.slice(s![start..start + snp_chunk.dim().1, ..])).as_slice().unwrap().to_owned();
-            for (i, val) in chunk_product.into_iter().enumerate() {
-                acc[i] += val;
-            }
+            acc.iter_mut().enumerate().for_each(|(i, a)| *a += chunk_product[i]);
             acc
         })
-        .reduce(|| vec![0f32; num_people * num_cols], |mut a, b| {
-            for (i, val) in b.iter().enumerate() {
-                a[i] += val;
-            }
-            a
+        .reduce(|| vec![0f32; num_people * num_cols], |mut acc, x| {
+            acc.iter_mut().enumerate().for_each(|(i, a)| *a += x[i]);
+            acc
         });
-    for i in 0..num_people {
-        let offset = i * num_cols;
-        for j in 0..num_cols {
-            product_vec[offset + j] -= mean_dot_rhs_matrix[j];
-        }
-    }
+    let mean_dot_rhs_matrix = snp_mean.t().dot(&rhs_matrix);
+    product_vec.par_iter_mut().enumerate().for_each(|(i, x)| *x -= mean_dot_rhs_matrix[i % num_cols]);
     Array::from_shape_vec((num_people, num_cols), product_vec).unwrap()
 }
 
@@ -110,11 +101,8 @@ pub fn normalized_g_transpose_dot_matrix(geno_bed: &mut PlinkBed,
     };
     let num_random_vecs = random_vecs.dim().1;
 
-    let z_col_sum = {
-        let mut col_sums = Vec::new();
-        random_vecs.axis_iter(Axis(1)).into_par_iter().map(|col| sum_f32(col.iter())).collect_into_vec(&mut col_sums);
-        Array::from_shape_vec(num_random_vecs, col_sums).unwrap()
-    };
+    let mut z_col_sum = Vec::<f32>::new();
+    random_vecs.axis_iter(Axis(1)).into_par_iter().map(|col| sum_f32(col.iter())).collect_into_vec(&mut z_col_sum);
 
     let product_vec = geno_bed
         .col_chunk_iter(chunk_size, snp_range)
@@ -135,9 +123,7 @@ pub fn normalized_g_transpose_dot_matrix(geno_bed: &mut PlinkBed,
             acc
         })
         .reduce(|| vec![0f32; num_snps * num_random_vecs], |mut acc, x| {
-            for (i, val) in x.into_iter().enumerate() {
-                acc[i] += val;
-            }
+            acc.iter_mut().enumerate().for_each(|(i, a)| *a += x[i]);
             acc
         });
     Array::from_shape_vec((num_snps, num_random_vecs), product_vec).unwrap()
