@@ -1,4 +1,4 @@
-use std::cmp::{max, min};
+use std::cmp::{max, min, Ordering};
 use std::iter::Sum;
 use std::ops::Range;
 
@@ -8,6 +8,7 @@ use num::traits::cast::ToPrimitive;
 
 use crate::interval::traits::{Coalesce, CoalesceIntervals, Interval};
 use crate::sample::Sample;
+use crate::search::binary_search::BinarySearch;
 use crate::set::traits::{Finite, Set};
 use crate::traits::{Collecting, Constructable, ToIterator};
 
@@ -350,17 +351,28 @@ impl<E: Integer + Copy + ToPrimitive> Set<E, OrderedIntegerSet<E>> for OrderedIn
         self.intervals.iter().filter(|&&interval| interval.contains(item)).count() > 0
     }
 
-    // TODO: optimize
     fn intersect(&self, other: &OrderedIntegerSet<E>) -> OrderedIntegerSet<E> {
-        let mut intervals = Vec::new();
-        for i in self.intervals.iter() {
-            for j in other.intervals.iter() {
-                if let Some(r) = i.intersect(j) {
-                    intervals.push(r);
+        let mut intersection = Vec::new();
+        let rhs_intervals = &other.intervals;
+        let rhs_len = rhs_intervals.len();
+        let mut j = 0;
+        for interval in self.intervals.iter() {
+            while j < rhs_len && rhs_intervals[j].end < interval.start {
+                j += 1;
+            }
+            while j < rhs_len && rhs_intervals[j].start <= interval.end {
+                let rhs_interval = &rhs_intervals[j];
+                if let Some(i) = interval.intersect(&rhs_interval) {
+                    intersection.push(i);
+                }
+                if rhs_interval.end <= interval.end {
+                    j += 1;
+                } else {
+                    break;
                 }
             }
         }
-        OrderedIntegerSet::from_contiguous_integer_sets(intervals)
+        OrderedIntegerSet::from_contiguous_integer_sets(intersection)
     }
 }
 
@@ -386,14 +398,6 @@ impl<E: Integer + Copy + ToPrimitive> Constructable for OrderedIntegerSet<E> {
 
 impl<E: Integer + Copy + ToPrimitive> Collecting<E> for OrderedIntegerSet<E> {
     fn collect(&mut self, item: E) {
-        enum CollectResult<E: Integer + Copy + ToPrimitive> {
-            Collected,
-            // collected the item but need to replace the i-th interval with
-            // the first field of CollectedPendingReplaceAndRemoveNext,
-            // where i is the second field of CollectedPendingReplaceAndRemoveNext
-            CollectedPendingReplaceAndRemoveNext { replace_with: ContiguousIntegerSet<E>, replace_at_index: usize },
-            NotCollected,
-        }
         // optimize for the special case where the item is
         // to the right of or coalesceable with the last interval
         if let Some(last_interval) = self.intervals.last_mut() {
@@ -404,41 +408,42 @@ impl<E: Integer + Copy + ToPrimitive> Collecting<E> for OrderedIntegerSet<E> {
                 *last_interval = interval;
                 return;
             }
+        } else {
+            // check (1)
+            self.intervals.push(ContiguousIntegerSet::new(item, item));
+            return;
         }
-        let mut search_result = CollectResult::NotCollected;
-        for (i, interval) in self.intervals.iter_mut().enumerate() {
-            if item + E::one() < interval.start {
-                self.intervals.insert(i, ContiguousIntegerSet::new(item, item));
-                return;
+
+        // self.intervals.len() is guaranteed to be non-zero because of check (1)
+        match self.intervals.binary_search_with_cmp(0, self.intervals.len(), &item, |interval, item| {
+            if interval.start > *item + E::one() {
+                Ordering::Greater
+            } else if interval.end < *item - E::one() {
+                Ordering::Less
+            } else {
+                Ordering::Equal
             }
-            match interval.coalesce_with(&item) {
-                Some(new_interval) => {
-                    search_result = CollectResult::Collected;
-                    *interval = new_interval;
-                    if let Some(next_interval) = self.intervals.get(i + 1) {
-                        if let Some(merged_interval) = new_interval.coalesce_with(next_interval) {
-                            search_result = CollectResult::CollectedPendingReplaceAndRemoveNext {
-                                replace_with: merged_interval,
-                                replace_at_index: i,
-                            };
-                        }
+        }) {
+            Ok(i) => {
+                self.intervals[i] = self.intervals[i].coalesce_with(&item).unwrap();
+                if i > 0 {
+                    if let Some(merged) = self.intervals[i - 1].coalesce_with(&self.intervals[i]) {
+                        self.intervals[i - 1] = merged;
+                        self.intervals.remove(i);
                     }
-                    break;
                 }
-                None => {}
-            };
-        }
-        match search_result {
-            CollectResult::Collected => {}
-            CollectResult::CollectedPendingReplaceAndRemoveNext {
-                replace_with: merged_interval,
-                replace_at_index: i
-            } => {
-                self.intervals[i] = merged_interval;
-                self.intervals.remove(i + 1);
+                if let Some(next) = self.intervals.get(i + 1) {
+                    if let Some(merged) = next.coalesce_with(&self.intervals[i]) {
+                        self.intervals[i] = merged;
+                        self.intervals.remove(i + 1);
+                    }
+                }
             }
-            CollectResult::NotCollected => self.intervals.push(ContiguousIntegerSet::new(item, item))
-        }
+            Err(interval_index) => {
+                // unwrapping is okay due to check (1)
+                self.intervals.insert(interval_index.unwrap(), ContiguousIntegerSet::new(item, item));
+            }
+        };
     }
 }
 
