@@ -41,7 +41,7 @@ impl<C> AdditiveJackknife<C> {
     #[inline]
     pub fn get_component_sum(&self) -> Option<&C> {
         match &self.sum {
-            Some(matrix_sum) => Some(matrix_sum),
+            Some(s) => Some(s),
             None => None,
         }
     }
@@ -49,7 +49,7 @@ impl<C> AdditiveJackknife<C> {
     #[inline]
     pub fn into_component_sum(self) -> Option<C> {
         match self.sum {
-            Some(matrix_sum) => Some(matrix_sum),
+            Some(s) => Some(s),
             None => None,
         }
     }
