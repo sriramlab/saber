@@ -97,9 +97,24 @@ pub fn pheno_k_pheno(pheno_arr: &Array<f32, Ix1>, snp_range: &OrderedIntegerSet<
 #[derive(Clone, PartialEq, Debug)]
 pub struct PartitionedJackknifeEstimates {
     partition_names: Option<Vec<String>>,
-    pub partition_means: Vec<f64>,
-    pub partition_stds: Vec<f64>,
+    pub partition_means_and_stds: Vec<(f64, f64)>,
     pub sum_estimates: Option<(f64, f64)>,
+}
+
+fn get_jackknife_mean_and_std(estimates: &Vec<f64>) -> (f64, f64) {
+    let num_knives = estimates.len();
+    let s: f64 = estimates.iter().sum();
+    let num_knives_minus_one_f64 = (num_knives - 1) as f64;
+    let mut x_i = Vec::new();
+    for i in 0..num_knives {
+        x_i.push((s - estimates[i]) / num_knives_minus_one_f64);
+    }
+    let x_avg = s / num_knives as f64;
+    let standard_error = (x_i.into_iter().map(|x| {
+        let delta = x - x_avg;
+        delta * delta
+    }).sum::<f64>() * num_knives_minus_one_f64 / num_knives as f64).sqrt();
+    (x_avg, standard_error)
 }
 
 impl PartitionedJackknifeEstimates {
@@ -110,8 +125,7 @@ impl PartitionedJackknifeEstimates {
         if jackknife_iteration_estimates.len() == 0 {
             return Ok(PartitionedJackknifeEstimates {
                 partition_names: None,
-                partition_means: Vec::new(),
-                partition_stds: Vec::new(),
+                partition_means_and_stds: Vec::new(),
                 sum_estimates: None,
             });
         }
@@ -133,27 +147,18 @@ impl PartitionedJackknifeEstimates {
                                                                                         .map(|&x| x as f64)
                                                                                         .sum())
                                                                               .collect();
-        let sum_estimates;
-        let num_knives = jackknife_iteration_estimates.len();
-        if num_knives > 1 {
-            let mut x_i = Vec::new();
-            let s: f64 = total_variance_estimates.iter().sum();
-            for i in 0..total_variance_estimates.len() {
-                x_i.push((s - total_variance_estimates[i]) / (num_knives - 1) as f64);
+        let sum_estimates = {
+            if total_variance_estimates.len() > 1 {
+                Some(get_jackknife_mean_and_std(&total_variance_estimates))
+            } else {
+                None
             }
-            let x_avg = s / num_knives as f64;
-            let standard_error = (x_i.into_iter().map(|x| {
-                let delta = x - x_avg;
-                delta * delta
-            }).sum::<f64>() * (num_knives - 1) as f64 / num_knives as f64).sqrt();
-            sum_estimates = Some((mean(total_variance_estimates.iter()), standard_error));
-        } else {
-            sum_estimates = None;
         };
         Ok(PartitionedJackknifeEstimates {
             partition_names,
-            partition_means: partition_estimates.iter().map(|v| mean(v.iter())).collect(),
-            partition_stds: partition_estimates.iter().map(|v| std(v.iter(), 0) * (v.len() - 1) as f64).collect(),
+            partition_means_and_stds: partition_estimates.iter()
+                                                         .map(|estimates| get_jackknife_mean_and_std(estimates))
+                                                         .collect(),
             sum_estimates,
         })
     }
@@ -163,12 +168,12 @@ impl std::fmt::Display for PartitionedJackknifeEstimates {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let num_decimals = 7;
         if let Some(partition_names) = &self.partition_names {
-            for (name, (m, s)) in partition_names.iter().zip(self.partition_means.iter().zip(self.partition_stds.iter())) {
+            for (name, (m, s)) in partition_names.iter().zip(self.partition_means_and_stds.iter()) {
                 writeln!(f, "estimate for partition named {}: {:.*} standard error: {:.*}",
                          name, num_decimals, m, num_decimals, s)?;
             }
         } else {
-            for (i, (m, s)) in self.partition_means.iter().zip(self.partition_stds.iter()).enumerate() {
+            for (i, (m, s)) in self.partition_means_and_stds.iter().enumerate() {
                 writeln!(f, "estimate for partition {}: {:.*} standard error: {:.*}",
                          i, num_decimals, m, num_decimals, s)?;
             }
@@ -505,7 +510,7 @@ pub fn estimate_gxg_heritability(gxg_basis_arr: Array<f32, Ix2>, mut pheno_arr: 
     println!("yky: {}", yky);
     println!("yy: {}", yy);
 
-    let a = array![[gxg_kk_trace_est, gxg_k_trace_est],[gxg_k_trace_est, num_people as f64]];
+    let a = array![[gxg_kk_trace_est, gxg_k_trace_est], [gxg_k_trace_est, num_people as f64]];
     let b = array![yky, yy];
     println!("solving ax=b\na = {:?}\nb = {:?}", a, b);
     let sig_sq = a.solve_into(b).unwrap();
@@ -602,7 +607,7 @@ pub fn estimate_heritability_directly(mut geno_arr: Array<f32, Ix2>, mut pheno_a
     let yy = sum_of_squares(pheno_arr.iter());
 
     let n = num_people as f64;
-    let a = array![[trace_kk_est, n],[n, n]];
+    let a = array![[trace_kk_est, n], [n, n]];
     let b = array![yky, yy];
     println!("solving ax=b\na = {:?}\nb = {:?}", a, b);
     let sig_sq = a.solve_into(b).unwrap();
