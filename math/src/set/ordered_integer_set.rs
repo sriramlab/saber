@@ -90,6 +90,7 @@ impl<E: Integer + Copy + FromPrimitive + ToPrimitive> Slicing<&ContiguousInteger
 }
 
 impl<E: Integer + Copy + FromPrimitive + ToPrimitive + std::fmt::Debug> Slicing<&OrderedIntegerSet<E>, OrderedIntegerSet<E>> for Range<usize> {
+    /// the `end` index is exclusive
     fn slice(self, input: &OrderedIntegerSet<E>) -> OrderedIntegerSet<E> {
         if self.start >= self.end {
             return OrderedIntegerSet::new();
@@ -493,10 +494,13 @@ impl<E: Integer + Copy + ToPrimitive + Sum> Sample<'_, IntegerSetIter<E>, E, Ord
 
 #[cfg(test)]
 mod tests {
+    use num::integer::Integer;
+
     use crate::interval::traits::*;
     use crate::traits::{Collecting, ToIterator};
 
     use super::{ContiguousIntegerSet, OrderedIntegerSet};
+    use num::ToPrimitive;
 
     #[test]
     fn test_ordered_integer_set_iter() {
@@ -546,7 +550,7 @@ mod tests {
 
     #[test]
     fn test_coalesce_with() {
-        fn test(a: i32, b: i32, c: i32, d: i32, expected: Option<ContiguousIntegerSet<i32>>) {
+        fn test<E: Copy + Integer + std::fmt::Debug>(a: E, b: E, c: E, d: E, expected: Option<ContiguousIntegerSet<E>>) {
             let i1 = ContiguousIntegerSet::new(a, b);
             let i2 = ContiguousIntegerSet::new(c, d);
             let m1 = i1.coalesce_with(&i2);
@@ -564,7 +568,7 @@ mod tests {
 
     #[test]
     fn test_sub_contiguous_integer_set() {
-        fn test(a: &[i32; 2], b: &[i32; 2], expected: &[[i32; 2]]) {
+        fn test<E: Integer + Copy + ToPrimitive + std::fmt::Debug>(a: &[E; 2], b: &[E; 2], expected: &[[E; 2]]) {
             let s1 = ContiguousIntegerSet::new(a[0], a[1]);
             let s2 = ContiguousIntegerSet::new(b[0], b[1]);
             assert_eq!(s1 - s2, OrderedIntegerSet::from_slice(expected));
@@ -582,6 +586,9 @@ mod tests {
         test(&[3, 5], &[3, 3], &[[4, 5]]);
         test(&[3, 4], &[3, 3], &[[4, 4]]);
         test(&[-2, 5], &[-1, 3], &[[-2, -2], [4, 5]]);
+        test(&[0usize, 5], &[0, 0], &[[1, 5]]);
+        test(&[0usize, 5], &[0, 2], &[[3, 5]]);
+        test(&[0usize, 5], &[0, 5], &[]);
     }
 
     #[test]
@@ -623,5 +630,17 @@ mod tests {
         test(&[[0, 10], [15, 20]], &[[-1, 2], [5, 7]], &[[3, 4], [8, 10], [15, 20]]);
         test(&[[0, 10], [15, 20]], &[[-1, 2], [18, 22], [5, 7]], &[[3, 4], [8, 10], [15, 17]]);
         test(&[[0, 10], [15, 20], [-10, -5]], &[[-1, 2], [18, 22], [5, 7], [-12, -3]], &[[3, 4], [8, 10], [15, 17]]);
+    }
+
+    #[test]
+    fn test_intersect_integer_set() {
+        fn test<E: Integer + Copy + ToPrimitive + std::fmt::Debug>(a: &[[E; 2]], b: &[[E; 2]], expected: &[[E; 2]]) {
+            let s1 = OrderedIntegerSet::from_slice(a);
+            let s2 = OrderedIntegerSet::from_slice(b);
+            assert_eq!(s1 - s2, OrderedIntegerSet::from_slice(expected));
+        }
+        test(&[[0usize, 5], [10, 15]], &[[0, 4]], &[[5, 5], [10, 15]]);
+        test(&[[0usize, 5], [10, 15]], &[[0, 12]], &[[13, 15]]);
+        test(&[[0usize, 10]], &[[0, 8]], &[[9, 10]]);
     }
 }
