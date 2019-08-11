@@ -187,7 +187,15 @@ mod tests {
         let num_partitions = 7;
         let integer_set = OrderedIntegerSet::from_slice(&[[1, 5], [8, 12], [14, 20], [25, 32]]);
         let size = integer_set.size();
-        let config = JackknifePartitions::from_integer_set(integer_set, num_partitions);
+        let config = JackknifePartitions::from_integer_set(integer_set.clone(), num_partitions, true);
+        for (i, p) in config.partitions.iter().enumerate() {
+            if i == num_partitions - 1 {
+                assert!(p.size() >= size / num_partitions);
+            } else {
+                assert_eq!(p.size(), size / num_partitions);
+            }
+        }
+        let config = JackknifePartitions::from_integer_set(integer_set, num_partitions, false);
         for (i, p) in config.partitions.iter().enumerate() {
             if i == num_partitions - 1 {
                 assert!(p.size() >= size / num_partitions);
