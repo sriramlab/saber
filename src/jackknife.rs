@@ -7,23 +7,14 @@ use math::set::traits::Finite;
 
 pub struct Jackknife<C> {
     pub components: Vec<C>,
-    component_union: C,
 }
 
 impl<C> Jackknife<C> {
     pub fn from_op_over_jackknife_partitions<F>(jackknife_partitions: &JackknifePartitions, mut op: F) -> Jackknife<C>
         where F: FnMut(&Partition) -> C {
-        let components: Vec<C> = jackknife_partitions.iter().map(|p| op(p)).collect();
-        let component_union = op(&jackknife_partitions.union());
         Jackknife {
-            components,
-            component_union,
+            components: jackknife_partitions.iter().map(|p| op(p)).collect()
         }
-    }
-
-    #[inline]
-    pub fn get_component_union(&self) -> &C {
-        &self.component_union
     }
 }
 
