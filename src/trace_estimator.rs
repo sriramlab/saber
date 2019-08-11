@@ -72,7 +72,7 @@ pub fn normalized_g_dot_matrix(geno_bed: &mut PlinkBed,
         .col_chunk_iter(chunk_size, snp_range)
         .into_par_iter()
         .enumerate()
-        .fold_with(vec![0f32; num_people * num_cols], |mut acc, (chunk_index, snp_chunk)| {
+        .fold(|| vec![0f32; num_people * num_cols], |mut acc, (chunk_index, snp_chunk)| {
             let start = chunk_index * chunk_size;
             let chunk_product = snp_chunk.dot(&rhs_matrix.slice(s![start..start + snp_chunk.dim().1, ..])).as_slice().unwrap().to_owned();
             acc.iter_mut().enumerate().for_each(|(i, a)| *a += chunk_product[i]);
@@ -108,7 +108,7 @@ pub fn normalized_g_transpose_dot_matrix(geno_bed: &mut PlinkBed,
         .col_chunk_iter(chunk_size, snp_range)
         .into_par_iter()
         .enumerate()
-        .fold_with(vec![0f32; num_snps * num_random_vecs], |mut acc, (chunk_index, snp_chunk)| {
+        .fold(|| vec![0f32; num_snps * num_random_vecs], |mut acc, (chunk_index, snp_chunk)| {
             let chunk_product = snp_chunk.t().dot(random_vecs).as_slice().unwrap().to_owned();
             for local_snp_index in 0..snp_chunk.dim().1 {
                 let global_snp_index = chunk_index * chunk_size + local_snp_index;
