@@ -23,13 +23,12 @@ impl<E: Integer + Copy + ToPrimitive> Sub<&ContiguousIntegerSet<E>> for Contiguo
         }
         // [a, b] - [c, d]
         let mut diff: Vec<ContiguousIntegerSet<E>> = Vec::with_capacity(2);
-        let i1 = ContiguousIntegerSet::new(a, min(b, c - E::one()));
-        let i2 = ContiguousIntegerSet::new(max(d + E::one(), a), b);
-        if !i1.is_empty() {
-            diff.push(i1);
+        if c > a {
+            diff.push(ContiguousIntegerSet::new(a, min(b, c - E::one())));
         }
-        if !i2.is_empty() {
-            diff.push(i2);
+        let i = ContiguousIntegerSet::new(max(d + E::one(), a), b);
+        if !i.is_empty() {
+            diff.push(i);
         }
         OrderedIntegerSet::from_ordered_coalesced_contiguous_integer_sets(diff)
     }
@@ -149,7 +148,7 @@ impl<E: Integer + Copy + ToPrimitive> Sub<&OrderedIntegerSet<E>> for OrderedInte
             }
             while rhs_i < num_rhs_intervals && rhs.intervals[rhs_i].start <= interval.end {
                 match fragments.last() {
-                    None => break,
+                    None => {},
                     Some(&l) => {
                         fragments.pop();
                         for frag in (l - rhs.intervals[rhs_i]).intervals {
