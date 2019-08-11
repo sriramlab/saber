@@ -631,4 +631,16 @@ mod tests {
         test(&[[0, 10], [15, 20]], &[[-1, 2], [18, 22], [5, 7]], &[[3, 4], [8, 10], [15, 17]]);
         test(&[[0, 10], [15, 20], [-10, -5]], &[[-1, 2], [18, 22], [5, 7], [-12, -3]], &[[3, 4], [8, 10], [15, 17]]);
     }
+
+    #[test]
+    fn test_intersect_integer_set() {
+        fn test<E: Integer + Copy + ToPrimitive + std::fmt::Debug>(a: &[[E; 2]], b: &[[E; 2]], expected: &[[E; 2]]) {
+            let s1 = OrderedIntegerSet::from_slice(a);
+            let s2 = OrderedIntegerSet::from_slice(b);
+            assert_eq!(s1 - s2, OrderedIntegerSet::from_slice(expected));
+        }
+        test(&[[0usize, 5], [10, 15]], &[[0, 4]], &[[5, 5], [10, 15]]);
+        test(&[[0usize, 5], [10, 15]], &[[0, 12]], &[[13, 15]]);
+        test(&[[0usize, 10]], &[[0, 8]], &[[9, 10]]);
+    }
 }

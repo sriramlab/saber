@@ -1,8 +1,8 @@
-use std::ops::{Add, Sub, Index};
+use std::ops::{Add, Index, Sub};
 
 use math::integer_partitions::{IntegerPartitionIter, IntegerPartitions, Partition};
 use math::sample::Sample;
-use math::set::ordered_integer_set::{OrderedIntegerSet, ContiguousIntegerSet};
+use math::set::ordered_integer_set::{ContiguousIntegerSet, OrderedIntegerSet};
 use math::set::traits::Finite;
 
 pub struct Jackknife<C> {
