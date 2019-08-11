@@ -2,7 +2,7 @@ use std::ops::{Add, Sub, Index};
 
 use math::integer_partitions::{IntegerPartitionIter, IntegerPartitions, Partition};
 use math::sample::Sample;
-use math::set::ordered_integer_set::OrderedIntegerSet;
+use math::set::ordered_integer_set::{OrderedIntegerSet, ContiguousIntegerSet};
 use math::set::traits::Finite;
 
 pub struct Jackknife<C> {
@@ -132,20 +132,32 @@ impl JackknifePartitions {
         }
     }
 
-    pub fn from_integer_set(mut integer_set: OrderedIntegerSet<usize>, num_partitions: usize, randomize: bool) -> JackknifePartitions {
-        let partition_size = integer_set.size() / num_partitions;
+    /// partitions each of the set in the `integer_sets` into `num_partitions` partitions
+    /// and combines the i-th partition from each set into a single Jackknife partition, for all i
+    pub fn from_integer_set(mut integer_sets: Vec<OrderedIntegerSet<usize>>, num_partitions: usize, randomize: bool) -> JackknifePartitions {
+        let partition_size: Vec<usize> = integer_sets.iter().map(|s| s.size() / num_partitions).collect();
         let mut partitions = Vec::new();
         for _ in 0..num_partitions - 1 {
-            let p;
-            if randomize {
-                p = integer_set.sample_subset_without_replacement(partition_size).unwrap();
-            } else {
-                p = integer_set.slice(0..partition_size);
+            let mut merged_partition = Vec::new();
+            for (i, s) in integer_sets.iter_mut().enumerate() {
+                let p;
+                if randomize {
+                    p = s.sample_subset_without_replacement(partition_size[i]).unwrap();
+                } else {
+                    p = s.slice(0..partition_size[i]);
+                }
+                *s -= &p;
+                merged_partition.append(&mut p.into_intervals());
             }
-            integer_set -= &p;
-            partitions.push(p);
+            partitions.push(OrderedIntegerSet::from(merged_partition));
         }
-        partitions.push(integer_set);
+        partitions.push(
+            OrderedIntegerSet::from(
+                integer_sets.into_iter()
+                            .flat_map(|s| s.into_intervals())
+                            .collect::<Vec<ContiguousIntegerSet<usize>>>()
+            )
+        );
         JackknifePartitions {
             partitions: IntegerPartitions::new(partitions)
         }

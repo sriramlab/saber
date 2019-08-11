@@ -90,6 +90,7 @@ impl<E: Integer + Copy + FromPrimitive + ToPrimitive> Slicing<&ContiguousInteger
 }
 
 impl<E: Integer + Copy + FromPrimitive + ToPrimitive + std::fmt::Debug> Slicing<&OrderedIntegerSet<E>, OrderedIntegerSet<E>> for Range<usize> {
+    /// the `end` index is exclusive
     fn slice(self, input: &OrderedIntegerSet<E>) -> OrderedIntegerSet<E> {
         if self.start >= self.end {
             return OrderedIntegerSet::new();
