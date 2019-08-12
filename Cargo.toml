@@ -5,14 +5,14 @@ authors = ["Aaron <aaronzhouqian@ucla.edu>"]
 edition = "2018"
 
 [workspace]
-members = ["bio_file_reader", "math"]
+members = ["bio_file_reader"]
 
 [dependencies]
 bio_file_reader = {path = "bio_file_reader"}
 blas-src = { version = "0.3", features = ["openblas"] }
 clap = "2.32.0"
 colored = "1.7.0"
-math = {path = "math"}
+analytic = "0.1.0"
 num-traits = "0.2.6"
 ndarray = {version = "0.12.1", features = ["blas"] }
 ndarray-linalg = "0.10.0"

@@ -2,8 +2,8 @@ use std::collections::{HashMap, HashSet};
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Lines, Read, Seek, SeekFrom};
 
-use math::set::ordered_integer_set::OrderedIntegerSet;
-use math::traits::Collecting;
+use analytic::set::ordered_integer_set::OrderedIntegerSet;
+use analytic::traits::Collecting;
 
 use crate::error::Error;
 
@@ -173,7 +173,7 @@ mod tests {
 
     use tempfile::NamedTempFile;
 
-    use math::set::ordered_integer_set::{ContiguousIntegerSet, OrderedIntegerSet};
+    use analytic::set::ordered_integer_set::{ContiguousIntegerSet, OrderedIntegerSet};
 
     use super::PlinkBim;
 

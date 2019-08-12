@@ -1,9 +1,9 @@
 use std::ops::{Add, Index, Sub};
 
-use math::integer_partitions::{IntegerPartitionIter, IntegerPartitions, Partition};
-use math::sample::Sample;
-use math::set::ordered_integer_set::{ContiguousIntegerSet, OrderedIntegerSet};
-use math::set::traits::Finite;
+use analytic::integer_partitions::{IntegerPartitionIter, IntegerPartitions, Partition};
+use analytic::sample::Sample;
+use analytic::set::ordered_integer_set::{ContiguousIntegerSet, OrderedIntegerSet};
+use analytic::set::traits::Finite;
 
 pub struct Jackknife<C> {
     pub components: Vec<C>,
@@ -189,8 +189,8 @@ impl Index<usize> for JackknifePartitions {
 
 #[cfg(test)]
 mod tests {
-    use math::set::ordered_integer_set::OrderedIntegerSet;
-    use math::set::traits::Finite;
+    use analytic::set::ordered_integer_set::OrderedIntegerSet;
+    use analytic::set::traits::Finite;
 
     use super::JackknifePartitions;
 
@@ -199,7 +199,7 @@ mod tests {
         let num_partitions = 7;
         let integer_set = OrderedIntegerSet::from_slice(&[[1, 5], [8, 12], [14, 20], [25, 32]]);
         let size = integer_set.size();
-        let config = JackknifePartitions::from_integer_set(integer_set.clone(), num_partitions, true);
+        let config = JackknifePartitions::from_integer_set(vec![integer_set.clone()], num_partitions, true);
         for (i, p) in config.partitions.iter().enumerate() {
             if i == num_partitions - 1 {
                 assert!(p.size() >= size / num_partitions);
@@ -207,7 +207,7 @@ mod tests {
                 assert_eq!(p.size(), size / num_partitions);
             }
         }
-        let config = JackknifePartitions::from_integer_set(integer_set, num_partitions, false);
+        let config = JackknifePartitions::from_integer_set(vec![integer_set], num_partitions, false);
         for (i, p) in config.partitions.iter().enumerate() {
             if i == num_partitions - 1 {
                 assert!(p.size() >= size / num_partitions);

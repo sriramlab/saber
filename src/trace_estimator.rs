@@ -3,8 +3,8 @@ use ndarray_parallel::prelude::*;
 use rayon::prelude::*;
 
 use bio_file_reader::plink_bed::PlinkBed;
-use math::set::ordered_integer_set::OrderedIntegerSet;
-use math::set::traits::Finite;
+use analytic::set::ordered_integer_set::OrderedIntegerSet;
+use analytic::set::traits::Finite;
 
 use crate::util::matrix_util::{generate_plus_minus_one_bernoulli_matrix, normalize_matrix_columns_inplace};
 use crate::util::stats_util::{n_choose_2, sum_f32, sum_of_squares, sum_of_squares_f32};
