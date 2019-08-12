@@ -7,9 +7,9 @@ use ndarray::{Array, Ix2, ShapeBuilder};
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use rayon::iter::plumbing::{bridge, Consumer, Producer, ProducerCallback, UnindexedConsumer};
 
-use math::set::ordered_integer_set::OrderedIntegerSet;
-use math::set::traits::{Finite, Set};
-use math::traits::ToIterator;
+use analytic::set::ordered_integer_set::OrderedIntegerSet;
+use analytic::set::traits::{Finite, Set};
+use analytic::traits::ToIterator;
 
 use crate::byte_chunk_iter::ByteChunkIter;
 use crate::error::Error;
@@ -496,8 +496,8 @@ mod tests {
     use rand::distributions::Uniform;
     use tempfile::NamedTempFile;
 
-    use math::set::ordered_integer_set::OrderedIntegerSet;
-    use math::traits::ToIterator;
+    use analytic::set::ordered_integer_set::OrderedIntegerSet;
+    use analytic::traits::ToIterator;
 
     use super::PlinkBed;
 
