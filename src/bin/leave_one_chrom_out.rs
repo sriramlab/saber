@@ -3,8 +3,8 @@ use std::io::{BufWriter, Write};
 
 use clap::{Arg, clap_app};
 
-use bio_file_reader::plink_bed::PlinkBed;
-use bio_file_reader::plink_bim::PlinkBim;
+use biofile::plink_bed::PlinkBed;
+use biofile::plink_bim::PlinkBim;
 use analytic::interval::traits::{CoalesceIntervals, Interval};
 use analytic::set::ordered_integer_set::ContiguousIntegerSet;
 use saber::program_flow::OrExit;

@@ -5,10 +5,10 @@ authors = ["Aaron <aaronzhouqian@ucla.edu>"]
 edition = "2018"
 
 [workspace]
-members = ["bio_file_reader"]
+members = ["."]
 
 [dependencies]
-bio_file_reader = {path = "bio_file_reader"}
+biofile = "0.1.0"
 blas-src = { version = "0.3", features = ["openblas"] }
 clap = "2.32.0"
 colored = "1.7.0"

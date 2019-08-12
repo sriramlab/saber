@@ -5,7 +5,7 @@ use clap::clap_app;
 use ndarray::{Axis, s};
 use ndarray_parallel::prelude::*;
 
-use bio_file_reader::plink_bed::PlinkBed;
+use biofile::plink_bed::PlinkBed;
 use saber::program_flow::OrExit;
 use saber::util::{extract_str_arg, get_bed_bim_fam_path};
 use saber::util::matrix_util::get_correlation;

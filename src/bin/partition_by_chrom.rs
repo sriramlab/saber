@@ -3,7 +3,7 @@ use std::io::{BufWriter, Write};
 
 use clap::{Arg, clap_app};
 
-use bio_file_reader::plink_bim::{CHROM_FIELD_INDEX, PlinkBim, VARIANT_ID_FIELD_INDEX};
+use biofile::plink_bim::{CHROM_FIELD_INDEX, PlinkBim, VARIANT_ID_FIELD_INDEX};
 use saber::program_flow::OrExit;
 use saber::util::extract_str_arg;
 
