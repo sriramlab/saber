@@ -1,7 +1,7 @@
 use clap::{Arg, clap_app};
 
-use bio_file_reader::plink_bed::PlinkBed;
-use bio_file_reader::plink_bim::PlinkBim;
+use biofile::plink_bed::PlinkBed;
+use biofile::plink_bim::PlinkBim;
 use saber::heritability_estimator::{estimate_g_and_multi_gxg_heritability,
                                     estimate_g_and_multi_gxg_heritability_from_saved_traces};
 use saber::program_flow::OrExit;

@@ -1,7 +1,7 @@
 use clap::{Arg, clap_app};
 
-use bio_file_reader::plink_bed::PlinkBed;
-use bio_file_reader::plink_bim::PlinkBim;
+use biofile::plink_bed::PlinkBed;
+use biofile::plink_bim::PlinkBim;
 use saber::heritability_estimator::estimate_heritability;
 use saber::program_flow::OrExit;
 use saber::util::{extract_numeric_arg, extract_optional_str_arg, extract_str_arg, get_pheno_arr};

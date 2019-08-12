@@ -3,9 +3,9 @@ use ndarray::{Array, array, Axis, Ix1, Ix2, s};
 use ndarray_linalg::Solve;
 use rayon::prelude::*;
 
-use bio_file_reader::error::Error as PlinkBedError;
-use bio_file_reader::plink_bed::PlinkBed;
-use bio_file_reader::plink_bim::{PartitionKeyType, PlinkBim};
+use biofile::error::Error as PlinkBedError;
+use biofile::plink_bed::PlinkBed;
+use biofile::plink_bim::{PartitionKeyType, PlinkBim};
 use analytic::set::ordered_integer_set::OrderedIntegerSet;
 use analytic::set::traits::{Finite, Set};
 use std::{fmt, io};

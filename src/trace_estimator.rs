@@ -2,7 +2,7 @@ use ndarray::{Array, Axis, Ix1, Ix2, s};
 use ndarray_parallel::prelude::*;
 use rayon::prelude::*;
 
-use bio_file_reader::plink_bed::PlinkBed;
+use biofile::plink_bed::PlinkBed;
 use analytic::set::ordered_integer_set::OrderedIntegerSet;
 use analytic::set::traits::Finite;
 

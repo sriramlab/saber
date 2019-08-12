@@ -4,7 +4,7 @@ use std::io::{BufRead, BufReader, BufWriter, Write};
 use clap::clap_app;
 use ndarray::{Array, Ix1, s};
 
-use bio_file_reader::plink_bed::PlinkBed;
+use biofile::plink_bed::PlinkBed;
 use saber::program_flow::OrExit;
 use saber::simulation::sim_pheno::{generate_g_contribution, generate_gxg_contribution_from_gxg_basis};
 use saber::util::{extract_optional_numeric_arg, extract_optional_str_arg, extract_str_arg, get_bed_bim_fam_path};
