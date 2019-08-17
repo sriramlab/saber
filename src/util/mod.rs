@@ -6,7 +6,6 @@ use std::str::FromStr;
 use clap::ArgMatches;
 use ndarray::{Array, Ix1, Ix2, ShapeBuilder};
 
-pub mod histogram;
 pub mod matrix_util;
 pub mod stats_util;
 pub mod timer;
