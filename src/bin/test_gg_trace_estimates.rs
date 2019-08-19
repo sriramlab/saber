@@ -9,7 +9,7 @@ use saber::program_flow::OrExit;
 use saber::simulation::sim_geno::get_gxg_arr;
 use saber::trace_estimator::{estimate_gxg_dot_y_norm_sq, estimate_gxg_gram_trace, estimate_gxg_kk_trace};
 use saber::util::{extract_numeric_arg, extract_optional_numeric_arg};
-use saber::util::stats_util::{mean, std, sum_of_squares_f32};
+use saber::util::stats_util::{mean, standard_deviation, sum_of_squares_f32};
 use saber::util::timer::Timer;
 use std::fmt;
 
@@ -37,7 +37,7 @@ impl<T: Float> ValueTracker<T> {
     }
 
     pub fn std(&self) -> f64 {
-        std(self.values.iter(), 0)
+        standard_deviation(self.values.iter(), 0)
     }
 
     pub fn abs_mean(&self) -> f64 {
@@ -45,7 +45,7 @@ impl<T: Float> ValueTracker<T> {
     }
 
     pub fn abs_std(&self) -> f64 {
-        std(self.values.iter().map(|x| x.abs()).collect::<Vec<T>>().iter(), 0)
+        standard_deviation(self.values.iter().map(|x| x.abs()).collect::<Vec<T>>().iter(), 0)
     }
 
     pub fn to_percent_string(&self, sig_fig: usize) -> String {

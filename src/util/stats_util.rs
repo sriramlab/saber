@@ -108,7 +108,7 @@ pub fn variance<'a, T: Clone + Iterator<Item=&'a A>, A>(element_iterator: T, ddo
 /// for population standard deviation, set `ddof` to 0
 /// for sample standard deviation, set `ddof` to 1
 #[inline]
-pub fn std<'a, T: Clone + Iterator<Item=&'a A>, A>(element_iterator: T, ddof: usize) -> f64
+pub fn standard_deviation<'a, T: Clone + Iterator<Item=&'a A>, A>(element_iterator: T, ddof: usize) -> f64
     where A: Copy + ToPrimitive + 'a, &'a A: Deref {
     variance(element_iterator, ddof).sqrt()
 }
@@ -117,7 +117,7 @@ pub fn std<'a, T: Clone + Iterator<Item=&'a A>, A>(element_iterator: T, ddof: us
 mod tests {
     use rand::Rng;
 
-    use super::{mean, sum, sum_of_squares, variance, std};
+    use super::{mean, sum, sum_of_squares, variance, standard_deviation};
 
     #[test]
     fn test_sum() {
@@ -151,7 +151,7 @@ mod tests {
     #[test]
     fn test_std() {
         let elements = vec![1, 5, 3, 2, 7, 100, 1234, 234, 12, 0, 1234];
-        assert_eq!(487.9947466185192, std(elements.iter(), 1));
-        assert_eq!(465.28473464914003, std(elements.iter(), 0));
+        assert_eq!(487.9947466185192, standard_deviation(elements.iter(), 1));
+        assert_eq!(465.28473464914003, standard_deviation(elements.iter(), 0));
     }
 }
