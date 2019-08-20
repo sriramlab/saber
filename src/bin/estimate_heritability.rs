@@ -16,7 +16,7 @@ fn main() {
     );
     app = app.arg(
         Arg::with_name("num_jackknife_partitions")
-            .long("--num-jackknifes").short("k").takes_value(true).default_value("10")
+            .long("--num-jackknifes").short("k").takes_value(true).default_value("20")
             .help("The number of jackknife partitions")
     );
     app = app.arg(
