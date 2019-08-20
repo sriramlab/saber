@@ -1,6 +1,6 @@
 use std::ops::{Add, Index, Sub};
 
-use analytic::integer_partitions::{IntegerPartitionIter, IntegerPartitions, Partition};
+use analytic::partition::integer_partitions::{IntegerPartitionIter, IntegerPartitions, Partition};
 use analytic::sample::Sample;
 use analytic::set::ordered_integer_set::{ContiguousIntegerSet, OrderedIntegerSet};
 use analytic::set::traits::Finite;

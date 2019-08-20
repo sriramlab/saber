@@ -1,11 +1,10 @@
+use biofile::plink_bed::PlinkBed;
+use biofile::plink_bim::{FilelinePartitions, PlinkBim};
 use clap::{Arg, clap_app};
 
-use biofile::plink_bed::PlinkBed;
-use biofile::plink_bim::PlinkBim;
-use saber::heritability_estimator::{estimate_g_and_multi_gxg_heritability, estimate_g_and_multi_gxg_heritability_from_saved_traces, estimate_g_gxg_heritability};
+use saber::heritability_estimator::estimate_g_gxg_heritability;
 use saber::program_flow::OrExit;
-use saber::util::{extract_optional_str_arg, extract_str_arg, extract_str_vec_arg, get_bed_bim_fam_path, get_pheno_arr,
-                  load_trace_estimates, write_trace_estimates};
+use saber::util::{extract_optional_str_arg, extract_str_arg, extract_str_vec_arg, get_bed_bim_fam_path, get_pheno_arr};
 
 fn main() {
     let mut app = clap_app!(estimate_multi_gxg_heritability =>
@@ -64,9 +63,9 @@ fn main() {
     for (pheno_index, pheno_path) in pheno_path_vec.iter().enumerate() {
         println!("\n=> [{}/{}] estimating the heritability for the phenotype at {}", pheno_index + 1, pheno_path_vec.len(), pheno_path);
         println!("\n=> generating the phenotype array and the genotype matrix");
-        let mut geno_bed = PlinkBed::new(&bed_path, &bim_path, &fam_path)
+        let geno_bed = PlinkBed::new(&bed_path, &bim_path, &fam_path)
             .unwrap_or_exit(None::<String>);
-        let mut geno_bim = match &g_partition_filepath {
+        let geno_bim = match &g_partition_filepath {
             Some(partition_filepath) => PlinkBim::new_with_partition_file(&bim_path, partition_filepath)
                 .unwrap_or_exit(Some(format!("failed to create PlinkBim from bim file: {} and partition file: {}",
                                              &bim_path, partition_filepath))),
@@ -74,12 +73,14 @@ fn main() {
                 .unwrap_or_exit(Some(format!("failed to create PlinkBim from {}", &bim_path))),
         };
 
-        let mut le_snps_bed = PlinkBed::new(&le_snps_bed_path, &le_snps_bim_path, &le_snps_fam_path)
+        let le_snps_bed = PlinkBed::new(&le_snps_bed_path, &le_snps_bim_path, &le_snps_fam_path)
             .unwrap_or_exit(None::<String>);
         let mut le_snps_bim = PlinkBim::new(&le_snps_bim_path)
             .unwrap_or_exit(Some(format!("failed to create PlinkBim for {}", le_snps_bim_path)));
         let mut le_snps_partition = le_snps_bim.get_chrom_to_fileline_positions()
-                                           .unwrap_or_exit(Some(format!("failed to get chrom partitions from {}", le_snps_bim_path)));
+                                               .unwrap_or_exit(Some(format!("failed to get chrom partitions from {}", le_snps_bim_path)));
+        le_snps_partition.remove("23");
+        le_snps_bim.set_fileline_partitions(Some(FilelinePartitions::new(le_snps_partition)));
         let pheno_arr = get_pheno_arr(pheno_path)
             .unwrap_or_exit(None::<String>);
         match estimate_g_gxg_heritability(geno_bed, geno_bim, le_snps_bed, le_snps_bim, pheno_arr, num_random_vecs, 20) {
