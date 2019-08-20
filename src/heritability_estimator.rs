@@ -378,6 +378,7 @@ pub fn estimate_g_gxg_heritability(mut g_bed: PlinkBed, g_bim: PlinkBim,
 
     let num_g_partitions = g_partition_array.len();
     let num_gxg_partitions = gxg_partition_array.len();
+    let total_num_partitions = num_g_partitions + num_gxg_partitions;
     let num_people = g_bed.num_people;
 
     assert_eq!(num_people, gxg_basis_bed.num_people,
@@ -488,13 +489,13 @@ pub fn estimate_g_gxg_heritability(mut g_bed: PlinkBed, g_bim: PlinkBim,
                 let num_gxg_snps_i = n_choose_2(gxg_partition_sizes[gxg_i] - gxg_jackknife_partition.intersect(&gxg_partition_array[gxg_i]).size()) as f64;
                 let gxg_i_dot_semi_kronecker_z = get_gxg_dot_semi_kronecker_z_from_gz_and_ssq_jackknife(&gxg_gz_jackknife[gxg_i], &gxg_ssq_jackknife[gxg_i], k);
                 let tr_g_gxg_est = gxg_i_dot_semi_kronecker_z.axis_iter(Axis(1))
-                                      .into_par_iter()
-                                      .enumerate()
-                                      .map(|(b, col)| {
-                                          let x = col.t().dot(&gz.slice(s![.., b]));
-                                          x * x
-                                      })
-                                      .sum::<f32>() as f64 / num_gxg_snps_i / num_snps_i / num_random_vecs as f64;
+                                                             .into_par_iter()
+                                                             .enumerate()
+                                                             .map(|(b, col)| {
+                                                                 let x = col.t().dot(&gz.slice(s![.., b]));
+                                                                 x * x
+                                                             })
+                                                             .sum::<f32>() as f64 / num_gxg_snps_i / num_snps_i / num_random_vecs as f64;
                 let global_gxg_i = num_g_partitions + gxg_i;
                 a[[global_gxg_i, i]] = tr_g_gxg_est;
                 a[[i, global_gxg_i]] = tr_g_gxg_est;
@@ -506,17 +507,21 @@ pub fn estimate_g_gxg_heritability(mut g_bed: PlinkBed, g_bim: PlinkBim,
             let global_i = num_g_partitions + i;
             b[global_i] = sum_of_squares_f32(pheno_arr.t().dot(&gxg_i_dot_semi_kronecker_z).iter()) as f64 / num_gxg_snps_i / num_random_vecs as f64;
 
+            let tr_gxg_i_est = sum_of_squares_f32(gxg_i_dot_semi_kronecker_z.iter()) as f64 / num_gxg_snps_i / num_random_vecs as f64;
+            a[[global_i, total_num_partitions]] = tr_gxg_i_est;
+            a[[total_num_partitions, global_i]] = tr_gxg_i_est;
+
             for j in i..num_gxg_partitions {
                 let num_gxg_snps_j = n_choose_2(gxg_partition_sizes[j] - gxg_jackknife_partition.intersect(&gxg_partition_array[j]).size()) as f64;
                 let gxg_j_dot_semi_kronecker_z = get_gxg_dot_semi_kronecker_z_from_gz_and_ssq_jackknife(&gxg_gz_jackknife[j], &gxg_ssq_jackknife[j], k);
                 let tr_gxg_i_gxg_j_est = gxg_i_dot_semi_kronecker_z.axis_iter(Axis(1))
-                                            .into_par_iter()
-                                            .enumerate()
-                                            .map(|(b, col)| {
-                                                let x = col.t().dot(&gxg_j_dot_semi_kronecker_z.slice(s![.., b]));
-                                                x * x
-                                            })
-                                            .sum::<f32>() as f64 / num_gxg_snps_i / num_gxg_snps_j / num_random_vecs as f64;
+                                                                   .into_par_iter()
+                                                                   .enumerate()
+                                                                   .map(|(b, col)| {
+                                                                       let x = col.t().dot(&gxg_j_dot_semi_kronecker_z.slice(s![.., b]));
+                                                                       x * x
+                                                                   })
+                                                                   .sum::<f32>() as f64 / num_gxg_snps_i / num_gxg_snps_j / num_random_vecs as f64;
                 let global_j = num_g_partitions + j;
                 a[[global_i, global_j]] = tr_gxg_i_gxg_j_est;
                 a[[global_j, global_i]] = tr_gxg_i_gxg_j_est;
