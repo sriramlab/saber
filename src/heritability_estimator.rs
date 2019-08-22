@@ -375,7 +375,7 @@ pub fn sum_of_column_wise_dot_square(arr1: &Array<f32, Ix2>, arr2: &Array<f32, I
     }).sum::<f32>()
 }
 
-pub fn estimate_g_gxg_heritability(mut g_bed: PlinkBed, g_bim: PlinkBim,
+pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
                                    mut gxg_basis_bed: PlinkBed, gxg_basis_bim: PlinkBim,
                                    mut pheno_arr: Array<f32, Ix1>, num_random_vecs: usize,
                                    num_jackknife_partitions: usize)
@@ -418,43 +418,78 @@ pub fn estimate_g_gxg_heritability(mut g_bed: PlinkBed, g_bim: PlinkBim,
     let yy = sum_of_squares(pheno_arr.iter());
     println!("\n=> yy: {}", yy);
 
-    let mut ggz_jackknife = Vec::new();
-    let mut gz_jackknife = Vec::new();
-    let mut ygy_jackknives = Vec::new();
+//    let mut ggz_jackknife = Vec::new();
+//    let mut gz_jackknife = Vec::new();
+//    let mut ygy_jackknives = Vec::new();
     let g_random_vecs = generate_plus_minus_one_bernoulli_matrix(num_people, num_random_vecs);
-    for (key, partition) in g_partitions.iter() {
-        println!("=> processing G partition named {}", key);
-        ggz_jackknife.push(
-            AdditiveJackknife::from_op_over_jackknife_partitions(&g_jackknife_partitions, |_, knife| {
-                let range_intersect = knife.intersect(partition);
-                let (snp_mean_i, snp_std_i) = get_column_mean_and_std(&g_bed, &range_intersect);
-                normalized_g_g_transpose_dot_matrix(&mut g_bed, Some(range_intersect), &snp_mean_i, &snp_std_i, &g_random_vecs, None)
-            })
-        );
-        gz_jackknife.push(
-            AdditiveJackknife::from_op_over_jackknife_partitions(&g_jackknife_partitions, |_, knife| {
-                let range_intersect = knife.intersect(partition);
-                let (snp_mean_i, snp_std_i) = get_column_mean_and_std(&g_bed, &range_intersect);
-                let rand_vecs = generate_plus_minus_one_bernoulli_matrix(range_intersect.size(), num_random_vecs);
-                normalized_g_dot_matrix(&mut g_bed, Some(range_intersect), &snp_mean_i, &snp_std_i, &rand_vecs, None)
-            })
-        );
+    println!("=> generating ggz_jackknife");
+    let ggz_jackknife: Vec<AdditiveJackknife<Array<f32, Ix2>>> = g_partition_array.par_iter().map(|partition| {
+        AdditiveJackknife::from_op_over_jackknife_partitions(&g_jackknife_partitions, |_, knife| {
+            let range_intersect = knife.intersect(partition);
+            let (snp_mean_i, snp_std_i) = get_column_mean_and_std(&g_bed, &range_intersect);
+            normalized_g_g_transpose_dot_matrix(&g_bed, Some(range_intersect), &snp_mean_i, &snp_std_i, &g_random_vecs, None)
+        })
+    }).collect();
+
+    println!("=> generating gz_jackknife");
+    let gz_jackknife: Vec<AdditiveJackknife<Array<f32, Ix2>>> = g_partition_array.par_iter().map(|partition| {
+        AdditiveJackknife::from_op_over_jackknife_partitions(&g_jackknife_partitions, |_, knife| {
+            let range_intersect = knife.intersect(partition);
+            let (snp_mean_i, snp_std_i) = get_column_mean_and_std(&g_bed, &range_intersect);
+            let rand_vecs = generate_plus_minus_one_bernoulli_matrix(range_intersect.size(), num_random_vecs);
+            normalized_g_dot_matrix(&g_bed, Some(range_intersect), &snp_mean_i, &snp_std_i, &rand_vecs, None)
+        })
+    }).collect();
+
+    println!("=> generating ygy_jackknives");
+    let ygy_jackknives: Vec<AdditiveJackknife<f64>> = g_partition_array.par_iter().map(|partition| {
         let means_and_std_jackknife = Jackknife::from_op_over_jackknife_partitions(&g_jackknife_partitions, |jackknife_p|
             get_column_mean_and_std(&g_bed, &jackknife_p.intersect(partition)),
         );
-        ygy_jackknives.push(
-            AdditiveJackknife::from_op_over_jackknife_partitions(&g_jackknife_partitions, |k, knife| {
-                let sub_range = knife.intersect(partition);
-                let num_snps_in_sub_range = sub_range.size() as f64;
-                pheno_k_pheno(&pheno_arr,
-                              &sub_range,
-                              &g_bed,
-                              &means_and_std_jackknife.components[k].0,
-                              &means_and_std_jackknife.components[k].1,
-                              DEFAULT_NUM_SNPS_PER_CHUNK) * num_snps_in_sub_range
-            })
-        );
-    }
+        AdditiveJackknife::from_op_over_jackknife_partitions(&g_jackknife_partitions, |k, knife| {
+            let sub_range = knife.intersect(partition);
+            let num_snps_in_sub_range = sub_range.size() as f64;
+            pheno_k_pheno(&pheno_arr,
+                          &sub_range,
+                          &g_bed,
+                          &means_and_std_jackknife.components[k].0,
+                          &means_and_std_jackknife.components[k].1,
+                          DEFAULT_NUM_SNPS_PER_CHUNK) * num_snps_in_sub_range
+        })
+    }).collect();
+//    for (key, partition) in g_partitions.iter() {
+//        println!("=> processing G partition named {}", key);
+//        ggz_jackknife.push(
+//            AdditiveJackknife::from_op_over_jackknife_partitions(&g_jackknife_partitions, |_, knife| {
+//                let range_intersect = knife.intersect(partition);
+//                let (snp_mean_i, snp_std_i) = get_column_mean_and_std(&g_bed, &range_intersect);
+//                normalized_g_g_transpose_dot_matrix(&mut g_bed, Some(range_intersect), &snp_mean_i, &snp_std_i, &g_random_vecs, None)
+//            })
+//        );
+//        gz_jackknife.push(
+//            AdditiveJackknife::from_op_over_jackknife_partitions(&g_jackknife_partitions, |_, knife| {
+//                let range_intersect = knife.intersect(partition);
+//                let (snp_mean_i, snp_std_i) = get_column_mean_and_std(&g_bed, &range_intersect);
+//                let rand_vecs = generate_plus_minus_one_bernoulli_matrix(range_intersect.size(), num_random_vecs);
+//                normalized_g_dot_matrix(&mut g_bed, Some(range_intersect), &snp_mean_i, &snp_std_i, &rand_vecs, None)
+//            })
+//        );
+//        let means_and_std_jackknife = Jackknife::from_op_over_jackknife_partitions(&g_jackknife_partitions, |jackknife_p|
+//            get_column_mean_and_std(&g_bed, &jackknife_p.intersect(partition)),
+//        );
+//        ygy_jackknives.push(
+//            AdditiveJackknife::from_op_over_jackknife_partitions(&g_jackknife_partitions, |k, knife| {
+//                let sub_range = knife.intersect(partition);
+//                let num_snps_in_sub_range = sub_range.size() as f64;
+//                pheno_k_pheno(&pheno_arr,
+//                              &sub_range,
+//                              &g_bed,
+//                              &means_and_std_jackknife.components[k].0,
+//                              &means_and_std_jackknife.components[k].1,
+//                              DEFAULT_NUM_SNPS_PER_CHUNK) * num_snps_in_sub_range
+//            })
+//        );
+//    }
 
     let mut gxg_gz_jackknife = Vec::new();
     let mut gxg_gu_jackknife = Vec::new();
