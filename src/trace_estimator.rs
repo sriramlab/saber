@@ -57,7 +57,7 @@ pub fn normalized_g_dot_rand(geno_bed: &mut PlinkBed,
     normalized_g_dot_matrix(geno_bed, snp_range, snp_mean, snp_std, &rand_mat, num_snps_per_chunk)
 }
 
-pub fn normalized_g_g_transpose_dot_matrix(geno_bed: &mut PlinkBed,
+pub fn normalized_g_g_transpose_dot_matrix(geno_bed: &PlinkBed,
                                            snp_range: Option<OrderedIntegerSet<usize>>,
                                            snp_mean: &Array<f32, Ix1>,
                                            snp_std: &Array<f32, Ix1>,
@@ -77,7 +77,7 @@ pub fn normalized_g_g_transpose_dot_matrix(geno_bed: &mut PlinkBed,
                             num_snps_per_chunk)
 }
 
-pub fn normalized_g_transpose_dot_matrix(geno_bed: &mut PlinkBed,
+pub fn normalized_g_transpose_dot_matrix(geno_bed: &PlinkBed,
                                          snp_range: Option<OrderedIntegerSet<usize>>,
                                          snp_mean: &Array<f32, Ix1>,
                                          snp_std: &Array<f32, Ix1>,
@@ -119,7 +119,7 @@ pub fn normalized_g_transpose_dot_matrix(geno_bed: &mut PlinkBed,
     Array::from_shape_vec((num_snps, num_random_vecs), product_vec).unwrap()
 }
 
-pub fn normalized_g_dot_matrix(geno_bed: &mut PlinkBed,
+pub fn normalized_g_dot_matrix(geno_bed: &PlinkBed,
                                snp_range: Option<OrderedIntegerSet<usize>>,
                                snp_mean: &Array<f32, Ix1>,
                                snp_std: &Array<f32, Ix1>,
