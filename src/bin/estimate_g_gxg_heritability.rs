@@ -4,7 +4,7 @@ use clap::{Arg, clap_app};
 
 use saber::heritability_estimator::estimate_g_gxg_heritability;
 use saber::program_flow::OrExit;
-use saber::util::{extract_optional_str_arg, extract_str_arg, extract_str_vec_arg, get_bed_bim_fam_path, get_pheno_arr};
+use saber::util::{extract_optional_str_arg, extract_str_arg, extract_str_vec_arg, get_bed_bim_fam_path, get_pheno_arr, extract_numeric_arg};
 
 fn main() {
     let mut app = clap_app!(estimate_multi_gxg_heritability =>
@@ -33,6 +33,11 @@ fn main() {
         )
         .arg(
             Arg::with_name("partition_file").long("partition").takes_value(true)
+        )
+        .arg(
+            Arg::with_name("num_jackknife_partitions")
+                .long("--num-jackknifes").short("k").takes_value(true).default_value("20")
+                .help("The number of jackknife partitions")
         );
     let matches = app.get_matches();
 
@@ -42,6 +47,8 @@ fn main() {
     let load_trace = extract_optional_str_arg(&matches, "load_trace");
     let pheno_path_vec = extract_str_vec_arg(&matches, "pheno_path")
         .unwrap_or_exit(None::<String>);
+    let num_jackknife_partitions = extract_numeric_arg::<usize>(&matches, "num_jackknife_partitions")
+        .unwrap_or_exit(Some(format!("failed to extract num_jackknife_partitions")));
 
     let [bed_path, bim_path, fam_path] = get_bed_bim_fam_path(&bfile);
     let [le_snps_bed_path, le_snps_bim_path, le_snps_fam_path] = get_bed_bim_fam_path(&le_snps_path);
@@ -57,7 +64,7 @@ fn main() {
     for (i, path) in pheno_path_vec.iter().enumerate() {
         println!("[{}/{}] {}", i + 1, pheno_path_vec.len(), path);
     }
-    println!("num_random_vecs: {}", num_random_vecs);
+    println!("num_random_vecs: {}\nnum_jackknife_partitions: {}", num_random_vecs, num_jackknife_partitions);
     println!("G partition filepath: {}", g_partition_filepath.as_ref().unwrap_or(&"".to_string()));
 
     for (pheno_index, pheno_path) in pheno_path_vec.iter().enumerate() {
@@ -83,7 +90,7 @@ fn main() {
         le_snps_bim.set_fileline_partitions(Some(FilelinePartitions::new(le_snps_partition)));
         let pheno_arr = get_pheno_arr(pheno_path)
             .unwrap_or_exit(None::<String>);
-        match estimate_g_gxg_heritability(geno_bed, geno_bim, le_snps_bed, le_snps_bim, pheno_arr, num_random_vecs, 20) {
+        match estimate_g_gxg_heritability(geno_bed, geno_bim, le_snps_bed, le_snps_bim, pheno_arr, num_random_vecs, num_jackknife_partitions) {
             Err(why) => println!("failed to get heritability estimate for {}: {}", &pheno_path, why),
             Ok(est) => println!("estimate for {}:\n{}", &pheno_path, est)
         };
