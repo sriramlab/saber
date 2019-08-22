@@ -351,17 +351,28 @@ pub fn estimate_heritability(mut geno_arr_bed: PlinkBed, plink_bim: PlinkBim,
 fn get_gxg_dot_semi_kronecker_z_from_gz_and_ssq_jackknife(gz_jackknife: &AdditiveJackknife<Array<f32, Ix2>>,
                                                           g_ssq_jackknife: &AdditiveJackknife<Array<f32, Ix1>>,
                                                           jackknife_leave_out_index: usize) -> Array<f32, Ix2> {
-    let mut pre_square = gz_jackknife.sum_minus_component(jackknife_leave_out_index);
-    let ssq = g_ssq_jackknife.sum_minus_component(jackknife_leave_out_index);
-    let (num_people, num_cols) = pre_square.dim();
+    get_gxg_dot_semi_kronecker_z_from_gz_and_ssq(gz_jackknife.sum_minus_component(jackknife_leave_out_index),
+                                                 &g_ssq_jackknife.sum_minus_component(jackknife_leave_out_index))
+}
+
+pub fn get_gxg_dot_semi_kronecker_z_from_gz_and_ssq(mut gz: Array<f32, Ix2>, ssq: &Array<f32, Ix1>) -> Array<f32, Ix2> {
+    let (num_people, num_cols) = gz.dim();
     for i in 0..num_people {
         let s = ssq[i];
         for b in 0..num_cols {
-            let val1 = pre_square[[i, b]];
-            pre_square[[i, b]] = (val1 * val1 - s) / 2.;
+            let val1 = gz[[i, b]];
+            gz[[i, b]] = (val1 * val1 - s) / 2.;
         }
     }
-    pre_square
+    gz
+}
+
+pub fn sum_of_column_wise_dot_square(arr1: &Array<f32, Ix2>, arr2: &Array<f32, Ix2>) -> f32 {
+    use ndarray_parallel::prelude::*;
+    arr1.axis_iter(Axis(1)).into_par_iter().enumerate().map(|(b, col_1)| {
+        let x = col_1.dot(&arr2.slice(s![.., b]));
+        x * x
+    }).sum::<f32>()
 }
 
 pub fn estimate_g_gxg_heritability(mut g_bed: PlinkBed, g_bim: PlinkBim,
@@ -507,14 +518,8 @@ pub fn estimate_g_gxg_heritability(mut g_bed: PlinkBed, g_bim: PlinkBim,
             for gxg_i in 0..num_gxg_partitions {
                 let num_gxg_snps_i = n_choose_2(gxg_partition_sizes[gxg_i] - gxg_jackknife_range.intersect(&gxg_partition_array[gxg_i]).size()) as f64;
                 let gxg_i_dot_semi_kronecker_z = get_gxg_dot_semi_kronecker_z_from_gz_and_ssq_jackknife(&gxg_gz_jackknife[gxg_i], &gxg_ssq_jackknife[gxg_i], k);
-                let tr_g_gxg_est = gxg_i_dot_semi_kronecker_z.axis_iter(Axis(1))
-                                                             .into_par_iter()
-                                                             .enumerate()
-                                                             .map(|(b, col)| {
-                                                                 let x = col.t().dot(&gz.slice(s![.., b]));
-                                                                 x * x
-                                                             })
-                                                             .sum::<f32>() as f64 / num_gxg_snps_i / num_snps_i / nrv;
+                let tr_g_gxg_est = sum_of_column_wise_dot_square(&gxg_i_dot_semi_kronecker_z, &gz) as f64 / num_gxg_snps_i / num_snps_i / nrv;
+
                 let global_gxg_i = num_g_partitions + gxg_i;
                 a[[global_gxg_i, i]] = tr_g_gxg_est;
                 a[[i, global_gxg_i]] = tr_g_gxg_est;
@@ -534,13 +539,7 @@ pub fn estimate_g_gxg_heritability(mut g_bed: PlinkBed, g_bim: PlinkBim,
             println!("tr_gxg_k{}_est: {}", i, tr_gxg_ki_est);
 
             let gxg_i_dot_semi_kronecker_u = get_gxg_dot_semi_kronecker_z_from_gz_and_ssq_jackknife(&gxg_gu_jackknife[i], &gxg_ssq_jackknife[i], k);
-            let tr_gxg_kk_est = gxg_i_dot_semi_kronecker_z.axis_iter(Axis(1))
-                                                          .enumerate()
-                                                          .map(|(b, col)| {
-                                                              let x = col.dot(&gxg_i_dot_semi_kronecker_u.slice(s![.., b]));
-                                                              x * x
-                                                          })
-                                                          .sum::<f32>() as f64 / num_gxg_snps_i / num_gxg_snps_i / nrv;
+            let tr_gxg_kk_est = sum_of_column_wise_dot_square(&gxg_i_dot_semi_kronecker_z, &gxg_i_dot_semi_kronecker_u) as f64 / num_gxg_snps_i / num_gxg_snps_i / nrv;
 
             println!("tr_gxg_kk{}_est: {}", i, tr_gxg_kk_est);
             a[[global_i, global_i]] = tr_gxg_kk_est;
@@ -548,14 +547,8 @@ pub fn estimate_g_gxg_heritability(mut g_bed: PlinkBed, g_bim: PlinkBim,
             for j in i + 1..num_gxg_partitions {
                 let num_gxg_snps_j = n_choose_2(gxg_partition_sizes[j] - gxg_jackknife_range.intersect(&gxg_partition_array[j]).size()) as f64;
                 let gxg_j_dot_semi_kronecker_z = get_gxg_dot_semi_kronecker_z_from_gz_and_ssq_jackknife(&gxg_gz_jackknife[j], &gxg_ssq_jackknife[j], k);
-                let tr_gxg_i_gxg_j_est = gxg_i_dot_semi_kronecker_z.axis_iter(Axis(1))
-                                                                   .into_par_iter()
-                                                                   .enumerate()
-                                                                   .map(|(b, col)| {
-                                                                       let x = col.t().dot(&gxg_j_dot_semi_kronecker_z.slice(s![.., b]));
-                                                                       x * x
-                                                                   })
-                                                                   .sum::<f32>() as f64 / num_gxg_snps_i / num_gxg_snps_j / nrv;
+                let tr_gxg_i_gxg_j_est = sum_of_column_wise_dot_square(&gxg_i_dot_semi_kronecker_z, &gxg_j_dot_semi_kronecker_z) as f64 / num_gxg_snps_i / num_gxg_snps_j / nrv;
+
                 let global_j = num_g_partitions + j;
                 a[[global_i, global_j]] = tr_gxg_i_gxg_j_est;
                 a[[global_j, global_i]] = tr_gxg_i_gxg_j_est;
