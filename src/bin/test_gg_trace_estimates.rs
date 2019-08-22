@@ -1,5 +1,5 @@
 use clap::{Arg, clap_app};
-use ndarray::Array;
+use ndarray::{Array, Axis, Ix1, Ix2, s};
 use ndarray_parallel::prelude::*;
 use ndarray_rand::RandomExt;
 use num_traits::Float;
@@ -9,10 +9,12 @@ use saber::program_flow::OrExit;
 use saber::simulation::sim_geno::get_gxg_arr;
 use saber::trace_estimator::{estimate_gxg_dot_y_norm_sq, estimate_gxg_gram_trace, estimate_gxg_kk_trace};
 use saber::util::{extract_numeric_arg, extract_optional_numeric_arg};
-use saber::util::stats_util::{mean, standard_deviation, sum_of_squares_f32};
+use saber::util::stats_util::{mean, standard_deviation, sum_of_squares_f32, n_choose_2, sum_f32};
 use saber::util::timer::Timer;
+use saber::util::matrix_util::{generate_plus_minus_one_bernoulli_matrix, get_correlation};
 use std::fmt;
 
+#[inline]
 fn get_error_ratio<T: Float>(estimated_value: T, true_value: T) -> T {
     (estimated_value - true_value) / true_value
 }
@@ -28,26 +30,32 @@ impl<T: Float> ValueTracker<T> {
         }
     }
 
+    #[inline]
     pub fn append(&mut self, value: T) {
         self.values.push(value);
     }
 
+    #[inline]
     pub fn mean(&self) -> f64 {
         mean(self.values.iter())
     }
 
+    #[inline]
     pub fn std(&self) -> f64 {
         standard_deviation(self.values.iter(), 0)
     }
 
+    #[inline]
     pub fn abs_mean(&self) -> f64 {
         mean(self.values.iter().map(|x| x.abs()).collect::<Vec<T>>().iter())
     }
 
+    #[inline]
     pub fn abs_std(&self) -> f64 {
         standard_deviation(self.values.iter().map(|x| x.abs()).collect::<Vec<T>>().iter(), 0)
     }
 
+    #[inline]
     pub fn to_percent_string(&self, sig_fig: usize) -> String {
         format!("mean: {:.*}%\nstd: {:.*}%\nabs_mean: {:.*}%\nabs_std: {:.*}%",
                 sig_fig, self.mean() * 100., sig_fig, self.std() * 100.,
@@ -111,9 +119,14 @@ fn main() {
     let gxg = get_gxg_arr(&gxg_basis);
     println!("GxG dim: {:?}", gxg.dim());
 
+    let gxg_basis2 = Array::random((num_rows, num_cols), Uniform::from(0..3))
+        .mapv(|e| e as f32);
+    let gxg2 = get_gxg_arr(&gxg_basis2);
+
     let mut timer = Timer::new();
     let percent_sig_fig = 3usize;
 
+    /*
     {
         println!("\n=> test estimate_gxg_dot_y_norm_sq");
         let y = Array::random(num_rows, Normal::new(0., 1.))
@@ -167,20 +180,75 @@ fn main() {
     }
     timer.print();
 
+*/
     {
         println!("\n=> calculating tr_kk_true");
         let k = gxg.dot(&gxg.t()) / gxg.dim().1 as f32;
         println!("k dim: {:?}", k.dim());
-        let tr_kk_true = (&k * &k).sum() as f64;
+        let tr_kk_true = sum_of_squares_f32(k.iter()) as f64;
         println!("tr_kk_true: {}", tr_kk_true);
         timer.print();
         let mut err_tracker = ValueTracker::new();
         println!("\n=> computing tr_kk_est");
         for _ in 0..num_tr_kk_iter {
-            let tr_kk_est = estimate_gxg_kk_trace(&gxg_basis, num_random_vecs).unwrap_or_exit(None::<String>);
+//            let tr_kk_est = estimate_gxg_kk_trace(&gxg_basis, num_random_vecs).unwrap_or_exit(None::<String>);
+            let tr_kk_est = test_double_vec_tr_gxg_kk_est(&gxg_basis, num_random_vecs);
+            println!("true: {} tr_kk_est: {}", tr_kk_true, tr_kk_est);
             update_tracker_and_print(tr_kk_true, tr_kk_est, &mut err_tracker, "tr_kk_est", percent_sig_fig);
         }
         println!("\ntr(KK) estimate error ratio stats:\n{}", err_tracker.to_percent_string(percent_sig_fig));
     }
     timer.print();
+
+    /*
+    {
+        println!("\n=> calculating tr_ki_kj_true");
+        let ki = gxg.dot(&gxg.t()) / gxg.dim().1 as f32;
+        let kj = gxg2.dot(&gxg2.t()) / gxg2.dim().1 as f32;
+        let mut tr =  0.;
+        for i in 0..gxg.dim().0 {
+            tr += ki.slice(s![.., i]).t().dot(&kj.slice(s![.., i]));
+        }
+        let tr_ki_kj_true = tr as f64;
+        println!("tr_ki_kj_true: {}", tr_ki_kj_true);
+        timer.print();
+        let mut err_tracker = ValueTracker::new();
+        println!("\n=> computing tr_kk_est");
+        for _ in 0..num_tr_kk_iter {
+            let tr_est = test_double_vec_tr_gxg_ki_gxg_kj_est(&gxg_basis, &gxg_basis2, num_random_vecs);
+            println!("true: {} tr_kk_est: {}", tr_ki_kj_true, tr_est);
+            update_tracker_and_print(tr_ki_kj_true, tr_est, &mut err_tracker, "tr_ki_kj_est", percent_sig_fig);
+        }
+        println!("\ntr(Ki Kj) estimate error ratio stats:\n{}", err_tracker.to_percent_string(percent_sig_fig));
+
+    }
+    */
+}
+
+fn test_double_vec_tr_gxg_kk_est(gxg_basis: &Array<f32, Ix2>, num_random_vecs: usize) -> f64 {
+    let (num_people, num_snps) = gxg_basis.dim();
+    let m = n_choose_2(num_snps) as f64;
+    let z1 = generate_plus_minus_one_bernoulli_matrix(gxg_basis.dim().1, num_random_vecs);
+    let z2 = generate_plus_minus_one_bernoulli_matrix(gxg_basis.dim().1, num_random_vecs);
+    let ssq: Vec<f32> = gxg_basis.axis_iter(Axis(0)).map(|row| sum_of_squares_f32(row.iter())).collect();
+    let mut gz1 = gxg_basis.dot(&z1);
+    let mut gz2 = gxg_basis.dot(&z2);
+
+    for i in 0..num_people {
+        let s = ssq[i];
+        for b in 0..num_random_vecs {
+            let val1 = gz1[[i, b]];
+            let val2 = gz2[[i, b]];
+            gz1[[i, b]] = val1 * val1 - s;
+            gz2[[i, b]] = val2 * val2 - s;
+        }
+    }
+    gz1 /= 2.;
+    gz2 /= 2.;
+
+    gz1.axis_iter(Axis(1)).enumerate().map(|(b, col_1)| {
+        let x = col_1.dot(&gz2.slice(s![.., b]));
+        x * x
+    })
+       .sum::<f32>() as f64 / m / m / num_random_vecs as f64
 }
