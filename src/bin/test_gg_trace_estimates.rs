@@ -13,6 +13,7 @@ use saber::util::stats_util::{mean, standard_deviation, sum_of_squares_f32, n_ch
 use saber::util::timer::Timer;
 use saber::util::matrix_util::{generate_plus_minus_one_bernoulli_matrix, get_correlation};
 use std::fmt;
+use saber::heritability_estimator::{get_gxg_dot_semi_kronecker_z_from_gz_and_ssq, sum_of_column_wise_dot_square};
 
 #[inline]
 fn get_error_ratio<T: Float>(estimated_value: T, true_value: T) -> T {
@@ -231,24 +232,11 @@ fn test_double_vec_tr_gxg_kk_est(gxg_basis: &Array<f32, Ix2>, num_random_vecs: u
     let z1 = generate_plus_minus_one_bernoulli_matrix(gxg_basis.dim().1, num_random_vecs);
     let z2 = generate_plus_minus_one_bernoulli_matrix(gxg_basis.dim().1, num_random_vecs);
     let ssq: Vec<f32> = gxg_basis.axis_iter(Axis(0)).map(|row| sum_of_squares_f32(row.iter())).collect();
-    let mut gz1 = gxg_basis.dot(&z1);
-    let mut gz2 = gxg_basis.dot(&z2);
+    let ssq = Array::from_shape_vec(num_people, ssq).unwrap();
+    let gz1 = gxg_basis.dot(&z1);
+    let gz2 = gxg_basis.dot(&z2);
 
-    for i in 0..num_people {
-        let s = ssq[i];
-        for b in 0..num_random_vecs {
-            let val1 = gz1[[i, b]];
-            let val2 = gz2[[i, b]];
-            gz1[[i, b]] = val1 * val1 - s;
-            gz2[[i, b]] = val2 * val2 - s;
-        }
-    }
-    gz1 /= 2.;
-    gz2 /= 2.;
-
-    gz1.axis_iter(Axis(1)).enumerate().map(|(b, col_1)| {
-        let x = col_1.dot(&gz2.slice(s![.., b]));
-        x * x
-    })
-       .sum::<f32>() as f64 / m / m / num_random_vecs as f64
+    let gz1 = get_gxg_dot_semi_kronecker_z_from_gz_and_ssq(gz1, &ssq);
+    let gz2 = get_gxg_dot_semi_kronecker_z_from_gz_and_ssq(gz2, &ssq);
+    sum_of_column_wise_dot_square(&gz1, &gz2) as f64 / m / m / num_random_vecs as f64
 }
