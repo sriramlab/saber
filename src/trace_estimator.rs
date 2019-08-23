@@ -57,26 +57,6 @@ pub fn normalized_g_dot_rand(geno_bed: &mut PlinkBed,
     normalized_g_dot_matrix(geno_bed, snp_range, snp_mean, snp_std, &rand_mat, num_snps_per_chunk)
 }
 
-pub fn normalized_g_g_transpose_dot_matrix(geno_bed: &PlinkBed,
-                                           snp_range: Option<OrderedIntegerSet<usize>>,
-                                           snp_mean: &Array<f32, Ix1>,
-                                           snp_std: &Array<f32, Ix1>,
-                                           random_vecs: &Array<f32, Ix2>,
-                                           num_snps_per_chunk: Option<usize>) -> Array<f32, Ix2> {
-    let gtz = normalized_g_transpose_dot_matrix(geno_bed,
-                                                snp_range.clone(),
-                                                snp_mean,
-                                                snp_std,
-                                                random_vecs,
-                                                num_snps_per_chunk.clone());
-    normalized_g_dot_matrix(geno_bed,
-                            snp_range,
-                            snp_mean,
-                            snp_std,
-                            &gtz,
-                            num_snps_per_chunk)
-}
-
 pub fn normalized_g_transpose_dot_matrix(geno_bed: &PlinkBed,
                                          snp_range: Option<OrderedIntegerSet<usize>>,
                                          snp_mean: &Array<f32, Ix1>,
@@ -130,6 +110,7 @@ pub fn normalized_g_dot_matrix(geno_bed: &PlinkBed,
     let num_people = geno_bed.num_people;
     let num_cols = rhs_matrix.dim().1;
     let rhs_matrix = rhs_matrix / &snp_std.to_owned().into_shape((snp_std.dim(), 1)).unwrap();
+
     let mut product_vec = geno_bed
         .col_chunk_iter(chunk_size, snp_range)
         .into_par_iter()
@@ -137,11 +118,11 @@ pub fn normalized_g_dot_matrix(geno_bed: &PlinkBed,
         .fold(|| vec![0f32; num_people * num_cols], |mut acc, (chunk_index, snp_chunk)| {
             let start = chunk_index * chunk_size;
             let chunk_product = snp_chunk.dot(&rhs_matrix.slice(s![start..start + snp_chunk.dim().1, ..])).as_slice().unwrap().to_owned();
-            acc.iter_mut().enumerate().for_each(|(i, a)| *a += chunk_product[i]);
+            acc.par_iter_mut().enumerate().for_each(|(i, a)| *a += chunk_product[i]);
             acc
         })
         .reduce(|| vec![0f32; num_people * num_cols], |mut acc, x| {
-            acc.iter_mut().enumerate().for_each(|(i, a)| *a += x[i]);
+            acc.par_iter_mut().enumerate().for_each(|(i, a)| *a += x[i]);
             acc
         });
     let mean_dot_rhs_matrix = snp_mean.t().dot(&rhs_matrix);
