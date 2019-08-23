@@ -201,7 +201,6 @@ fn main() {
     }
     timer.print();
 
-    /*
     {
         println!("\n=> calculating tr_ki_kj_true");
         let ki = gxg.dot(&gxg.t()) / gxg.dim().1 as f32;
@@ -223,7 +222,6 @@ fn main() {
         println!("\ntr(Ki Kj) estimate error ratio stats:\n{}", err_tracker.to_percent_string(percent_sig_fig));
 
     }
-    */
 }
 
 fn test_double_vec_tr_gxg_kk_est(gxg_basis: &Array<f32, Ix2>, num_random_vecs: usize) -> f64 {
@@ -239,4 +237,23 @@ fn test_double_vec_tr_gxg_kk_est(gxg_basis: &Array<f32, Ix2>, num_random_vecs: u
     let gz1 = get_gxg_dot_semi_kronecker_z_from_gz_and_ssq(gz1, &ssq);
     let gz2 = get_gxg_dot_semi_kronecker_z_from_gz_and_ssq(gz2, &ssq);
     sum_of_column_wise_dot_square(&gz1, &gz2) as f64 / m / m / num_random_vecs as f64
+}
+
+fn test_double_vec_tr_gxg_ki_gxg_kj_est(gxg_basis_1: &Array<f32, Ix2>, gxg_basis_2: &Array<f32, Ix2>, num_random_vecs: usize) -> f64 {
+    let (num_people, num_basis_snps_1) = gxg_basis_1.dim();
+    let num_basis_snps_2 = gxg_basis_2.dim().1;
+    assert_eq!(gxg_basis_2.dim().0, num_people);
+    let m1 = n_choose_2(num_basis_snps_1) as f64;
+    let m2 = n_choose_2(num_basis_snps_2) as f64;
+    let z1 = generate_plus_minus_one_bernoulli_matrix(num_basis_snps_1, num_random_vecs);
+    let z2 = generate_plus_minus_one_bernoulli_matrix(num_basis_snps_2, num_random_vecs);
+    let ssq_1: Vec<f32> = gxg_basis_1.axis_iter(Axis(0)).map(|row| sum_of_squares_f32(row.iter())).collect();
+    let ssq_2: Vec<f32> = gxg_basis_2.axis_iter(Axis(0)).map(|row| sum_of_squares_f32(row.iter())).collect();
+    let ssq_1 = Array::from_shape_vec(num_people, ssq_1).unwrap();
+    let ssq_2 = Array::from_shape_vec(num_people, ssq_2).unwrap();
+    let gz1 = gxg_basis_1.dot(&z1);
+    let gz2 = gxg_basis_1.dot(&z2);
+    let gz1 = get_gxg_dot_semi_kronecker_z_from_gz_and_ssq(gz1, &ssq_1);
+    let gz2 = get_gxg_dot_semi_kronecker_z_from_gz_and_ssq(gz2, &ssq_2);
+    sum_of_column_wise_dot_square(&gz1, &gz2) as f64 / m1 / m2 / num_random_vecs as f64
 }
