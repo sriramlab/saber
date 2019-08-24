@@ -539,7 +539,7 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
             for gxg_i in 0..num_gxg_partitions {
                 let num_gxg_snps_i = n_choose_2(gxg_partition_sizes[gxg_i] - gxg_jackknife_range.intersect(&gxg_partition_array[gxg_i]).size()) as f64;
                 let gxg_i_dot_semi_kronecker_z = get_gxg_dot_semi_kronecker_z_from_gz_and_ssq_jackknife(&gxg_gz_jackknife[gxg_i], &gxg_ssq_jackknife[gxg_i], k);
-                let tr_g_gxg_est = sum_of_column_wise_dot_square(&gxg_i_dot_semi_kronecker_z, &gz) as f64 / num_gxg_snps_i / num_snps_i / nrv;
+                let tr_g_gxg_est = sum_of_squares_f32(gxg_i_dot_semi_kronecker_z.t().dot(&gz).iter()) as f64 / num_gxg_snps_i / num_snps_i / nrv / nrv;
 
                 let global_gxg_i = num_g_partitions + gxg_i;
                 a[[global_gxg_i, i]] = tr_g_gxg_est;
@@ -560,7 +560,7 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
             println!("tr_gxg_k{}_est: {}", i, tr_gxg_ki_est);
 
             let gxg_i_dot_semi_kronecker_u = get_gxg_dot_semi_kronecker_z_from_gz_and_ssq_jackknife(&gxg_gu_jackknife[i], &gxg_ssq_jackknife[i], k);
-            let tr_gxg_kk_est = sum_of_column_wise_dot_square(&gxg_i_dot_semi_kronecker_z, &gxg_i_dot_semi_kronecker_u) as f64 / num_gxg_snps_i / num_gxg_snps_i / nrv;
+            let tr_gxg_kk_est = sum_of_squares_f32(gxg_i_dot_semi_kronecker_z.t().dot(&gxg_i_dot_semi_kronecker_u).iter()) as f64 / num_gxg_snps_i / num_gxg_snps_i / nrv / nrv;
 
             println!("tr_gxg_kk{}_est: {}", i, tr_gxg_kk_est);
             a[[global_i, global_i]] = tr_gxg_kk_est;
@@ -568,7 +568,9 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
             for j in i + 1..num_gxg_partitions {
                 let num_gxg_snps_j = n_choose_2(gxg_partition_sizes[j] - gxg_jackknife_range.intersect(&gxg_partition_array[j]).size()) as f64;
                 let gxg_j_dot_semi_kronecker_z = get_gxg_dot_semi_kronecker_z_from_gz_and_ssq_jackknife(&gxg_gz_jackknife[j], &gxg_ssq_jackknife[j], k);
-                let tr_gxg_i_gxg_j_est = sum_of_column_wise_dot_square(&gxg_i_dot_semi_kronecker_z, &gxg_j_dot_semi_kronecker_z) as f64 / num_gxg_snps_i / num_gxg_snps_j / nrv;
+                let tr_gxg_i_gxg_j_est = sum_of_squares_f32(
+                    gxg_i_dot_semi_kronecker_z.t().dot(&gxg_j_dot_semi_kronecker_z).iter()
+                ) as f64 / num_gxg_snps_i / num_gxg_snps_j / nrv / nrv;
 
                 let global_j = num_g_partitions + j;
                 a[[global_i, global_j]] = tr_gxg_i_gxg_j_est;
