@@ -11,11 +11,11 @@ pub struct Jackknife<C> {
     pub components: Vec<C>,
 }
 
-impl<C> Jackknife<C> {
-    pub fn from_op_over_jackknife_partitions<F>(jackknife_partitions: &JackknifePartitions, mut op: F) -> Jackknife<C>
-        where F: FnMut(&Partition) -> C {
+impl<C: Send> Jackknife<C> {
+    pub fn from_op_over_jackknife_partitions<F>(jackknife_partitions: &JackknifePartitions, op: F) -> Jackknife<C>
+        where F: Fn(&Partition) -> C + Send + Sync {
         Jackknife {
-            components: jackknife_partitions.iter().map(|p| op(&p)).collect()
+            components: jackknife_partitions.iter().into_par_iter().map(|p| op(&p)).collect()
         }
     }
 }
