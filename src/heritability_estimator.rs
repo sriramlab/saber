@@ -387,7 +387,7 @@ pub fn sum_of_column_wise_dot_square(arr1: &Array<f32, Ix2>, arr2: &Array<f32, I
 }
 
 pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
-                                   mut gxg_basis_bed: PlinkBed, gxg_basis_bim: PlinkBim,
+                                   gxg_basis_bed: PlinkBed, gxg_basis_bim: PlinkBim,
                                    mut pheno_arr: Array<f32, Ix1>, num_random_vecs: usize,
                                    num_jackknife_partitions: usize)
     -> Result<PartitionedJackknifeEstimates, String> {
@@ -477,34 +477,30 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
         })
     }).collect();
 
-    let mut gxg_gz_jackknife = Vec::new();
-    let mut gxg_gu_jackknife = Vec::new();
-    let mut gxg_ssq_jackknife = Vec::new();
-    for (key, partition) in gxg_partitions.iter() {
-        println!("=> processing GxG partition named {}", key);
-        gxg_gz_jackknife.push(
-            AdditiveJackknife::from_op_over_jackknife_partitions(&gxg_basis_jackknife_partitions, |_, knife| {
-                let range_intersect = knife.intersect(partition);
-                let (snp_mean_i, snp_std_i) = get_column_mean_and_std(&gxg_basis_bed, &range_intersect);
-                let gxg_random_vecs = generate_plus_minus_one_bernoulli_matrix(range_intersect.size(), num_random_vecs);
-                normalized_g_dot_matrix(&mut gxg_basis_bed, Some(range_intersect), &snp_mean_i, &snp_std_i, &gxg_random_vecs, Some(2048))
-            })
-        );
-        gxg_gu_jackknife.push(
-            AdditiveJackknife::from_op_over_jackknife_partitions(&gxg_basis_jackknife_partitions, |_, knife| {
-                let range_intersect = knife.intersect(partition);
-                let (snp_mean_i, snp_std_i) = get_column_mean_and_std(&gxg_basis_bed, &range_intersect);
-                let gxg_random_vecs = generate_plus_minus_one_bernoulli_matrix(range_intersect.size(), num_random_vecs);
-                normalized_g_dot_matrix(&mut gxg_basis_bed, Some(range_intersect), &snp_mean_i, &snp_std_i, &gxg_random_vecs, Some(2048))
-            })
-        );
-        gxg_ssq_jackknife.push(
-            AdditiveJackknife::from_op_over_jackknife_partitions(&gxg_basis_jackknife_partitions, |_, knife| {
-                let range_intersect = knife.intersect(partition);
-                normalized_gxg_ssq(&mut gxg_basis_bed, Some(range_intersect), None)
-            })
-        );
-    }
+    let gxg_gz_jackknife: Vec<AdditiveJackknife<Array<f32, Ix2>>> = gxg_partition_array.par_iter().map(|partition| {
+        AdditiveJackknife::from_op_over_jackknife_partitions(&gxg_basis_jackknife_partitions, |_, knife| {
+            let range_intersect = knife.intersect(partition);
+            let (snp_mean_i, snp_std_i) = get_column_mean_and_std(&gxg_basis_bed, &range_intersect);
+            let gxg_random_vecs = generate_plus_minus_one_bernoulli_matrix(range_intersect.size(), num_random_vecs);
+            normalized_g_dot_matrix(&gxg_basis_bed, Some(range_intersect), &snp_mean_i, &snp_std_i, &gxg_random_vecs, Some(2048))
+        })
+    }).collect();
+
+    let gxg_gu_jackknife: Vec<AdditiveJackknife<Array<f32, Ix2>>> = gxg_partition_array.par_iter().map(|partition| {
+        AdditiveJackknife::from_op_over_jackknife_partitions(&gxg_basis_jackknife_partitions, |_, knife| {
+            let range_intersect = knife.intersect(partition);
+            let (snp_mean_i, snp_std_i) = get_column_mean_and_std(&gxg_basis_bed, &range_intersect);
+            let gxg_random_vecs = generate_plus_minus_one_bernoulli_matrix(range_intersect.size(), num_random_vecs);
+            normalized_g_dot_matrix(&gxg_basis_bed, Some(range_intersect), &snp_mean_i, &snp_std_i, &gxg_random_vecs, Some(2048))
+        })
+    }).collect();
+
+    let gxg_ssq_jackknife: Vec<AdditiveJackknife<Array<f32, Ix1>>> = gxg_partition_array.par_iter().map(|partition| {
+        AdditiveJackknife::from_op_over_jackknife_partitions(&gxg_basis_jackknife_partitions, |_, knife| {
+            let range_intersect = knife.intersect(partition);
+            normalized_gxg_ssq(&gxg_basis_bed, Some(range_intersect), None)
+        })
+    }).collect();
 
     use ndarray_parallel::prelude::*;
     let mut heritability_estimates = Vec::new();
