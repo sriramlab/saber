@@ -1,9 +1,11 @@
+use std::marker::{Send, Sync};
 use std::ops::{Add, Index, Sub};
 
 use analytic::partition::integer_partitions::{IntegerPartitionIter, IntegerPartitions, Partition};
 use analytic::sample::Sample;
 use analytic::set::ordered_integer_set::{ContiguousIntegerSet, OrderedIntegerSet};
 use analytic::set::traits::Finite;
+use rayon::prelude::*;
 
 pub struct Jackknife<C> {
     pub components: Vec<C>,
@@ -13,7 +15,7 @@ impl<C> Jackknife<C> {
     pub fn from_op_over_jackknife_partitions<F>(jackknife_partitions: &JackknifePartitions, mut op: F) -> Jackknife<C>
         where F: FnMut(&Partition) -> C {
         Jackknife {
-            components: jackknife_partitions.iter().map(|p| op(p)).collect()
+            components: jackknife_partitions.iter().map(|p| op(&p)).collect()
         }
     }
 }
@@ -23,11 +25,11 @@ pub struct AdditiveJackknife<C> {
     sum: Option<C>,
 }
 
-impl<C> AdditiveJackknife<C> {
-    pub fn from_op_over_jackknife_partitions<F>(jackknife_partitions: &JackknifePartitions, mut op: F) -> AdditiveJackknife<C>
-        where F: FnMut(usize, &Partition) -> C,
+impl<C: Send> AdditiveJackknife<C> {
+    pub fn from_op_over_jackknife_partitions<F>(jackknife_partitions: &JackknifePartitions, op: F) -> AdditiveJackknife<C>
+        where F: Fn(usize, &Partition) -> C + Send + Sync,
               C: for<'a> Add<&'a C, Output=C> + Clone {
-        let additive_components: Vec<C> = jackknife_partitions.iter().enumerate().map(|(i, p)| op(i, p)).collect();
+        let additive_components: Vec<C> = jackknife_partitions.iter().into_par_iter().enumerate().map(|(i, p)| op(i, &p)).collect();
         let sum = match additive_components.first() {
             Some(first) => Some(additive_components.iter().skip(1).fold(first.clone(), |acc, x| acc + x)),
             None => None
@@ -72,7 +74,7 @@ impl<C> BipartiteAdditiveJackknife<C> {
               C: for<'a> Add<&'a C, Output=C> + Clone {
         let bipartite_additive_components: Vec<Vec<C>> = jackknife_partitions.iter().enumerate().map(|(k1, knife_i)|
             jackknife_partitions.iter().enumerate().map(|(k2, knife_j)|
-                op(k1, knife_i, k2, knife_j)
+                op(k1, &knife_i, k2, &knife_j)
             ).collect::<Vec<C>>()
         ).collect();
 
