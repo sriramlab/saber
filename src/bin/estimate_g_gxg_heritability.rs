@@ -12,9 +12,14 @@ fn main() {
         (author: "Aaron Zhou")
         (@arg bfile: --bfile -b <BFILE> "The PLINK prefix for x.bed, x.bim, x.fam is x; required")
         (@arg le_snps_path: --le <LE_SNPS> "Plink file prefix to the SNPs in linkage equilibrium to construct the GxG matrix; required")
-        (@arg num_random_vecs: --nrv <NUM_RAND_VECS> "Number of random vectors used to estimate traces; required")
+        (@arg num_random_vecs: --nrv <NUM_RAND_VECS> "Number of random vectors used to estimate traces related to G; required")
     );
     app = app
+        .arg(
+            Arg::with_name("num_rand_vecs_gxg")
+                .long("nrv-gxg").takes_value(true).required(true)
+                .help("Number of random vectors used to estimate traces related to the GxG matrix; required")
+        )
         .arg(
             Arg::with_name("pheno_path")
                 .long("pheno").short("p").takes_value(true).required(true)
@@ -56,6 +61,9 @@ fn main() {
     let num_random_vecs = extract_str_arg(&matches, "num_random_vecs")
         .parse::<usize>()
         .unwrap_or_exit(Some("failed to parse num_random_vecs"));
+    let num_rand_vecs_gxg = extract_str_arg(&matches, "num_rand_vecs_gxg")
+        .parse::<usize>()
+        .unwrap_or_exit(Some("failed to parse num_rand_vecs_gxg"));
     let g_partition_filepath = extract_optional_str_arg(&matches, "partition_file");
 
     println!("PLINK bed path: {}\nPLINK bim path: {}\nPLINK fam path: {}", bed_path, bim_path, fam_path);
@@ -64,7 +72,8 @@ fn main() {
     for (i, path) in pheno_path_vec.iter().enumerate() {
         println!("[{}/{}] {}", i + 1, pheno_path_vec.len(), path);
     }
-    println!("num_random_vecs: {}\nnum_jackknife_partitions: {}", num_random_vecs, num_jackknife_partitions);
+    println!("num_random_vecs: {}\nnum_rand_vecs_gxg: {}\nnum_jackknife_partitions: {}",
+             num_random_vecs, num_rand_vecs_gxg, num_jackknife_partitions);
     println!("G partition filepath: {}", g_partition_filepath.as_ref().unwrap_or(&"".to_string()));
 
     for (pheno_index, pheno_path) in pheno_path_vec.iter().enumerate() {
@@ -90,7 +99,8 @@ fn main() {
         le_snps_bim.set_fileline_partitions(Some(FilelinePartitions::new(le_snps_partition)));
         let pheno_arr = get_pheno_arr(pheno_path)
             .unwrap_or_exit(None::<String>);
-        match estimate_g_gxg_heritability(geno_bed, geno_bim, le_snps_bed, le_snps_bim, pheno_arr, num_random_vecs, num_jackknife_partitions) {
+        match estimate_g_gxg_heritability(geno_bed, geno_bim, le_snps_bed, le_snps_bim, pheno_arr,
+                                          num_random_vecs, num_rand_vecs_gxg, num_jackknife_partitions) {
             Err(why) => println!("failed to get heritability estimate for {}: {}", &pheno_path, why),
             Ok(est) => println!("estimate for {}:\n{}", &pheno_path, est)
         };
