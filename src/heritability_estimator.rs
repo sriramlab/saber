@@ -388,7 +388,9 @@ pub fn sum_of_column_wise_dot_square(arr1: &Array<f32, Ix2>, arr2: &Array<f32, I
 
 pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
                                    gxg_basis_bed: PlinkBed, gxg_basis_bim: PlinkBim,
-                                   mut pheno_arr: Array<f32, Ix1>, num_random_vecs: usize,
+                                   mut pheno_arr: Array<f32, Ix1>,
+                                   num_rand_vecs_g: usize,
+                                   num_rand_vecs_gxg: usize,
                                    num_jackknife_partitions: usize)
     -> Result<PartitionedJackknifeEstimates, String> {
     let g_partitions = g_bim.get_fileline_partitions_or(DEFAULT_PARTITION_NAME, OrderedIntegerSet::from_slice(&[[0, g_bed.num_snps - 1]]));
@@ -429,7 +431,7 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
     let yy = sum_of_squares(pheno_arr.iter());
     println!("\n=> yy: {}", yy);
 
-    let g_random_vecs = generate_plus_minus_one_bernoulli_matrix(num_people, num_random_vecs);
+    let g_random_vecs = generate_plus_minus_one_bernoulli_matrix(num_people, num_rand_vecs_g);
     println!("=> generating ggz_jackknife");
     let ggz_jackknife: Vec<AdditiveJackknife<Array<f32, Ix2>>> = g_partition_array.par_iter().map(|partition| {
         AdditiveJackknife::from_op_over_jackknife_partitions(&g_jackknife_partitions, |_, knife| {
@@ -455,7 +457,7 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
         AdditiveJackknife::from_op_over_jackknife_partitions(&g_jackknife_partitions, |_, knife| {
             let range_intersect = knife.intersect(partition);
             let (snp_mean_i, snp_std_i) = get_column_mean_and_std(&g_bed, &range_intersect);
-            let rand_vecs = generate_plus_minus_one_bernoulli_matrix(range_intersect.size(), num_random_vecs);
+            let rand_vecs = generate_plus_minus_one_bernoulli_matrix(range_intersect.size(), num_rand_vecs_g);
             normalized_g_dot_matrix(&g_bed, Some(range_intersect), &snp_mean_i, &snp_std_i, &rand_vecs, Some(2048))
         })
     }).collect();
@@ -481,7 +483,7 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
         AdditiveJackknife::from_op_over_jackknife_partitions(&gxg_basis_jackknife_partitions, |_, knife| {
             let range_intersect = knife.intersect(partition);
             let (snp_mean_i, snp_std_i) = get_column_mean_and_std(&gxg_basis_bed, &range_intersect);
-            let gxg_random_vecs = generate_plus_minus_one_bernoulli_matrix(range_intersect.size(), num_random_vecs);
+            let gxg_random_vecs = generate_plus_minus_one_bernoulli_matrix(range_intersect.size(), num_rand_vecs_gxg);
             normalized_g_dot_matrix(&gxg_basis_bed, Some(range_intersect), &snp_mean_i, &snp_std_i, &gxg_random_vecs, Some(2048))
         })
     }).collect();
@@ -490,7 +492,7 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
         AdditiveJackknife::from_op_over_jackknife_partitions(&gxg_basis_jackknife_partitions, |_, knife| {
             let range_intersect = knife.intersect(partition);
             let (snp_mean_i, snp_std_i) = get_column_mean_and_std(&gxg_basis_bed, &range_intersect);
-            let gxg_random_vecs = generate_plus_minus_one_bernoulli_matrix(range_intersect.size(), num_random_vecs);
+            let gxg_random_vecs = generate_plus_minus_one_bernoulli_matrix(range_intersect.size(), num_rand_vecs_gxg);
             normalized_g_dot_matrix(&gxg_basis_bed, Some(range_intersect), &snp_mean_i, &snp_std_i, &gxg_random_vecs, Some(2048))
         })
     }).collect();
@@ -504,7 +506,8 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
 
     use ndarray_parallel::prelude::*;
     let mut heritability_estimates = Vec::new();
-    let nrv = num_random_vecs as f64;
+    let nrv_g = num_rand_vecs_g as f64;
+    let nrv_gxg = num_rand_vecs_gxg as f64;
     for (k, (g_jackknife_range, gxg_jackknife_range)) in g_jackknife_partitions.iter()
                                                                                .zip(gxg_basis_jackknife_partitions.iter())
                                                                                .enumerate() {
@@ -513,7 +516,7 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
         for i in 0..num_g_partitions {
             let num_snps_i = (g_partition_sizes[i] - g_jackknife_range.intersect(&g_partition_array[i]).size()) as f64;
             let ggz_i = ggz_jackknife[i].sum_minus_component(k);
-            a[[i, i]] = sum_of_squares_f32(ggz_i.iter()) as f64 / num_snps_i / num_snps_i / nrv;
+            a[[i, i]] = sum_of_squares_f32(ggz_i.iter()) as f64 / num_snps_i / num_snps_i / nrv_g;
             b[i] = ygy_jackknives[i].sum_minus_component(k) / num_snps_i;
             println!("tr_gk{}_gk{}_est: {}", i, i, a[[i, i]]);
             for j in i + 1..num_g_partitions {
@@ -524,7 +527,7 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
                                .enumerate()
                                .map(|(b, col)| col.t().dot(&ggz_i.slice(s![.., b])))
                                .sum::<f32>();
-                let tr_ki_kj_est = ssq as f64 / num_snps_i / num_snps_j / nrv;
+                let tr_ki_kj_est = ssq as f64 / num_snps_i / num_snps_j / nrv_g;
                 a[[i, j]] = tr_ki_kj_est;
                 a[[j, i]] = tr_ki_kj_est;
                 println!("tr_gk{}_gk{}_est: {}", i, j, tr_ki_kj_est);
@@ -535,7 +538,7 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
             for gxg_i in 0..num_gxg_partitions {
                 let num_gxg_snps_i = n_choose_2(gxg_partition_sizes[gxg_i] - gxg_jackknife_range.intersect(&gxg_partition_array[gxg_i]).size()) as f64;
                 let gxg_i_dot_semi_kronecker_z = get_gxg_dot_semi_kronecker_z_from_gz_and_ssq_jackknife(&gxg_gz_jackknife[gxg_i], &gxg_ssq_jackknife[gxg_i], k);
-                let tr_g_gxg_est = sum_of_squares_f32(gxg_i_dot_semi_kronecker_z.t().dot(&gz).iter()) as f64 / num_gxg_snps_i / num_snps_i / nrv / nrv;
+                let tr_g_gxg_est = sum_of_squares_f32(gxg_i_dot_semi_kronecker_z.t().dot(&gz).iter()) as f64 / num_gxg_snps_i / num_snps_i / nrv_g / nrv_gxg;
 
                 let global_gxg_i = num_g_partitions + gxg_i;
                 a[[global_gxg_i, i]] = tr_g_gxg_est;
@@ -547,16 +550,16 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
             let num_gxg_snps_i = n_choose_2(gxg_partition_sizes[i] - gxg_jackknife_range.intersect(&gxg_partition_array[i]).size()) as f64;
             let gxg_i_dot_semi_kronecker_z = get_gxg_dot_semi_kronecker_z_from_gz_and_ssq_jackknife(&gxg_gz_jackknife[i], &gxg_ssq_jackknife[i], k);
             let global_i = num_g_partitions + i;
-            b[global_i] = sum_of_squares_f32(pheno_arr.t().dot(&gxg_i_dot_semi_kronecker_z).iter()) as f64 / num_gxg_snps_i / nrv;
+            b[global_i] = sum_of_squares_f32(pheno_arr.t().dot(&gxg_i_dot_semi_kronecker_z).iter()) as f64 / num_gxg_snps_i / nrv_gxg;
             println!("tr_y_gxg_k{}_y_est: {}", i, b[global_i]);
 
-            let tr_gxg_ki_est = sum_of_squares_f32(gxg_i_dot_semi_kronecker_z.iter()) as f64 / num_gxg_snps_i / nrv;
+            let tr_gxg_ki_est = sum_of_squares_f32(gxg_i_dot_semi_kronecker_z.iter()) as f64 / num_gxg_snps_i / nrv_gxg;
             a[[global_i, total_num_partitions]] = tr_gxg_ki_est;
             a[[total_num_partitions, global_i]] = tr_gxg_ki_est;
             println!("tr_gxg_k{}_est: {}", i, tr_gxg_ki_est);
 
             let gxg_i_dot_semi_kronecker_u = get_gxg_dot_semi_kronecker_z_from_gz_and_ssq_jackknife(&gxg_gu_jackknife[i], &gxg_ssq_jackknife[i], k);
-            let tr_gxg_kk_est = sum_of_squares_f32(gxg_i_dot_semi_kronecker_z.t().dot(&gxg_i_dot_semi_kronecker_u).iter()) as f64 / num_gxg_snps_i / num_gxg_snps_i / nrv / nrv;
+            let tr_gxg_kk_est = sum_of_squares_f32(gxg_i_dot_semi_kronecker_z.t().dot(&gxg_i_dot_semi_kronecker_u).iter()) as f64 / num_gxg_snps_i / num_gxg_snps_i / nrv_gxg / nrv_gxg;
 
             println!("tr_gxg_kk{}_est: {}", i, tr_gxg_kk_est);
             a[[global_i, global_i]] = tr_gxg_kk_est;
@@ -566,7 +569,7 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
                 let gxg_j_dot_semi_kronecker_z = get_gxg_dot_semi_kronecker_z_from_gz_and_ssq_jackknife(&gxg_gz_jackknife[j], &gxg_ssq_jackknife[j], k);
                 let tr_gxg_i_gxg_j_est = sum_of_squares_f32(
                     gxg_i_dot_semi_kronecker_z.t().dot(&gxg_j_dot_semi_kronecker_z).iter()
-                ) as f64 / num_gxg_snps_i / num_gxg_snps_j / nrv / nrv;
+                ) as f64 / num_gxg_snps_i / num_gxg_snps_j / nrv_gxg / nrv_gxg;
 
                 let global_j = num_g_partitions + j;
                 a[[global_i, global_j]] = tr_gxg_i_gxg_j_est;
