@@ -12,7 +12,7 @@ biofile = "0.1.9"
 blas-src = { version = "0.3", features = ["openblas"] }
 clap = "2.32.0"
 colored = "1.7.0"
-analytic = "0.2.3"
+analytic = "0.2.4"
 num-traits = "0.2.6"
 ndarray = {version = "0.12.1", features = ["blas"] }
 ndarray-linalg = "0.10.0"
