@@ -207,7 +207,7 @@ fn main() {
         let kj = gxg2.dot(&gxg2.t()) / gxg2.dim().1 as f32;
         let mut tr = 0.;
         for i in 0..gxg.dim().0 {
-            tr += ki.slice(s![.., i]).t().dot(&kj.slice(s![.., i]));
+            tr += ki.slice(s![i, ..]).dot(&kj.slice(s![.., i]));
         }
         let tr_ki_kj_true = tr as f64;
         println!("tr_ki_kj_true: {}", tr_ki_kj_true);
@@ -215,7 +215,7 @@ fn main() {
         let mut err_tracker = ValueTracker::new();
         println!("\n=> computing tr_kk_est");
         for _ in 0..num_tr_kk_iter {
-            let tr_est = test_double_vec_tr_gxg_ki_gxg_kj_est(&gxg_basis, &gxg_basis2, num_random_vecs);
+            let tr_est = test_double_vec_tr_gxg_ki_gxg_kj_est(&gxg_basis, &gxg_basis2, num_random_vecs, num_random_vecs);
             println!("true: {} tr_kk_est: {}", tr_ki_kj_true, tr_est);
             update_tracker_and_print(tr_ki_kj_true, tr_est, &mut err_tracker, "tr_ki_kj_est", percent_sig_fig);
         }
@@ -225,9 +225,9 @@ fn main() {
 
 fn test_double_vec_tr_gxg_kk_est(gxg_basis: &Array<f32, Ix2>, num_random_vecs: usize) -> f64 {
     let (num_people, num_snps) = gxg_basis.dim();
-    let m = n_choose_2(num_snps) as f64;
-    let z1 = generate_plus_minus_one_bernoulli_matrix(gxg_basis.dim().1, num_random_vecs);
-    let z2 = generate_plus_minus_one_bernoulli_matrix(gxg_basis.dim().1, num_random_vecs);
+    let m = n_choose_2(num_snps);
+    let z1 = generate_plus_minus_one_bernoulli_matrix(num_snps, num_random_vecs);
+    let z2 = generate_plus_minus_one_bernoulli_matrix(num_snps, num_random_vecs);
     let ssq: Vec<f32> = gxg_basis.axis_iter(Axis(0)).map(|row| sum_of_squares_f32(row.iter())).collect();
     let ssq = Array::from_shape_vec(num_people, ssq).unwrap();
     let gz1 = gxg_basis.dot(&z1);
@@ -235,26 +235,24 @@ fn test_double_vec_tr_gxg_kk_est(gxg_basis: &Array<f32, Ix2>, num_random_vecs: u
 
     let gz1 = get_gxg_dot_semi_kronecker_z_from_gz_and_ssq(gz1, &ssq);
     let gz2 = get_gxg_dot_semi_kronecker_z_from_gz_and_ssq(gz2, &ssq);
-    let nrv = num_random_vecs as f64;
-    sum_of_squares_f32(gz1.t().dot(&gz2).iter()) as f64 / m / m / nrv / nrv
+    sum_of_squares_f32(gz1.t().dot(&gz2).iter()) as f64 / (m * m * num_random_vecs * num_random_vecs) as f64
 }
 
-fn test_double_vec_tr_gxg_ki_gxg_kj_est(gxg_basis_1: &Array<f32, Ix2>, gxg_basis_2: &Array<f32, Ix2>, num_random_vecs: usize) -> f64 {
+fn test_double_vec_tr_gxg_ki_gxg_kj_est(gxg_basis_1: &Array<f32, Ix2>, gxg_basis_2: &Array<f32, Ix2>,
+                                        num_rand_vecs_1: usize, num_rand_vecs_2: usize) -> f64 {
     let (num_people, num_basis_snps_1) = gxg_basis_1.dim();
     let num_basis_snps_2 = gxg_basis_2.dim().1;
-    assert_eq!(gxg_basis_2.dim().0, num_people);
-    let m1 = n_choose_2(num_basis_snps_1) as f64;
-    let m2 = n_choose_2(num_basis_snps_2) as f64;
-    let z1 = generate_plus_minus_one_bernoulli_matrix(num_basis_snps_1, num_random_vecs);
-    let z2 = generate_plus_minus_one_bernoulli_matrix(num_basis_snps_2, num_random_vecs);
+    let m1 = n_choose_2(num_basis_snps_1);
+    let m2 = n_choose_2(num_basis_snps_2);
+    let z1 = generate_plus_minus_one_bernoulli_matrix(num_basis_snps_1, num_rand_vecs_1);
+    let z2 = generate_plus_minus_one_bernoulli_matrix(num_basis_snps_2, num_rand_vecs_2);
     let ssq_1: Vec<f32> = gxg_basis_1.axis_iter(Axis(0)).map(|row| sum_of_squares_f32(row.iter())).collect();
     let ssq_2: Vec<f32> = gxg_basis_2.axis_iter(Axis(0)).map(|row| sum_of_squares_f32(row.iter())).collect();
     let ssq_1 = Array::from_shape_vec(num_people, ssq_1).unwrap();
     let ssq_2 = Array::from_shape_vec(num_people, ssq_2).unwrap();
     let gz1 = gxg_basis_1.dot(&z1);
-    let gz2 = gxg_basis_1.dot(&z2);
+    let gz2 = gxg_basis_2.dot(&z2);
     let gz1 = get_gxg_dot_semi_kronecker_z_from_gz_and_ssq(gz1, &ssq_1);
     let gz2 = get_gxg_dot_semi_kronecker_z_from_gz_and_ssq(gz2, &ssq_2);
-    let nrv = num_random_vecs as f64;
-    sum_of_squares_f32(gz1.t().dot(&gz2).iter()) as f64 / m1 / m2 / nrv / nrv
+    sum_of_squares_f32(gz1.t().dot(&gz2).iter()) as f64 / (m1 * m2 * num_rand_vecs_1 * num_rand_vecs_2) as f64
 }
