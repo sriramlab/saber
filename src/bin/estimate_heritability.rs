@@ -14,14 +14,15 @@ fn main() {
         (@arg pheno_filename: --pheno -p <PHENO> "required; each row is one individual containing one phenotype value")
         (@arg num_random_vecs: --nrv +takes_value "number of random vectors used to estimate traces; required")
     );
-    app = app.arg(
-        Arg::with_name("num_jackknife_partitions")
-            .long("--num-jackknifes").short("k").takes_value(true).default_value("10")
-            .help("The number of jackknife partitions")
-    );
-    app = app.arg(
-        Arg::with_name("partition_file").long("partition").takes_value(true)
-    );
+    app = app
+        .arg(
+            Arg::with_name("num_jackknife_partitions")
+                .long("--num-jackknifes").short("k").takes_value(true).default_value("20")
+                .help("The number of jackknife partitions")
+        )
+        .arg(
+            Arg::with_name("partition_file").long("partition").takes_value(true)
+        );
     let matches = app.get_matches();
 
     let plink_filename_prefix = extract_str_arg(&matches, "plink_filename_prefix");
