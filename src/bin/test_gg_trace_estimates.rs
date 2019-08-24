@@ -205,7 +205,7 @@ fn main() {
         println!("\n=> calculating tr_ki_kj_true");
         let ki = gxg.dot(&gxg.t()) / gxg.dim().1 as f32;
         let kj = gxg2.dot(&gxg2.t()) / gxg2.dim().1 as f32;
-        let mut tr =  0.;
+        let mut tr = 0.;
         for i in 0..gxg.dim().0 {
             tr += ki.slice(s![.., i]).t().dot(&kj.slice(s![.., i]));
         }
@@ -220,7 +220,6 @@ fn main() {
             update_tracker_and_print(tr_ki_kj_true, tr_est, &mut err_tracker, "tr_ki_kj_est", percent_sig_fig);
         }
         println!("\ntr(Ki Kj) estimate error ratio stats:\n{}", err_tracker.to_percent_string(percent_sig_fig));
-
     }
 }
 
@@ -236,7 +235,8 @@ fn test_double_vec_tr_gxg_kk_est(gxg_basis: &Array<f32, Ix2>, num_random_vecs: u
 
     let gz1 = get_gxg_dot_semi_kronecker_z_from_gz_and_ssq(gz1, &ssq);
     let gz2 = get_gxg_dot_semi_kronecker_z_from_gz_and_ssq(gz2, &ssq);
-    sum_of_column_wise_dot_square(&gz1, &gz2) as f64 / m / m / num_random_vecs as f64
+    let nrv = num_random_vecs as f64;
+    sum_of_squares_f32(gz1.t().dot(&gz2).iter()) as f64 / m / m / nrv / nrv
 }
 
 fn test_double_vec_tr_gxg_ki_gxg_kj_est(gxg_basis_1: &Array<f32, Ix2>, gxg_basis_2: &Array<f32, Ix2>, num_random_vecs: usize) -> f64 {
@@ -255,5 +255,6 @@ fn test_double_vec_tr_gxg_ki_gxg_kj_est(gxg_basis_1: &Array<f32, Ix2>, gxg_basis
     let gz2 = gxg_basis_1.dot(&z2);
     let gz1 = get_gxg_dot_semi_kronecker_z_from_gz_and_ssq(gz1, &ssq_1);
     let gz2 = get_gxg_dot_semi_kronecker_z_from_gz_and_ssq(gz2, &ssq_2);
-    sum_of_column_wise_dot_square(&gz1, &gz2) as f64 / m1 / m2 / num_random_vecs as f64
+    let nrv = num_random_vecs as f64;
+    sum_of_squares_f32(gz1.t().dot(&gz2).iter()) as f64 / m1 / m2 / nrv / nrv
 }
