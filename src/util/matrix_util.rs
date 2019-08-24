@@ -4,7 +4,7 @@ use ndarray_rand::RandomExt;
 use num_traits::{Float, FromPrimitive, NumAssign, ToPrimitive};
 use rand::distributions::{Bernoulli, StandardNormal};
 
-use crate::util::stats_util::{mean, std};
+use crate::util::stats_util::{mean, standard_deviation};
 
 pub fn generate_plus_minus_one_bernoulli_matrix(num_rows: usize, num_cols: usize) -> Array<f32, Ix2> {
     Array::random((num_rows, num_cols), Bernoulli::new(0.5)).mapv(|e| (e as i32 * 2 - 1) as f32)
@@ -58,7 +58,7 @@ pub fn normalize_matrix_columns_inplace<A>(matrix: &mut Array<A, Ix2>, ddof: usi
 pub fn normalize_vector_inplace<A>(vec: &mut Array<A, Ix1>, ddof: usize)
     where A: ToPrimitive + FromPrimitive + NumAssign + Float + ScalarOperand + Send + Sync {
     *vec -= A::from(mean(vec.iter())).unwrap();
-    *vec /= A::from(std(vec.iter(), ddof)).unwrap();
+    *vec /= A::from(standard_deviation(vec.iter(), ddof)).unwrap();
 }
 
 pub fn mean_center_vector<A>(vector: &mut Array<A, Ix1>)
@@ -79,7 +79,7 @@ pub fn row_std_vec<A, T>(matrix: &Array<A, Ix2>, ddof: usize) -> Array<T, Ix1>
     where A: Copy + ToPrimitive + NumAssign, T: Float + FromPrimitive {
     let mut std_vec = Vec::new();
     for row in matrix.genrows() {
-        std_vec.push(T::from(std(row.iter(), ddof)).unwrap());
+        std_vec.push(T::from(standard_deviation(row.iter(), ddof)).unwrap());
     }
     Array::from_vec(std_vec)
 }
@@ -87,10 +87,10 @@ pub fn row_std_vec<A, T>(matrix: &Array<A, Ix2>, ddof: usize) -> Array<T, Ix1>
 pub fn get_correlation<A>(arr1: &Array<A, Ix1>, arr2: &Array<A, Ix1>) -> f64
     where A: Copy + ToPrimitive + FromPrimitive + NumAssign + ScalarOperand {
     let mut a = arr1.clone() - A::from_f64(mean(arr1.iter())).unwrap();
-    a /= A::from_f64(std(arr1.iter(), 0)).unwrap();
+    a /= A::from_f64(standard_deviation(arr1.iter(), 0)).unwrap();
 
     let mut b = arr2.clone() - A::from_f64(mean(arr2.iter())).unwrap();
-    b /= A::from_f64(std(arr2.iter(), 0)).unwrap();
+    b /= A::from_f64(standard_deviation(arr2.iter(), 0)).unwrap();
 
     a.dot(&b).to_f64().unwrap() / arr1.dim() as f64
 }
@@ -101,7 +101,7 @@ mod tests {
     use ndarray_rand::RandomExt;
     use rand::distributions::Uniform;
 
-    use crate::util::stats_util::{mean, std};
+    use crate::util::stats_util::{mean, standard_deviation};
 
     use super::{get_correlation, mean_center_vector, normalize_matrix_columns_inplace,
                 normalize_matrix_row_wise_inplace, normalize_vector_inplace};
@@ -116,7 +116,7 @@ mod tests {
         // check that the means are close to 0 and the standard deviations are close to 1
         for row in matrix.genrows() {
             assert!(mean(row.iter()).abs() < 1e-6);
-            assert!((std(row.iter(), ddof) - 1.).abs() < 1e-6);
+            assert!((standard_deviation(row.iter(), ddof) - 1.).abs() < 1e-6);
         }
     }
 
@@ -130,7 +130,7 @@ mod tests {
         // check that the means are close to 0 and the standard deviations are close to 1
         for col in matrix.gencolumns() {
             assert!(mean(col.iter()).abs() < 1e-6);
-            assert!((std(col.iter(), ddof) - 1.).abs() < 1e-6);
+            assert!((standard_deviation(col.iter(), ddof) - 1.).abs() < 1e-6);
         }
     }
 
@@ -140,10 +140,10 @@ mod tests {
         let ddof = 0;
         let mut vec = Array::random(num_elements, Uniform::new(-10f32, 50f32));
         assert!(mean(vec.iter()).abs() > 1e-3, "the randomly generated vector should have a large non-zero mean");
-        assert!((std(vec.iter(), ddof) - 1.).abs() > 2., "the randomly generated vector should have a large std");
+        assert!((standard_deviation(vec.iter(), ddof) - 1.).abs() > 2., "the randomly generated vector should have a large std");
         normalize_vector_inplace(&mut vec, ddof);
         assert!(mean(vec.iter()).abs() < 1e-6);
-        assert!((std(vec.iter(), ddof) - 1.).abs() < 1e-6);
+        assert!((standard_deviation(vec.iter(), ddof) - 1.).abs() < 1e-6);
     }
 
     #[test]
