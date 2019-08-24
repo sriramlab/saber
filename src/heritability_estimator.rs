@@ -475,7 +475,7 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
                           &g_bed,
                           &means_and_std_jackknife.components[k].0,
                           &means_and_std_jackknife.components[k].1,
-                          2048) * num_snps_in_sub_range
+                          DEFAULT_NUM_SNPS_PER_CHUNK) * num_snps_in_sub_range
         })
     }).collect();
 
