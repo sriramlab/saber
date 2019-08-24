@@ -515,7 +515,7 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
                                                                                .zip(gxg_basis_jackknife_partitions.iter())
                                                                                .enumerate() {
         println!("\n=> leaving out jackknife partition with index {}", k);
-        let (mut a, mut b) = get_normal_eqn_matrices(num_g_partitions + num_gxg_partitions, num_people, yy);
+        let (mut a, mut b) = get_normal_eqn_matrices(total_num_partitions, num_people, yy);
         let g_pairwise_est: Vec<(f64, Vec<f64>, Vec<f64>, f64)> = (0..num_g_partitions).collect::<Vec<usize>>().par_iter().map(|&i| {
             let num_snps_i = (g_partition_sizes[i] - g_jackknife_range.intersect(&g_partition_array[i]).size()) as f64;
             let ggz_i = ggz_jackknife[i].sum_minus_component(k);
@@ -590,17 +590,16 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
             println!("tr_gxg_k{}_est: {}", i, tr_gxg_ki_est);
             println!("tr_gxg_kk{}_est: {}", i, tr_gxg_kk_est);
             println!("tr_y_gxg_k{}_y_est: {}", i, y_gxg_k_y_est);
-            for j in i + 1..num_gxg_partitions {
-                let global_j = num_g_partitions + j;
-                let tr_gxg_i_gxg_j_est = gxg_upper_triangular[j - i - 1];
+            for (j, tr_gxg_i_gxg_j_est) in gxg_upper_triangular.into_iter().enumerate() {
+                let global_j = num_g_partitions + i + 1 + j;
                 a[[global_i, global_j]] = tr_gxg_i_gxg_j_est;
                 a[[global_j, global_i]] = tr_gxg_i_gxg_j_est;
-                println!("tr_gxg_k{}_gxg_k{}: {}", i, j, tr_gxg_i_gxg_j_est);
+                println!("tr_gxg_k{}_gxg_k{}: {}", i, i + 1 + j, tr_gxg_i_gxg_j_est);
             }
         }
         println!("solving A={:?} b={:?}", a, b);
         let mut sig_sq = a.solve_into(b).unwrap().as_slice().unwrap().to_owned();
-        sig_sq.truncate(num_g_partitions + num_gxg_partitions);
+        sig_sq.truncate(total_num_partitions);
         println!("sig_sq: {:?}", sig_sq);
         heritability_estimates.push(sig_sq.to_vec());
     }
@@ -619,7 +618,7 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
         Some(total_partition_keys),
         Some(vec![
             ("G".to_string(), OrderedIntegerSet::from_slice(&[[0, num_g_partitions - 1]])),
-            ("GxG".to_string(), OrderedIntegerSet::from_slice(&[[num_g_partitions, num_g_partitions + num_gxg_partitions - 1]]))
+            ("GxG".to_string(), OrderedIntegerSet::from_slice(&[[num_g_partitions, total_num_partitions - 1]]))
         ]),
     )
 }
