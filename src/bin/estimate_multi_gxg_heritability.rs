@@ -1,7 +1,7 @@
+use biofile::plink_bed::PlinkBed;
+use biofile::plink_bim::{FilelinePartitions, PlinkBim};
 use clap::{Arg, clap_app};
 
-use biofile::plink_bed::PlinkBed;
-use biofile::plink_bim::PlinkBim;
 use saber::heritability_estimator::{estimate_g_and_multi_gxg_heritability,
                                     estimate_g_and_multi_gxg_heritability_from_saved_traces};
 use saber::program_flow::OrExit;
@@ -66,16 +66,11 @@ fn main() {
         .unwrap_or_exit(None::<String>);
     let mut le_snps_bim = PlinkBim::new(&le_snps_bim_path)
         .unwrap_or_exit(Some(format!("failed to create PlinkBim for {}", le_snps_bim_path)));
-    let le_snps_partition = le_snps_bim.get_chrom_to_fileline_positions()
-                                       .unwrap_or_exit(Some(format!("failed to get chrom partitions from {}", le_snps_bim_path)));
-    let le_snps_partition_keys = {
-        let mut keys: Vec<String> = le_snps_partition.keys().map(|s| s.to_string()).collect();
-        keys.sort();
-        keys
-    };
+    let le_snps_partition = FilelinePartitions::new(le_snps_bim
+        .get_chrom_to_fileline_positions()
+        .unwrap_or_exit(Some(format!("failed to get chrom partitions from {}", le_snps_bim_path))));
     let mut le_snps_arr_vec = Vec::new();
-    for key in le_snps_partition_keys.iter() {
-        let range = &le_snps_partition[key];
+    for (_, range) in le_snps_partition.iter() {
         le_snps_arr_vec.push(le_snps_bed.get_genotype_matrix(Some(range.clone())).unwrap());
     }
     let num_gxg_components = le_snps_arr_vec.len();
@@ -120,7 +115,7 @@ fn main() {
             Ok((a, _b, h, normalized_le_snps_arr, _)) => {
                 println!("\nvariance estimates on the normalized phenotype at {}:\nG variance: {}", pheno_path, h[0]);
                 let mut gxg_var_sum = 0.;
-                for (i, key) in (1..=num_gxg_components).zip(le_snps_partition_keys.iter()) {
+                for (i, key) in (1..=num_gxg_components).zip(le_snps_partition.ordered_partition_keys().iter()) {
                     println!("GxG component {}: {} variance: {}", i, key, h[i]);
                     gxg_var_sum += h[i];
                 }
