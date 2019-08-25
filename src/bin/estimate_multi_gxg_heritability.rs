@@ -116,7 +116,7 @@ fn main() {
                 println!("\nvariance estimates on the normalized phenotype at {}:\nG variance: {}", pheno_path, h[0]);
                 let mut gxg_var_sum = 0.;
                 for (i, key) in (1..=num_gxg_components).zip(le_snps_partition.ordered_partition_keys().iter()) {
-                    println!("GxG component {}: {} variance: {}", i, key, h[i]);
+                    println!("GxG component {} name {} variance: {}", i, key, h[i]);
                     gxg_var_sum += h[i];
                 }
                 println!("noise variance: {}", h[num_gxg_components + 1]);
