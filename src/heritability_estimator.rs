@@ -13,9 +13,7 @@ use ndarray_linalg::Solve;
 use rayon::prelude::*;
 
 use crate::jackknife::{AdditiveJackknife, Jackknife, JackknifePartitions};
-use crate::trace_estimator::{DEFAULT_NUM_SNPS_PER_CHUNK, estimate_gxg_dot_y_norm_sq, estimate_gxg_gram_trace,
-                             estimate_gxg_kk_trace, estimate_tr_gxg_ki_gxg_kj, estimate_tr_k_gxg_k, estimate_tr_kk,
-                             normalized_g_dot_matrix, normalized_gxg_ssq, normalized_g_transpose_dot_matrix};
+use crate::trace_estimator::{DEFAULT_NUM_SNPS_PER_CHUNK, estimate_gxg_dot_y_norm_sq, estimate_gxg_gram_trace, estimate_gxg_kk_trace, estimate_tr_gxg_ki_gxg_kj, estimate_tr_k_gxg_k, estimate_tr_kk, normalized_g_dot_matrix, normalized_gxg_ssq, normalized_g_transpose_dot_matrix, estimate_gxg_dot_y_norm_sq_from_basis_bed};
 use crate::util::matrix_util::{generate_plus_minus_one_bernoulli_matrix, normalize_matrix_columns_inplace,
                                normalize_vector_inplace};
 use crate::util::stats_util::{mean, n_choose_2, standard_deviation, sum_f32, sum_of_squares, sum_of_squares_f32};
@@ -221,7 +219,7 @@ fn get_column_mean_and_std(geno_bed: &PlinkBed, snp_range: &OrderedIntegerSet<us
     let mut snp_stds = Vec::new();
     geno_bed
         .col_chunk_iter(chunk_size, Some(snp_range.clone()))
-//        .into_par_iter()
+        .into_par_iter()
         .flat_map(|snp_chunk| {
             let mut m_and_s = Vec::new();
             for col in snp_chunk.gencolumns() {
@@ -516,8 +514,8 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
     let nrv_g = num_rand_vecs_g as f64;
     let nrv_gxg = num_rand_vecs_gxg as f64;
     let get_heritability_point_estimate = |k: Option<usize>,
-                g_jackknife_range: Option<&OrderedIntegerSet<usize>>,
-                gxg_jackknife_range: Option<&OrderedIntegerSet<usize>>| {
+                                           g_jackknife_range: Option<&OrderedIntegerSet<usize>>,
+                                           gxg_jackknife_range: Option<&OrderedIntegerSet<usize>>| {
         let (mut a, mut b) = get_normal_eqn_matrices(total_num_partitions, num_people, yy);
         let g_pairwise_est: Vec<(f64, Vec<f64>, Vec<f64>, f64)> = (0..num_g_partitions).collect::<Vec<usize>>().par_iter().map(|&i| {
             let num_snps_i = match g_jackknife_range {
@@ -591,10 +589,19 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
         }
 
         let gxg_pairwise_est: Vec<(f64, f64, Vec<f64>, f64)> = (0..num_gxg_partitions).collect::<Vec<usize>>().par_iter().map(|&i| {
-            let num_gxg_snps_i = match gxg_jackknife_range {
+            let range = match gxg_jackknife_range {
+                None => gxg_partition_array[i].clone(),
+                Some(r) => gxg_partition_array[i].clone() - r,
+            };
+
+            let num_gxg_snps_i = n_choose_2(range.size()) as f64;
+            //TODO: DELETE
+            let check = match gxg_jackknife_range {
                 Some(gxg_jackknife_range) => n_choose_2(gxg_partition_sizes[i] - gxg_jackknife_range.intersect(&gxg_partition_array[i]).size()) as f64,
                 None => n_choose_2(gxg_partition_sizes[i]) as f64,
             };
+            assert_eq!(check, num_gxg_snps_i);
+
             let gxg_i_dot_semi_kronecker_z = get_gxg_dot_semi_kronecker_z_from_gz_and_ssq_jackknife(&gxg_gz_jackknife[i], &gxg_ssq_jackknife[i], k);
             let gxg_i_dot_semi_kronecker_u = get_gxg_dot_semi_kronecker_z_from_gz_and_ssq_jackknife(&gxg_gu_jackknife[i], &gxg_ssq_jackknife[i], k);
             let gxg_upper_triangular: Vec<f64> = (i + 1..num_gxg_partitions).collect::<Vec<usize>>().par_iter().map(|&j| {
@@ -608,10 +615,18 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
                 ) as f64 / num_gxg_snps_i / num_gxg_snps_j / nrv_gxg / nrv_gxg;
                 tr_gxg_i_gxg_j_est
             }).collect();
+
+            let (snp_mean_i, snp_std_i) = get_column_mean_and_std(&gxg_basis_bed, &range);
+            let y_gxg_k_y_est = estimate_gxg_dot_y_norm_sq_from_basis_bed(
+                &gxg_basis_bed, Some(range), &snp_mean_i, &snp_std_i, &pheno_arr, num_rand_vecs_gxg,
+            ) / num_gxg_snps_i;
+
             (sum_of_squares_f32(gxg_i_dot_semi_kronecker_z.iter()) as f64 / num_gxg_snps_i / nrv_gxg,
              sum_of_squares_f32(gxg_i_dot_semi_kronecker_z.t().dot(&gxg_i_dot_semi_kronecker_u).iter()) as f64 / num_gxg_snps_i / num_gxg_snps_i / nrv_gxg / nrv_gxg,
              gxg_upper_triangular,
-             sum_of_squares_f32(pheno_arr.t().dot(&gxg_i_dot_semi_kronecker_z).iter()) as f64 / num_gxg_snps_i / nrv_gxg)
+             y_gxg_k_y_est
+//             sum_of_squares_f32(pheno_arr.t().dot(&gxg_i_dot_semi_kronecker_z).iter()) as f64 / num_gxg_snps_i / nrv_gxg)
+            )
         }).collect();
 
         for (i, (tr_gxg_ki_est, tr_gxg_kk_est, gxg_upper_triangular, y_gxg_k_y_est)) in gxg_pairwise_est.into_iter().enumerate() {
