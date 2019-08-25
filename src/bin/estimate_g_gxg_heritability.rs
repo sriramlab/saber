@@ -95,7 +95,6 @@ fn main() {
             .unwrap_or_exit(Some(format!("failed to create PlinkBim for {}", le_snps_bim_path)));
         let mut le_snps_partition = le_snps_bim.get_chrom_to_fileline_positions()
                                                .unwrap_or_exit(Some(format!("failed to get chrom partitions from {}", le_snps_bim_path)));
-        le_snps_partition.remove("23");
         le_snps_bim.set_fileline_partitions(Some(FilelinePartitions::new(le_snps_partition)));
         let pheno_arr = get_pheno_arr(pheno_path)
             .unwrap_or_exit(None::<String>);

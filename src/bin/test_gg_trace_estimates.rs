@@ -192,8 +192,8 @@ fn main() {
         let mut err_tracker = ValueTracker::new();
         println!("\n=> computing tr_kk_est");
         for _ in 0..num_tr_kk_iter {
-//            let tr_kk_est = estimate_gxg_kk_trace(&gxg_basis, num_random_vecs).unwrap_or_exit(None::<String>);
-            let tr_kk_est = test_double_vec_tr_gxg_kk_est(&gxg_basis, num_random_vecs);
+            let tr_kk_est = estimate_gxg_kk_trace(&gxg_basis, num_random_vecs).unwrap_or_exit(None::<String>);
+//            let tr_kk_est = test_double_vec_tr_gxg_kk_est(&gxg_basis, num_random_vecs);
             println!("true: {} tr_kk_est: {}", tr_kk_true, tr_kk_est);
             update_tracker_and_print(tr_kk_true, tr_kk_est, &mut err_tracker, "tr_kk_est", percent_sig_fig);
         }
