@@ -54,7 +54,7 @@ pub fn normalized_g_dot_rand(geno_bed: &mut PlinkBed,
         None => geno_bed.num_snps,
     };
     let rand_mat = generate_plus_minus_one_bernoulli_matrix(num_snps, num_random_vecs);
-    normalized_g_dot_matrix(geno_bed, snp_range, snp_mean, snp_std, &rand_mat, num_snps_per_chunk)
+    normalized_g_dot_matrix(geno_bed, snp_range, snp_mean, snp_std, &rand_mat, None, num_snps_per_chunk)
 }
 
 pub fn normalized_g_transpose_dot_matrix(geno_bed: &PlinkBed,
@@ -104,6 +104,7 @@ pub fn normalized_g_dot_matrix(geno_bed: &PlinkBed,
                                snp_mean: &Array<f32, Ix1>,
                                snp_std: &Array<f32, Ix1>,
                                rhs_matrix: &Array<f32, Ix2>,
+                               row_scaling: Option<&Array<f32, Ix1>>,
                                num_snps_per_chunk: Option<usize>) -> Array<f32, Ix2> {
     let chunk_size = num_snps_per_chunk.unwrap_or(DEFAULT_NUM_SNPS_PER_CHUNK);
 
@@ -127,6 +128,13 @@ pub fn normalized_g_dot_matrix(geno_bed: &PlinkBed,
         });
     let mean_dot_rhs_matrix = snp_mean.t().dot(&rhs_matrix);
     product_vec.par_iter_mut().enumerate().for_each(|(i, x)| *x -= mean_dot_rhs_matrix[i % num_cols]);
+    if let Some(scales) = row_scaling {
+        for (i, s) in scales.iter().enumerate() {
+            for j in 0..num_cols {
+                product_vec[i * num_cols + j] *= s;
+            }
+        }
+    }
     Array::from_shape_vec((num_people, num_cols), product_vec).unwrap()
 }
 
@@ -394,54 +402,11 @@ pub fn estimate_gxg_dot_y_norm_sq_from_basis_bed(gxg_basis_bed: &PlinkBed,
         .sum::<f32>();
 
     let rand_vecs = generate_plus_minus_one_bernoulli_matrix(num_cols, num_random_vecs);
-    let geno_arr_dot_rand_vecs = normalized_g_dot_matrix_with_row_scaling(gxg_basis_bed, snp_range.clone(), snp_mean, snp_std, &rand_vecs, Some(y), None);
+    let geno_arr_dot_rand_vecs = normalized_g_dot_matrix(gxg_basis_bed, snp_range.clone(), snp_mean, snp_std, &rand_vecs, Some(y), None);
     let mut hhz = normalized_g_transpose_dot_matrix(gxg_basis_bed, snp_range, snp_mean, snp_std, &geno_arr_dot_rand_vecs, None);
-//    let wg = &gxg_basis_bed.t() * y;
-//    let mut ggz = wg.dot(&geno_arr_dot_rand_vecs);
     hhz.par_iter_mut().for_each(|x| *x = (*x) * (*x));
     ((hhz.sum() / num_random_vecs as f32 - s) / 2.) as f64
 }
-
-pub fn normalized_g_dot_matrix_with_row_scaling(geno_bed: &PlinkBed,
-                                                snp_range: Option<OrderedIntegerSet<usize>>,
-                                                snp_mean: &Array<f32, Ix1>,
-                                                snp_std: &Array<f32, Ix1>,
-                                                rhs_matrix: &Array<f32, Ix2>,
-                                                row_scaling: Option<&Array<f32, Ix1>>,
-                                                num_snps_per_chunk: Option<usize>) -> Array<f32, Ix2> {
-    let chunk_size = num_snps_per_chunk.unwrap_or(DEFAULT_NUM_SNPS_PER_CHUNK);
-
-    let num_people = geno_bed.num_people;
-    let num_cols = rhs_matrix.dim().1;
-    let rhs_matrix = rhs_matrix / &snp_std.to_owned().into_shape((snp_std.dim(), 1)).unwrap();
-
-    let mut product_vec = geno_bed
-        .col_chunk_iter(chunk_size, snp_range)
-        .into_par_iter()
-        .enumerate()
-        .fold(|| vec![0f32; num_people * num_cols], |mut acc, (chunk_index, snp_chunk)| {
-            let start = chunk_index * chunk_size;
-            let chunk_product = snp_chunk.dot(&rhs_matrix.slice(s![start..start + snp_chunk.dim().1, ..])).as_slice().unwrap().to_owned();
-            acc.par_iter_mut().enumerate().for_each(|(i, a)| *a += chunk_product[i]);
-            acc
-        })
-        .reduce(|| vec![0f32; num_people * num_cols], |mut acc, x| {
-            acc.par_iter_mut().enumerate().for_each(|(i, a)| *a += x[i]);
-            acc
-        });
-    let mean_dot_rhs_matrix = snp_mean.t().dot(&rhs_matrix);
-    product_vec.par_iter_mut().enumerate().for_each(|(i, x)| *x -= mean_dot_rhs_matrix[i % num_cols]);
-    if let Some(scales) = row_scaling {
-        for (i, s) in scales.iter().enumerate() {
-            for j in 0..num_cols {
-                product_vec[i * num_cols + j] *= s;
-            }
-        }
-    }
-    Array::from_shape_vec((num_people, num_cols), product_vec).unwrap()
-}
-
-
 
 /*
 pub fn estimate_tr_kk(geno_arr: &Array<f32, Ix2>, num_random_vecs: usize) -> f64 {
