@@ -533,14 +533,11 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
         num_rand_vecs_gxg);
 
     println!("=> generating gxg_gu_jackknife");
-    let gxg_gu_jackknife: Vec<AdditiveJackknife<Array<f32, Ix2>>> = gxg_partition_array.par_iter().map(|partition| {
-        AdditiveJackknife::from_op_over_jackknife_partitions(&gxg_basis_jackknife_partitions, |_, knife| {
-            let range_intersect = knife.intersect(partition);
-            let (snp_mean_i, snp_std_i) = get_column_mean_and_std(&gxg_basis_bed, &range_intersect);
-            let gxg_random_vecs = generate_plus_minus_one_bernoulli_matrix(range_intersect.size(), num_rand_vecs_gxg);
-            normalized_g_dot_matrix(&gxg_basis_bed, Some(range_intersect), &snp_mean_i, &snp_std_i, &gxg_random_vecs, None, Some(2048))
-        })
-    }).collect();
+    let gxg_gu_jackknife = get_partitioned_gz_jackknife(
+        &gxg_basis_bed,
+        &gxg_partition_array,
+        &gxg_basis_jackknife_partitions,
+        num_rand_vecs_gxg);
 
     println!("=> generating gxg_ssq_jackknife");
     let gxg_ssq_jackknife: Vec<AdditiveJackknife<Array<f32, Ix1>>> = gxg_partition_array.par_iter().map(|partition| {
@@ -652,11 +649,15 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
 
             let (snp_mean_i, snp_std_i) = get_column_mean_and_std(&gxg_basis_bed, &range);
             let y_gxg_k_y_est = estimate_gxg_dot_y_norm_sq_from_basis_bed(
-                &gxg_basis_bed, Some(range), &snp_mean_i, &snp_std_i, &pheno_arr, num_rand_vecs_gxg,
+                &gxg_basis_bed, Some(range), &snp_mean_i, &snp_std_i, &pheno_arr, num_rand_vecs_gxg * 50,
             ) / num_gxg_snps_i;
 
             (sum_of_squares_f32(gxg_i_dot_semi_kronecker_z.iter()) as f64 / num_gxg_snps_i / nrv_gxg,
-             sum_of_squares_f32(gxg_i_dot_semi_kronecker_z.t().dot(&gxg_i_dot_semi_kronecker_u).iter()) as f64 / num_gxg_snps_i / num_gxg_snps_i / nrv_gxg / nrv_gxg,
+             sum_of_squares_f32(gxg_i_dot_semi_kronecker_z.t().dot(&gxg_i_dot_semi_kronecker_u).iter()) as f64
+                 / num_gxg_snps_i
+                 / num_gxg_snps_i
+                 / nrv_gxg
+                 / nrv_gxg,
              gxg_upper_triangular,
              y_gxg_k_y_est)
         }).collect();

@@ -1,19 +1,18 @@
 use clap::{Arg, clap_app};
-use ndarray::{Array, Axis, Ix1, Ix2, s};
-use ndarray_parallel::prelude::*;
+use ndarray::{Array, Axis, Ix2, s};
 use ndarray_rand::RandomExt;
 use num_traits::Float;
-use rand::distributions::{Normal, Uniform};
+use rand::distributions::Uniform;
 
 use saber::program_flow::OrExit;
 use saber::simulation::sim_geno::get_gxg_arr;
 use saber::trace_estimator::{estimate_gxg_dot_y_norm_sq, estimate_gxg_gram_trace, estimate_gxg_kk_trace};
 use saber::util::{extract_numeric_arg, extract_optional_numeric_arg};
-use saber::util::stats_util::{mean, standard_deviation, sum_of_squares_f32, n_choose_2, sum_f32};
+use saber::util::stats_util::{mean, standard_deviation, sum_of_squares_f32, n_choose_2};
 use saber::util::timer::Timer;
-use saber::util::matrix_util::{generate_plus_minus_one_bernoulli_matrix, get_correlation};
+use saber::util::matrix_util::generate_plus_minus_one_bernoulli_matrix;
 use std::fmt;
-use saber::heritability_estimator::{get_gxg_dot_semi_kronecker_z_from_gz_and_ssq, sum_of_column_wise_dot_square};
+use saber::heritability_estimator::get_gxg_dot_semi_kronecker_z_from_gz_and_ssq;
 
 #[inline]
 fn get_error_ratio<T: Float>(estimated_value: T, true_value: T) -> T {

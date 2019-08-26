@@ -391,7 +391,7 @@ pub fn estimate_gxg_dot_y_norm_sq_from_basis_bed(gxg_basis_bed: &PlinkBed,
         Some(range) => range.size(),
         None => gxg_basis_bed.num_snps,
     };
-    let s = gxg_basis_bed
+    let ssq_of_hi_hi = gxg_basis_bed
         .col_chunk_iter(DEFAULT_NUM_SNPS_PER_CHUNK, snp_range.clone())
         .into_par_iter()
         .fold(|| 0f32, |acc, mut snp_chunk| {
@@ -401,11 +401,25 @@ pub fn estimate_gxg_dot_y_norm_sq_from_basis_bed(gxg_basis_bed: &PlinkBed,
         })
         .sum::<f32>();
 
-    let rand_vecs = generate_plus_minus_one_bernoulli_matrix(num_cols, num_random_vecs);
-    let geno_arr_dot_rand_vecs = normalized_g_dot_matrix(gxg_basis_bed, snp_range.clone(), snp_mean, snp_std, &rand_vecs, Some(y), None);
-    let mut hhz = normalized_g_transpose_dot_matrix(gxg_basis_bed, snp_range, snp_mean, snp_std, &geno_arr_dot_rand_vecs, None);
+    let y_scaled_basis_dot_rand_vecs = normalized_g_dot_matrix(
+        gxg_basis_bed,
+        snp_range.clone(),
+        snp_mean,
+        snp_std,
+        &generate_plus_minus_one_bernoulli_matrix(num_cols, num_random_vecs),
+        Some(y),
+        None,
+    );
+    let mut hhz = normalized_g_transpose_dot_matrix(
+        gxg_basis_bed,
+        snp_range,
+        snp_mean,
+        snp_std,
+        &y_scaled_basis_dot_rand_vecs,
+        None,
+    );
     hhz.par_iter_mut().for_each(|x| *x = (*x) * (*x));
-    ((hhz.sum() / num_random_vecs as f32 - s) / 2.) as f64
+    ((hhz.sum() / num_random_vecs as f32 - ssq_of_hi_hi) / 2.) as f64
 }
 
 /*
