@@ -179,27 +179,12 @@ pub fn estimate_heritability(geno_arr_bed: PlinkBed, plink_bim: PlinkBim,
     let yy = sum_of_squares(pheno_arr.iter());
     println!("\n=> yy: {}", yy);
 
-    let mut yky_jackknives = Vec::new();
+    println!("=> generating ggz_jackknife");
     let random_vecs = generate_plus_minus_one_bernoulli_matrix(num_people, num_random_vecs);
     let ggz_jackknife = get_partitioned_ggz_jackknife(&geno_arr_bed, &partition_array, &jackknife_partitions, &random_vecs);
-    for (key, partition) in partitions.iter() {
-        println!("=> processing partition named {}", key);
-        let means_and_std_jackknife = Jackknife::from_op_over_jackknife_partitions(&jackknife_partitions, |jackknife_p|
-            get_column_mean_and_std(&geno_arr_bed, &jackknife_p.intersect(partition)),
-        );
-        yky_jackknives.push(
-            AdditiveJackknife::from_op_over_jackknife_partitions(&jackknife_partitions, |k, knife| {
-                let sub_range = knife.intersect(partition);
-                let num_snps_in_sub_range = sub_range.size() as f64;
-                pheno_k_pheno(&pheno_arr,
-                              &sub_range,
-                              &geno_arr_bed,
-                              &means_and_std_jackknife.components[k].0,
-                              &means_and_std_jackknife.components[k].1,
-                              DEFAULT_NUM_SNPS_PER_CHUNK) * num_snps_in_sub_range
-            })
-        );
-    }
+
+    println!("=> generating ygy_jackknife");
+    let ygy_jackknife = get_partitioned_ygy_jackknife(&geno_arr_bed, &partition_array, &jackknife_partitions, &pheno_arr);
 
     let get_heritability_point_estimate = |k: Option<usize>,
                                            jackknife_partition: Option<&OrderedIntegerSet<usize>>| {
@@ -216,8 +201,8 @@ pub fn estimate_heritability(geno_arr_bed: PlinkBed, plink_bim: PlinkBim,
             a[[i, i]] = sum_of_squares_f32(ggz_i.iter()) as f64 / num_snps_i / num_snps_i / num_random_vecs as f64;
             println!("tr(k_{}_k_{})_est: {} num_snps_i: {}", i, i, a[[i, i]], num_snps_i);
             b[i] = match k {
-                Some(k) => yky_jackknives[i].sum_minus_component(k) / num_snps_i,
-                None => yky_jackknives[i].get_component_sum().unwrap() / num_snps_i,
+                Some(k) => ygy_jackknife[i].sum_minus_component(k) / num_snps_i,
+                None => ygy_jackknife[i].get_component_sum().unwrap() / num_snps_i,
             };
             for j in i + 1..num_partitions {
                 let num_snps_j = match jackknife_partition {
@@ -340,6 +325,31 @@ fn get_partitioned_ggz_jackknife(
     }).collect()
 }
 
+fn get_partitioned_ygy_jackknife(
+    bed: &PlinkBed,
+    snp_partition_array: &Vec<OrderedIntegerSet<usize>>,
+    jackknife_partitions: &JackknifePartitions,
+    pheno_arr: &Array<f32, Ix1>,
+) -> Vec<AdditiveJackknife<f64>> {
+    snp_partition_array.par_iter().map(|partition| {
+        let means_and_stds_jackknife = Jackknife::from_op_over_jackknife_partitions(jackknife_partitions, |knife|
+            get_column_mean_and_std(bed, &knife.intersect(partition)),
+        );
+        AdditiveJackknife::from_op_over_jackknife_partitions(jackknife_partitions, |k, knife| {
+            let range = knife.intersect(partition);
+            let num_snps_in_range = range.size() as f64;
+            pheno_k_pheno(
+                pheno_arr,
+                &range,
+                bed,
+                &means_and_stds_jackknife.components[k].0,
+                &means_and_stds_jackknife.components[k].1,
+                DEFAULT_NUM_SNPS_PER_CHUNK,
+            ) * num_snps_in_range
+        })
+    }).collect()
+}
+
 pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
                                    gxg_basis_bed: PlinkBed, gxg_basis_bim: PlinkBim,
                                    mut pheno_arr: Array<f32, Ix1>,
@@ -413,21 +423,7 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
     );
 
     println!("=> generating ygy_jackknives");
-    let ygy_jackknives: Vec<AdditiveJackknife<f64>> = g_partition_array.par_iter().map(|partition| {
-        let means_and_std_jackknife = Jackknife::from_op_over_jackknife_partitions(&g_jackknife_partitions, |jackknife_p|
-            get_column_mean_and_std(&g_bed, &jackknife_p.intersect(partition)),
-        );
-        AdditiveJackknife::from_op_over_jackknife_partitions(&g_jackknife_partitions, |k, knife| {
-            let sub_range = knife.intersect(partition);
-            let num_snps_in_sub_range = sub_range.size() as f64;
-            pheno_k_pheno(&pheno_arr,
-                          &sub_range,
-                          &g_bed,
-                          &means_and_std_jackknife.components[k].0,
-                          &means_and_std_jackknife.components[k].1,
-                          DEFAULT_NUM_SNPS_PER_CHUNK) * num_snps_in_sub_range
-        })
-    }).collect();
+    let ygy_jackknives = get_partitioned_ygy_jackknife(&g_bed, &g_partition_array, &g_jackknife_partitions, &pheno_arr);
 
     println!("=> generating gxg_gz_jackknife");
     let gxg_gz_jackknife = get_partitioned_gz_jackknife(
