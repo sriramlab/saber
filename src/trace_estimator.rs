@@ -54,7 +54,7 @@ pub fn normalized_g_dot_rand(geno_bed: &mut PlinkBed,
         None => geno_bed.num_snps,
     };
     let rand_mat = generate_plus_minus_one_bernoulli_matrix(num_snps, num_random_vecs);
-    normalized_g_dot_matrix(geno_bed, snp_range, snp_mean, snp_std, &rand_mat, num_snps_per_chunk)
+    normalized_g_dot_matrix(geno_bed, snp_range, snp_mean, snp_std, &rand_mat, None, num_snps_per_chunk)
 }
 
 pub fn normalized_g_transpose_dot_matrix(geno_bed: &PlinkBed,
@@ -104,6 +104,7 @@ pub fn normalized_g_dot_matrix(geno_bed: &PlinkBed,
                                snp_mean: &Array<f32, Ix1>,
                                snp_std: &Array<f32, Ix1>,
                                rhs_matrix: &Array<f32, Ix2>,
+                               row_scaling: Option<&Array<f32, Ix1>>,
                                num_snps_per_chunk: Option<usize>) -> Array<f32, Ix2> {
     let chunk_size = num_snps_per_chunk.unwrap_or(DEFAULT_NUM_SNPS_PER_CHUNK);
 
@@ -127,6 +128,13 @@ pub fn normalized_g_dot_matrix(geno_bed: &PlinkBed,
         });
     let mean_dot_rhs_matrix = snp_mean.t().dot(&rhs_matrix);
     product_vec.par_iter_mut().enumerate().for_each(|(i, x)| *x -= mean_dot_rhs_matrix[i % num_cols]);
+    if let Some(scales) = row_scaling {
+        for (i, s) in scales.iter().enumerate() {
+            for j in 0..num_cols {
+                product_vec[i * num_cols + j] *= s;
+            }
+        }
+    }
     Array::from_shape_vec((num_people, num_cols), product_vec).unwrap()
 }
 
@@ -371,6 +379,47 @@ pub fn estimate_gxg_dot_y_norm_sq(gxg_basis_arr: &Array<f32, Ix2>, y: &Array<f32
     let mut ggz = wg.dot(&geno_arr_dot_rand_vecs);
     ggz.par_iter_mut().for_each(|x| *x = (*x) * (*x));
     ((ggz.sum() / num_random_vecs as f32 - s) / 2.) as f64
+}
+
+pub fn estimate_gxg_dot_y_norm_sq_from_basis_bed(gxg_basis_bed: &PlinkBed,
+                                                 snp_range: Option<OrderedIntegerSet<usize>>,
+                                                 snp_mean: &Array<f32, Ix1>,
+                                                 snp_std: &Array<f32, Ix1>,
+                                                 y: &Array<f32, Ix1>,
+                                                 num_random_vecs: usize) -> f64 {
+    let num_cols = match &snp_range {
+        Some(range) => range.size(),
+        None => gxg_basis_bed.num_snps,
+    };
+    let ssq_of_hi_hi = gxg_basis_bed
+        .col_chunk_iter(DEFAULT_NUM_SNPS_PER_CHUNK, snp_range.clone())
+        .into_par_iter()
+        .fold(|| 0f32, |acc, mut snp_chunk| {
+            normalize_matrix_columns_inplace(&mut snp_chunk, 0);
+            let gg_sq_dot_y = ((&snp_chunk) * (&snp_chunk)).t().dot(y);
+            acc + sum_of_squares_f32(gg_sq_dot_y.iter())
+        })
+        .sum::<f32>();
+
+    let y_scaled_basis_dot_rand_vecs = normalized_g_dot_matrix(
+        gxg_basis_bed,
+        snp_range.clone(),
+        snp_mean,
+        snp_std,
+        &generate_plus_minus_one_bernoulli_matrix(num_cols, num_random_vecs),
+        Some(y),
+        None,
+    );
+    let mut hhz = normalized_g_transpose_dot_matrix(
+        gxg_basis_bed,
+        snp_range,
+        snp_mean,
+        snp_std,
+        &y_scaled_basis_dot_rand_vecs,
+        None,
+    );
+    hhz.par_iter_mut().for_each(|x| *x = (*x) * (*x));
+    ((hhz.sum() / num_random_vecs as f32 - ssq_of_hi_hi) / 2.) as f64
 }
 
 /*

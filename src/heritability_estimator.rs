@@ -1,26 +1,31 @@
 use std::{fmt, io};
-use std::collections::HashSet;
 
 use analytic::set::ordered_integer_set::OrderedIntegerSet;
 use analytic::set::traits::{Finite, Set};
-use analytic::traits::ToIterator;
 use biofile::error::Error as PlinkBedError;
 use biofile::plink_bed::PlinkBed;
 use biofile::plink_bim::PlinkBim;
 use colored::Colorize;
 use ndarray::{Array, array, Axis, Ix1, Ix2, s};
 use ndarray_linalg::Solve;
+use ndarray_parallel::prelude::*;
 use rayon::prelude::*;
 
 use crate::jackknife::{AdditiveJackknife, Jackknife, JackknifePartitions};
-use crate::trace_estimator::{DEFAULT_NUM_SNPS_PER_CHUNK, estimate_gxg_dot_y_norm_sq, estimate_gxg_gram_trace,
-                             estimate_gxg_kk_trace, estimate_tr_gxg_ki_gxg_kj, estimate_tr_k_gxg_k, estimate_tr_kk,
-                             normalized_g_dot_matrix, normalized_gxg_ssq, normalized_g_transpose_dot_matrix};
-use crate::util::matrix_util::{generate_plus_minus_one_bernoulli_matrix, normalize_matrix_columns_inplace,
-                               normalize_vector_inplace};
+use crate::partitioned_jackknife_estimates::PartitionedJackknifeEstimates;
+use crate::trace_estimator::{
+    DEFAULT_NUM_SNPS_PER_CHUNK, estimate_gxg_dot_y_norm_sq, estimate_gxg_dot_y_norm_sq_from_basis_bed,
+    estimate_gxg_gram_trace, estimate_gxg_kk_trace, estimate_tr_gxg_ki_gxg_kj, estimate_tr_k_gxg_k,
+    estimate_tr_kk, normalized_g_dot_matrix, normalized_g_transpose_dot_matrix,
+    normalized_gxg_ssq,
+};
+use crate::util::matrix_util::{
+    generate_plus_minus_one_bernoulli_matrix, normalize_matrix_columns_inplace, normalize_vector_inplace,
+};
 use crate::util::stats_util::{mean, n_choose_2, standard_deviation, sum_f32, sum_of_squares, sum_of_squares_f32};
 
 const DEFAULT_PARTITION_NAME: &str = "default_partition";
+const GXG_YKY_NUM_RAND_SCALING: usize = 10;
 
 #[inline]
 fn bold_print(msg: &String) {
@@ -94,134 +99,27 @@ pub fn pheno_k_pheno(pheno_arr: &Array<f32, Ix1>, snp_range: &OrderedIntegerSet<
     yggy as f64 / snp_range.size() as f64
 }
 
-#[derive(Clone, PartialEq, Debug)]
-pub struct PartitionedJackknifeEstimates {
-    partition_names: Option<Vec<String>>,
-    pub partition_means_and_stds: Vec<(f64, f64)>,
-    pub sum_estimates: Option<(f64, f64)>,
-    pub subset_sum_estimates: Option<Vec<(String, (f64, f64))>>,
-}
-
-fn get_jackknife_mean_and_std(estimates: &Vec<f64>) -> (f64, f64) {
-    let num_knives = estimates.len();
-    let s: f64 = estimates.iter().sum();
-    let num_knives_minus_one_f64 = (num_knives - 1) as f64;
-    let mut x_i = Vec::new();
-    for i in 0..num_knives {
-        x_i.push((s - estimates[i]) / num_knives_minus_one_f64);
-    }
-    let x_avg = s / num_knives as f64;
-    let standard_error = (x_i.into_iter().map(|x| {
-        let delta = x - x_avg;
-        delta * delta
-    }).sum::<f64>() * num_knives_minus_one_f64 / num_knives as f64).sqrt();
-    (x_avg, standard_error)
-}
-
-impl PartitionedJackknifeEstimates {
-    pub fn from_jackknife_estimates(jackknife_iteration_estimates: &Vec<Vec<f64>>,
-                                    partition_names: Option<Vec<String>>,
-                                    subset_sum_indices: Option<Vec<(String, OrderedIntegerSet<usize>)>>)
-        -> Result<PartitionedJackknifeEstimates, String> {
-        if jackknife_iteration_estimates.iter().map(|estimates| estimates.len()).collect::<HashSet<usize>>().len() > 1 {
-            return Err(format!("inconsistent number of partitioned estimates across Jackknife iterations"));
-        }
-        if jackknife_iteration_estimates.len() == 0 {
-            return Ok(PartitionedJackknifeEstimates {
-                partition_names: None,
-                partition_means_and_stds: Vec::new(),
-                sum_estimates: None,
-                subset_sum_estimates: None,
-            });
-        }
-        let num_partitions = jackknife_iteration_estimates[0].len();
-        if let Some(names) = &partition_names {
-            if names.len() != num_partitions {
-                return Err(format!("partition_names.len() {} != the number of partitions in the jackknife estimates {}",
-                                   names.len(), num_partitions));
-            }
-        }
-        let mut partition_estimates = vec![vec![0f64; jackknife_iteration_estimates.len()]; num_partitions];
-        for (i, estimates) in jackknife_iteration_estimates.iter().enumerate() {
-            for p in 0..num_partitions {
-                partition_estimates[p][i] = estimates[p];
-            }
-        }
-        let total_variance_estimates: Vec<f64> = jackknife_iteration_estimates.iter()
-                                                                              .map(|v| v.iter()
-                                                                                        .map(|&x| x as f64)
-                                                                                        .sum())
-                                                                              .collect();
-        let sum_estimates = {
-            if total_variance_estimates.len() > 1 {
-                Some(get_jackknife_mean_and_std(&total_variance_estimates))
-            } else {
-                None
-            }
-        };
-
-        let subset_sum_estimates = match subset_sum_indices {
-            None => None,
-            Some(indices_list) => {
-                Some(indices_list.iter().map(|(subset_key, subset_indices)| {
-                    (subset_key.to_string(),
-                     get_jackknife_mean_and_std(&jackknife_iteration_estimates
-                         .iter()
-                         .map(|single_iter_estimates| {
-                             subset_indices.to_iter().fold(0f64, |acc, i| acc + single_iter_estimates[i])
-                         })
-                         .collect::<Vec<f64>>()))
-                }).collect::<Vec<(String, (f64, f64))>>())
-            }
-        };
-        Ok(PartitionedJackknifeEstimates {
-            partition_names,
-            partition_means_and_stds: partition_estimates.iter()
-                                                         .map(|estimates| get_jackknife_mean_and_std(estimates))
-                                                         .collect(),
-            sum_estimates,
-            subset_sum_estimates,
+pub fn sum_of_column_wise_inner_product(arr1: &Array<f32, Ix2>, arr2: &Array<f32, Ix2>) -> f32 {
+    arr1.axis_iter(Axis(1))
+        .into_par_iter()
+        .enumerate()
+        .map(|(b, col)| {
+            col.t().dot(&arr2.slice(s![.., b]))
         })
-    }
-}
-
-impl std::fmt::Display for PartitionedJackknifeEstimates {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let num_decimals = 7;
-        if let Some(partition_names) = &self.partition_names {
-            for (name, (m, s)) in partition_names.iter().zip(self.partition_means_and_stds.iter()) {
-                writeln!(f, "estimate for partition named {}: {:.*} standard error: {:.*}",
-                         name, num_decimals, m, num_decimals, s)?;
-            }
-        } else {
-            for (i, (m, s)) in self.partition_means_and_stds.iter().enumerate() {
-                writeln!(f, "estimate for partition {}: {:.*} standard error: {:.*}",
-                         i, num_decimals, m, num_decimals, s)?;
-            }
-        }
-
-        if let Some(subset_sum_estimates) = &self.subset_sum_estimates {
-            for (key, (m, s)) in subset_sum_estimates.iter() {
-                writeln!(f, "estimate for subset {}: {:.*} standard error: {:.*}",
-                         key, num_decimals, m, num_decimals, s)?;
-            }
-        }
-        if let Some(sum_estimates) = self.sum_estimates {
-            writeln!(f, "total estimate: {:.*} standard error: {:.*}",
-                     num_decimals, sum_estimates.0, num_decimals, sum_estimates.1)?;
-        }
-        Ok(())
-    }
+        .sum::<f32>()
 }
 
 // TODO: test
-fn get_column_mean_and_std(geno_bed: &PlinkBed, snp_range: &OrderedIntegerSet<usize>) -> (Array<f32, Ix1>, Array<f32, Ix1>) {
+fn get_column_mean_and_std(
+    geno_bed: &PlinkBed,
+    snp_range: &OrderedIntegerSet<usize>,
+) -> (Array<f32, Ix1>, Array<f32, Ix1>) {
     let chunk_size = DEFAULT_NUM_SNPS_PER_CHUNK;
     let mut snp_means = Vec::new();
     let mut snp_stds = Vec::new();
     geno_bed
         .col_chunk_iter(chunk_size, Some(snp_range.clone()))
-//        .into_par_iter()
+        .into_par_iter()
         .flat_map(|snp_chunk| {
             let mut m_and_s = Vec::new();
             for col in snp_chunk.gencolumns() {
@@ -235,7 +133,8 @@ fn get_column_mean_and_std(geno_bed: &PlinkBed, snp_range: &OrderedIntegerSet<us
             snp_means.push(m);
             snp_stds.push(s);
         });
-    (Array::from_shape_vec(snp_means.len(), snp_means).unwrap(), Array::from_shape_vec(snp_stds.len(), snp_stds).unwrap())
+    (Array::from_shape_vec(snp_means.len(), snp_means).unwrap(),
+     Array::from_shape_vec(snp_stds.len(), snp_stds).unwrap())
 }
 
 fn get_normal_eqn_matrices(num_partitions: usize, num_people: usize, yy: f64) -> (Array<f64, Ix2>, Array<f64, Ix1>) {
@@ -263,12 +162,13 @@ pub fn estimate_heritability(geno_arr_bed: PlinkBed, plink_bim: PlinkBim,
     let jackknife_partitions = JackknifePartitions::from_integer_set(
         partition_array.clone(),
         num_jackknife_partitions,
-        false);
+        true);
 
     let num_partitions = partition_array.len();
     let num_people = geno_arr_bed.num_people;
 
-    println!("num_people: {}\ntotal_num_snps: {}\n", num_people, partition_sizes.iter().fold(0, |acc, size| acc + *size));
+    println!("num_people: {}\ntotal_num_snps: {}\n",
+             num_people, partition_sizes.iter().fold(0, |acc, size| acc + *size));
     partitions.ordered_partition_keys().iter().enumerate().for_each(|(i, k)| {
         println!("partition named {} has {} SNPs", k, partition_sizes[i]);
     });
@@ -299,6 +199,7 @@ pub fn estimate_heritability(geno_arr_bed: PlinkBed, plink_bim: PlinkBim,
                                         &snp_mean_i,
                                         &snp_std_i,
                                         &gtz,
+                                        None,
                                         Some(2048))
             })
         );
@@ -319,52 +220,73 @@ pub fn estimate_heritability(geno_arr_bed: PlinkBed, plink_bim: PlinkBim,
         );
     }
 
-    use ndarray_parallel::prelude::*;
-    let mut heritability_estimates = Vec::new();
-    for (k, jackknife_partition) in jackknife_partitions.iter().enumerate() {
-        println!("\n=> leaving out jackknife partition with index {}", k);
+    let get_heritability_point_estimate = |k: Option<usize>,
+                                           jackknife_partition: Option<&OrderedIntegerSet<usize>>| {
         let (mut a, mut b) = get_normal_eqn_matrices(num_partitions, num_people, yy);
         for i in 0..num_partitions {
-            let num_snps_i = (partition_sizes[i] - jackknife_partition.intersect(&partition_array[i]).size()) as f64;
-            let ggz_i = ggz_jackknife[i].sum_minus_component(k);
+            let num_snps_i = match jackknife_partition {
+                Some(jackknife_partition) => (partition_sizes[i] - jackknife_partition.intersect(&partition_array[i]).size()) as f64,
+                None => partition_sizes[i] as f64,
+            };
+            let ggz_i = match k {
+                Some(k) => ggz_jackknife[i].sum_minus_component(k),
+                None => ggz_jackknife[i].get_component_sum().unwrap().clone(),
+            };
             a[[i, i]] = sum_of_squares_f32(ggz_i.iter()) as f64 / num_snps_i / num_snps_i / num_random_vecs as f64;
-//            println!("tr(k_{}_k_{})_est: {} num_snps_i: {}", i, i, a[[i, i]], num_snps_i);
-            b[i] = yky_jackknives[i].sum_minus_component(k) / num_snps_i;
+            println!("tr(k_{}_k_{})_est: {} num_snps_i: {}", i, i, a[[i, i]], num_snps_i);
+            b[i] = match k {
+                Some(k) => yky_jackknives[i].sum_minus_component(k) / num_snps_i,
+                None => yky_jackknives[i].get_component_sum().unwrap() / num_snps_i,
+            };
             for j in i + 1..num_partitions {
-                let num_snps_j = (partition_sizes[j] - jackknife_partition.intersect(&partition_array[j]).size()) as f64;
-                let ggz_j = ggz_jackknife[j].sum_minus_component(k);
-                let ssq = ggz_j.axis_iter(Axis(1))
-                               .into_par_iter()
-                               .enumerate()
-                               .map(|(b, col)| col.t().dot(&ggz_i.slice(s![.., b])))
-                               .sum::<f32>();
-                let tr_ki_kj_est = ssq as f64 / num_snps_i / num_snps_j / num_random_vecs as f64;
-//                println!("tr(k_{}_k_{})_est: {}", i, j, tr_ki_kj_est);
+                let num_snps_j = match jackknife_partition {
+                    Some(jackknife_partition) =>
+                        (partition_sizes[j] - jackknife_partition.intersect(&partition_array[j]).size()) as f64,
+                    None => partition_sizes[j] as f64,
+                };
+                let ggz_j = match k {
+                    Some(k) => ggz_jackknife[j].sum_minus_component(k),
+                    None => ggz_jackknife[j].get_component_sum().unwrap().clone(),
+                };
+
+                let tr_ki_kj_est = sum_of_column_wise_inner_product(&ggz_i, &ggz_j) as f64
+                    / num_snps_i
+                    / num_snps_j
+                    / num_random_vecs as f64;
+                println!("tr(k_{}_k_{})_est: {}", i, j, tr_ki_kj_est);
                 a[[i, j]] = tr_ki_kj_est;
                 a[[j, i]] = tr_ki_kj_est;
             }
         }
-//        println!("solving ax=b\na = {:?}\nb = {:?}", a, b);
+        println!("solving ax=b\na = {:?}\nb = {:?}", a, b);
         let mut sig_sq = a.solve_into(b).unwrap().as_slice().unwrap().to_owned();
-//        for i in 0..num_partitions {
-//            println!("variance estimate for partition named {}: {}", partition_keys[i], sig_sq[i] as f64);
-//        }
-//        println!("total var estimate: {}", sig_sq[..num_partitions].iter().map(|x| *x as f64).sum::<f64>());
-//        println!("noise estimate: {}", sig_sq[num_partitions]);
         sig_sq.truncate(num_partitions);
+        sig_sq
+    };
+    let mut heritability_estimates = Vec::new();
+    for (k, jackknife_partition) in jackknife_partitions.iter().enumerate() {
+        println!("\n=> leaving out jackknife partition with index {}", k);
+        let sig_sq = get_heritability_point_estimate(Some(k), Some(&jackknife_partition));
+        println!("\nsig_sq: {:?}", sig_sq);
         heritability_estimates.push(sig_sq.to_vec());
     }
-    PartitionedJackknifeEstimates::from_jackknife_estimates(&heritability_estimates,
-                                                            Some(partitions.ordered_partition_keys().clone()),
-                                                            None)
+    let est_without_jackknife = get_heritability_point_estimate(None, None);
+    println!("\nest_without_knife: {:?}", est_without_jackknife);
+    PartitionedJackknifeEstimates::from_jackknife_estimates(
+        &est_without_jackknife,
+        &heritability_estimates,
+        Some(partitions.ordered_partition_keys().clone()),
+        None)
 }
 
 fn get_gxg_dot_semi_kronecker_z_from_gz_and_ssq_jackknife(gz_jackknife: &AdditiveJackknife<Array<f32, Ix2>>,
                                                           g_ssq_jackknife: &AdditiveJackknife<Array<f32, Ix1>>,
                                                           jackknife_leave_out_index: Option<usize>) -> Array<f32, Ix2> {
     match jackknife_leave_out_index {
-        Some(jackknife_leave_out_index) => get_gxg_dot_semi_kronecker_z_from_gz_and_ssq(gz_jackknife.sum_minus_component(jackknife_leave_out_index),
-                                                                                        &g_ssq_jackknife.sum_minus_component(jackknife_leave_out_index)),
+        Some(jackknife_leave_out_index) => get_gxg_dot_semi_kronecker_z_from_gz_and_ssq(
+            gz_jackknife.sum_minus_component(jackknife_leave_out_index),
+            &g_ssq_jackknife.sum_minus_component(jackknife_leave_out_index),
+        ),
         None => get_gxg_dot_semi_kronecker_z_from_gz_and_ssq(gz_jackknife.get_component_sum().unwrap().clone(),
                                                              &g_ssq_jackknife.get_component_sum().unwrap()),
     }
@@ -382,12 +304,28 @@ pub fn get_gxg_dot_semi_kronecker_z_from_gz_and_ssq(mut gz: Array<f32, Ix2>, ssq
     gz
 }
 
-pub fn sum_of_column_wise_dot_square(arr1: &Array<f32, Ix2>, arr2: &Array<f32, Ix2>) -> f32 {
-    use ndarray_parallel::prelude::*;
-    arr1.axis_iter(Axis(1)).into_par_iter().enumerate().map(|(b, col_1)| {
-        let x = col_1.dot(&arr2.slice(s![.., b]));
-        x * x
-    }).sum::<f32>()
+fn get_partitioned_gz_jackknife(bed: &PlinkBed,
+                                snp_partition_array: &Vec<OrderedIntegerSet<usize>>,
+                                jackknife_partitions: &JackknifePartitions,
+                                num_rand_vecs: usize) -> Vec<AdditiveJackknife<Array<f32, Ix2>>> {
+    snp_partition_array.par_iter().map(|partition| {
+        AdditiveJackknife::from_op_over_jackknife_partitions(
+            jackknife_partitions,
+            |_, knife| {
+                let range_intersect = knife.intersect(partition);
+                let range_size = range_intersect.size();
+                let (snp_mean, snp_std) = get_column_mean_and_std(bed, &range_intersect);
+                normalized_g_dot_matrix(
+                    bed,
+                    Some(range_intersect),
+                    &snp_mean,
+                    &snp_std,
+                    &generate_plus_minus_one_bernoulli_matrix(range_size, num_rand_vecs),
+                    None,
+                    Some(2048),
+                )
+            })
+    }).collect::<Vec<AdditiveJackknife<Array<f32, Ix2>>>>()
 }
 
 pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
@@ -397,19 +335,29 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
                                    num_rand_vecs_gxg: usize,
                                    num_jackknife_partitions: usize)
     -> Result<PartitionedJackknifeEstimates, String> {
-    let g_partitions = g_bim.get_fileline_partitions_or(DEFAULT_PARTITION_NAME, OrderedIntegerSet::from_slice(&[[0, g_bed.num_snps - 1]]));
+    let g_partitions = g_bim.get_fileline_partitions_or(
+        DEFAULT_PARTITION_NAME, OrderedIntegerSet::from_slice(&[[0, g_bed.num_snps - 1]]),
+    );
     let g_partition_array: Vec<OrderedIntegerSet<usize>> = g_partitions.iter().map(|(_, p)| p.clone()).collect();
     let g_partition_sizes: Vec<usize> = g_partition_array.iter().map(|p| p.size()).collect();
 
-    let gxg_partitions = gxg_basis_bim.get_fileline_partitions_or(DEFAULT_PARTITION_NAME, OrderedIntegerSet::from_slice(&[[0, gxg_basis_bed.num_snps - 1]]));
+    let gxg_partitions = gxg_basis_bim.get_fileline_partitions_or(
+        DEFAULT_PARTITION_NAME, OrderedIntegerSet::from_slice(&[[0, gxg_basis_bed.num_snps - 1]]),
+    );
     let gxg_partition_array: Vec<OrderedIntegerSet<usize>> = gxg_partitions.iter().map(|(_, p)| p.clone()).collect();
     let gxg_partition_sizes: Vec<usize> = gxg_partition_array.iter().map(|p| p.size()).collect();
 
     let g_jackknife_partitions = JackknifePartitions::from_integer_set(
-        g_partition_array.clone(), num_jackknife_partitions, false);
+        g_partition_array.clone(),
+        num_jackknife_partitions,
+        true,
+    );
 
     let gxg_basis_jackknife_partitions = JackknifePartitions::from_integer_set(
-        gxg_partition_array.clone(), num_jackknife_partitions, false);
+        gxg_partition_array.clone(),
+        num_jackknife_partitions,
+        true,
+    );
 
     let num_g_partitions = g_partition_array.len();
     let num_gxg_partitions = gxg_partition_array.len();
@@ -417,11 +365,16 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
     let num_people = g_bed.num_people;
 
     assert_eq!(num_people, gxg_basis_bed.num_people,
-               "g_bed has {} people but gxg_basis_bed has {} people", num_people, gxg_basis_bed.num_people);
-    println!("num_people: {}\ntotal_num_g_snps: {}\ntotal_num_gxg_basis_snps: {}",
-             num_people,
-             g_partition_sizes.iter().fold(0, |acc, size| acc + *size),
-             gxg_partition_sizes.iter().fold(0, |acc, size| acc + *size));
+               "g_bed has {} people but gxg_basis_bed has {} people",
+               num_people, gxg_basis_bed.num_people);
+    println!(
+        "num_people: {}\n\
+        total_num_g_snps: {}\n\
+        total_num_gxg_basis_snps: {}",
+        num_people,
+        g_partition_sizes.iter().fold(0, |acc, size| acc + *size),
+        gxg_partition_sizes.iter().fold(0, |acc, size| acc + *size)
+    );
     g_partitions.ordered_partition_keys().iter().enumerate().for_each(|(i, k)| {
         println!("G partition named {} has {} SNPs", k, g_partition_sizes[i]);
     });
@@ -452,19 +405,17 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
                                     &snp_mean_i,
                                     &snp_std_i,
                                     &gtz,
+                                    None,
                                     Some(2048))
         })
     }).collect();
 
     println!("=> generating gz_jackknife");
-    let gz_jackknife: Vec<AdditiveJackknife<Array<f32, Ix2>>> = g_partition_array.par_iter().map(|partition| {
-        AdditiveJackknife::from_op_over_jackknife_partitions(&g_jackknife_partitions, |_, knife| {
-            let range_intersect = knife.intersect(partition);
-            let (snp_mean_i, snp_std_i) = get_column_mean_and_std(&g_bed, &range_intersect);
-            let rand_vecs = generate_plus_minus_one_bernoulli_matrix(range_intersect.size(), num_rand_vecs_g);
-            normalized_g_dot_matrix(&g_bed, Some(range_intersect), &snp_mean_i, &snp_std_i, &rand_vecs, Some(2048))
-        })
-    }).collect();
+    let gz_jackknife = get_partitioned_gz_jackknife(
+        &g_bed,
+        &g_partition_array,
+        &g_jackknife_partitions,
+        num_rand_vecs_g);
 
     println!("=> generating ygy_jackknives");
     let ygy_jackknives: Vec<AdditiveJackknife<f64>> = g_partition_array.par_iter().map(|partition| {
@@ -484,41 +435,34 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
     }).collect();
 
     println!("=> generating gxg_gz_jackknife");
-    let gxg_gz_jackknife: Vec<AdditiveJackknife<Array<f32, Ix2>>> = gxg_partition_array.par_iter().map(|partition| {
-        AdditiveJackknife::from_op_over_jackknife_partitions(&gxg_basis_jackknife_partitions, |_, knife| {
-            let range_intersect = knife.intersect(partition);
-            let (snp_mean_i, snp_std_i) = get_column_mean_and_std(&gxg_basis_bed, &range_intersect);
-            let gxg_random_vecs = generate_plus_minus_one_bernoulli_matrix(range_intersect.size(), num_rand_vecs_gxg);
-            normalized_g_dot_matrix(&gxg_basis_bed, Some(range_intersect), &snp_mean_i, &snp_std_i, &gxg_random_vecs, Some(2048))
-        })
-    }).collect();
+    let gxg_gz_jackknife = get_partitioned_gz_jackknife(
+        &gxg_basis_bed,
+        &gxg_partition_array,
+        &gxg_basis_jackknife_partitions,
+        num_rand_vecs_gxg);
 
     println!("=> generating gxg_gu_jackknife");
-    let gxg_gu_jackknife: Vec<AdditiveJackknife<Array<f32, Ix2>>> = gxg_partition_array.par_iter().map(|partition| {
-        AdditiveJackknife::from_op_over_jackknife_partitions(&gxg_basis_jackknife_partitions, |_, knife| {
-            let range_intersect = knife.intersect(partition);
-            let (snp_mean_i, snp_std_i) = get_column_mean_and_std(&gxg_basis_bed, &range_intersect);
-            let gxg_random_vecs = generate_plus_minus_one_bernoulli_matrix(range_intersect.size(), num_rand_vecs_gxg);
-            normalized_g_dot_matrix(&gxg_basis_bed, Some(range_intersect), &snp_mean_i, &snp_std_i, &gxg_random_vecs, Some(2048))
-        })
-    }).collect();
+    let gxg_gu_jackknife = get_partitioned_gz_jackknife(
+        &gxg_basis_bed,
+        &gxg_partition_array,
+        &gxg_basis_jackknife_partitions,
+        num_rand_vecs_gxg);
 
     println!("=> generating gxg_ssq_jackknife");
     let gxg_ssq_jackknife: Vec<AdditiveJackknife<Array<f32, Ix1>>> = gxg_partition_array.par_iter().map(|partition| {
         AdditiveJackknife::from_op_over_jackknife_partitions(&gxg_basis_jackknife_partitions, |_, knife| {
-            let range_intersect = knife.intersect(partition);
-            normalized_gxg_ssq(&gxg_basis_bed, Some(range_intersect), None)
+            normalized_gxg_ssq(&gxg_basis_bed, Some(knife.intersect(partition)), None)
         })
     }).collect();
 
-    use ndarray_parallel::prelude::*;
     let mut heritability_estimates = Vec::new();
     let nrv_g = num_rand_vecs_g as f64;
     let nrv_gxg = num_rand_vecs_gxg as f64;
     let get_heritability_point_estimate = |k: Option<usize>,
-                g_jackknife_range: Option<&OrderedIntegerSet<usize>>,
-                gxg_jackknife_range: Option<&OrderedIntegerSet<usize>>| {
+                                           g_jackknife_range: Option<&OrderedIntegerSet<usize>>,
+                                           gxg_jackknife_range: Option<&OrderedIntegerSet<usize>>| {
         let (mut a, mut b) = get_normal_eqn_matrices(total_num_partitions, num_people, yy);
+        // g_pairwise_est contains Vec<(str_kk_est, tr_gk_i_gk_j_est_list, tr_g_gxg_est_list, yky_est)>
         let g_pairwise_est: Vec<(f64, Vec<f64>, Vec<f64>, f64)> = (0..num_g_partitions).collect::<Vec<usize>>().par_iter().map(|&i| {
             let num_snps_i = match g_jackknife_range {
                 Some(g_jackknife_range) => (g_partition_sizes[i] - g_jackknife_range.intersect(&g_partition_array[i]).size()) as f64,
@@ -540,12 +484,10 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
                     None => ggz_jackknife[j].get_component_sum().unwrap().clone(),
                 };
 
-                let ssq = ggz_j.axis_iter(Axis(1))
-                               .into_par_iter()
-                               .enumerate()
-                               .map(|(b, col)| col.t().dot(&ggz_i.slice(s![.., b])))
-                               .sum::<f32>();
-                let tr_ki_kj_est = ssq as f64 / num_snps_i / num_snps_j / nrv_g;
+                let tr_ki_kj_est = sum_of_column_wise_inner_product(&ggz_i, &ggz_j) as f64
+                    / num_snps_i
+                    / num_snps_j
+                    / nrv_g;
                 tr_ki_kj_est
             }).collect();
 
@@ -591,10 +533,12 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
         }
 
         let gxg_pairwise_est: Vec<(f64, f64, Vec<f64>, f64)> = (0..num_gxg_partitions).collect::<Vec<usize>>().par_iter().map(|&i| {
-            let num_gxg_snps_i = match gxg_jackknife_range {
-                Some(gxg_jackknife_range) => n_choose_2(gxg_partition_sizes[i] - gxg_jackknife_range.intersect(&gxg_partition_array[i]).size()) as f64,
-                None => n_choose_2(gxg_partition_sizes[i]) as f64,
+            let range = match gxg_jackknife_range {
+                None => gxg_partition_array[i].clone(),
+                Some(r) => gxg_partition_array[i].clone() - r,
             };
+            let num_gxg_snps_i = n_choose_2(range.size()) as f64;
+
             let gxg_i_dot_semi_kronecker_z = get_gxg_dot_semi_kronecker_z_from_gz_and_ssq_jackknife(&gxg_gz_jackknife[i], &gxg_ssq_jackknife[i], k);
             let gxg_i_dot_semi_kronecker_u = get_gxg_dot_semi_kronecker_z_from_gz_and_ssq_jackknife(&gxg_gu_jackknife[i], &gxg_ssq_jackknife[i], k);
             let gxg_upper_triangular: Vec<f64> = (i + 1..num_gxg_partitions).collect::<Vec<usize>>().par_iter().map(|&j| {
@@ -608,10 +552,20 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
                 ) as f64 / num_gxg_snps_i / num_gxg_snps_j / nrv_gxg / nrv_gxg;
                 tr_gxg_i_gxg_j_est
             }).collect();
+
+            let (snp_mean_i, snp_std_i) = get_column_mean_and_std(&gxg_basis_bed, &range);
+            let y_gxg_k_y_est = estimate_gxg_dot_y_norm_sq_from_basis_bed(
+                &gxg_basis_bed, Some(range), &snp_mean_i, &snp_std_i, &pheno_arr, num_rand_vecs_gxg * GXG_YKY_NUM_RAND_SCALING,
+            ) / num_gxg_snps_i;
+
             (sum_of_squares_f32(gxg_i_dot_semi_kronecker_z.iter()) as f64 / num_gxg_snps_i / nrv_gxg,
-             sum_of_squares_f32(gxg_i_dot_semi_kronecker_z.t().dot(&gxg_i_dot_semi_kronecker_u).iter()) as f64 / num_gxg_snps_i / num_gxg_snps_i / nrv_gxg / nrv_gxg,
+             sum_of_squares_f32(gxg_i_dot_semi_kronecker_z.t().dot(&gxg_i_dot_semi_kronecker_u).iter()) as f64
+                 / num_gxg_snps_i
+                 / num_gxg_snps_i
+                 / nrv_gxg
+                 / nrv_gxg,
              gxg_upper_triangular,
-             sum_of_squares_f32(pheno_arr.t().dot(&gxg_i_dot_semi_kronecker_z).iter()) as f64 / num_gxg_snps_i / nrv_gxg)
+             y_gxg_k_y_est)
         }).collect();
 
         for (i, (tr_gxg_ki_est, tr_gxg_kk_est, gxg_upper_triangular, y_gxg_k_y_est)) in gxg_pairwise_est.into_iter().enumerate() {
@@ -640,13 +594,13 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
                                                                                .enumerate() {
         println!("\n=> leaving out jackknife partition with index {}", k);
         let sig_sq = get_heritability_point_estimate(Some(k), Some(&g_jackknife_range), Some(&gxg_jackknife_range));
-        println!("sig_sq: {:?}", sig_sq);
+        println!("\nsig_sq: {:?}", sig_sq);
         heritability_estimates.push(sig_sq.to_vec());
     }
 
     println!("\n=> Computing heritability without Jackknife");
     let est_without_knife = get_heritability_point_estimate(None, None, None);
-    println!("est_without_knife: {:?}", est_without_knife);
+    println!("\nest_without_knife: {:?}", est_without_knife);
 
     let mut total_partition_keys: Vec<String> = g_partitions.ordered_partition_keys().iter().map(|k| {
         let mut key = "G ".to_string();
@@ -659,6 +613,7 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
         total_partition_keys.push(key);
     });
     PartitionedJackknifeEstimates::from_jackknife_estimates(
+        &est_without_knife,
         &heritability_estimates,
         Some(total_partition_keys),
         Some(vec![
