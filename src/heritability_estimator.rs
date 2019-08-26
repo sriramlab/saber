@@ -179,30 +179,11 @@ pub fn estimate_heritability(geno_arr_bed: PlinkBed, plink_bim: PlinkBim,
     let yy = sum_of_squares(pheno_arr.iter());
     println!("\n=> yy: {}", yy);
 
-    let mut ggz_jackknife = Vec::new();
     let mut yky_jackknives = Vec::new();
     let random_vecs = generate_plus_minus_one_bernoulli_matrix(num_people, num_random_vecs);
+    let ggz_jackknife = get_partitioned_ggz_jackknife(&geno_arr_bed, &partition_array, &jackknife_partitions, &random_vecs);
     for (key, partition) in partitions.iter() {
         println!("=> processing partition named {}", key);
-        ggz_jackknife.push(
-            AdditiveJackknife::from_op_over_jackknife_partitions(&jackknife_partitions, |_, knife| {
-                let range_intersect = knife.intersect(partition);
-                let (snp_mean_i, snp_std_i) = get_column_mean_and_std(&geno_arr_bed, &range_intersect);
-                let gtz = normalized_g_transpose_dot_matrix(&geno_arr_bed,
-                                                            Some(range_intersect.clone()),
-                                                            &snp_mean_i,
-                                                            &snp_std_i,
-                                                            &random_vecs,
-                                                            None);
-                normalized_g_dot_matrix(&geno_arr_bed,
-                                        Some(range_intersect),
-                                        &snp_mean_i,
-                                        &snp_std_i,
-                                        &gtz,
-                                        None,
-                                        Some(2048))
-            })
-        );
         let means_and_std_jackknife = Jackknife::from_op_over_jackknife_partitions(&jackknife_partitions, |jackknife_p|
             get_column_mean_and_std(&geno_arr_bed, &jackknife_p.intersect(partition)),
         );
@@ -328,6 +309,37 @@ fn get_partitioned_gz_jackknife(bed: &PlinkBed,
     }).collect::<Vec<AdditiveJackknife<Array<f32, Ix2>>>>()
 }
 
+fn get_partitioned_ggz_jackknife(
+    bed: &PlinkBed,
+    snp_partition_array: &Vec<OrderedIntegerSet<usize>>,
+    jackknife_partitions: &JackknifePartitions,
+    rand_vecs: &Array<f32, Ix2>,
+) -> Vec<AdditiveJackknife<Array<f32, Ix2>>> {
+    snp_partition_array.par_iter().map(|partition| {
+        AdditiveJackknife::from_op_over_jackknife_partitions(&jackknife_partitions, |_, knife| {
+            let range_intersect = knife.intersect(partition);
+            let (snp_mean, snp_std) = get_column_mean_and_std(&bed, &range_intersect);
+            let gtz = normalized_g_transpose_dot_matrix(
+                &bed,
+                Some(range_intersect.clone()),
+                &snp_mean,
+                &snp_std,
+                &rand_vecs,
+                None,
+            );
+            normalized_g_dot_matrix(
+                &bed,
+                Some(range_intersect),
+                &snp_mean,
+                &snp_std,
+                &gtz,
+                None,
+                Some(2048),
+            )
+        })
+    }).collect()
+}
+
 pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
                                    gxg_basis_bed: PlinkBed, gxg_basis_bim: PlinkBim,
                                    mut pheno_arr: Array<f32, Ix1>,
@@ -388,34 +400,17 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
     let yy = sum_of_squares(pheno_arr.iter());
     println!("\n=> yy: {}", yy);
 
-    let g_random_vecs = generate_plus_minus_one_bernoulli_matrix(num_people, num_rand_vecs_g);
     println!("=> generating ggz_jackknife");
-    let ggz_jackknife: Vec<AdditiveJackknife<Array<f32, Ix2>>> = g_partition_array.par_iter().map(|partition| {
-        AdditiveJackknife::from_op_over_jackknife_partitions(&g_jackknife_partitions, |_, knife| {
-            let range_intersect = knife.intersect(partition);
-            let (snp_mean_i, snp_std_i) = get_column_mean_and_std(&g_bed, &range_intersect);
-            let gtz = normalized_g_transpose_dot_matrix(&g_bed,
-                                                        Some(range_intersect.clone()),
-                                                        &snp_mean_i,
-                                                        &snp_std_i,
-                                                        &g_random_vecs,
-                                                        None);
-            normalized_g_dot_matrix(&g_bed,
-                                    Some(range_intersect),
-                                    &snp_mean_i,
-                                    &snp_std_i,
-                                    &gtz,
-                                    None,
-                                    Some(2048))
-        })
-    }).collect();
+    let g_random_vecs = generate_plus_minus_one_bernoulli_matrix(num_people, num_rand_vecs_g);
+    let ggz_jackknife = get_partitioned_ggz_jackknife(&g_bed, &g_partition_array, &g_jackknife_partitions, &g_random_vecs);
 
     println!("=> generating gz_jackknife");
     let gz_jackknife = get_partitioned_gz_jackknife(
         &g_bed,
         &g_partition_array,
         &g_jackknife_partitions,
-        num_rand_vecs_g);
+        num_rand_vecs_g,
+    );
 
     println!("=> generating ygy_jackknives");
     let ygy_jackknives: Vec<AdditiveJackknife<f64>> = g_partition_array.par_iter().map(|partition| {
