@@ -162,9 +162,9 @@ impl<T: fmt::Display> fmt::Display for Estimate<T> {
         let fill = if indent > 0 { f.fill().to_string() } else { "".to_string() };
         write!(
             f,
-            "{:indent$}point_estimate_without_jackknife: {:.*}\n\
+            "{:indent$}point_estimate_without_jackknife: {:.*} (use this as the estimate)\n\
             {:indent$}Jackknife mean: {:.*}\n\
-            {:indent$}bias-corrected estimate: {:.*} (probably over-corrected)\n\
+            {:indent$}bias-corrected estimate: {:.*} (probably over-corrected, do not use)\n\
             {:indent$}standard error: {:.*}",
             fill, NUM_DISPLAY_DECIMALS, self.point_estimate_without_jackknife,
             fill, NUM_DISPLAY_DECIMALS, self.jackknife_mean,
