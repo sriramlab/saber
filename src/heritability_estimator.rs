@@ -350,13 +350,46 @@ fn get_partitioned_ygy_jackknife(
     }).collect()
 }
 
+fn check_and_print_g_and_gxg_partition_info(
+    g_bed: &PlinkBed,
+    gxg_basis_bed: &PlinkBed,
+    g_partition_sizes: &Vec<usize>,
+    gxg_partition_sizes: &Vec<usize>,
+    g_partition_names: &Vec<String>,
+    gxg_partition_names: &Vec<String>,
+) -> Result<(), Error> {
+    if g_bed.num_people != gxg_basis_bed.num_people {
+        return Err(
+            Error::Generic(
+                format!("g_bed has {} people but gxg_basis_bed has {} people",
+                        g_bed.num_people, gxg_basis_bed.num_people)
+            )
+        );
+    }
+    println!(
+        "num_people: {}\n\
+        total_num_g_snps: {}\n\
+        total_num_gxg_basis_snps: {}",
+        g_bed.num_people,
+        g_partition_sizes.iter().fold(0, |acc, size| acc + *size),
+        gxg_partition_sizes.iter().fold(0, |acc, size| acc + *size)
+    );
+    g_partition_names.iter().enumerate().for_each(|(i, k)| {
+        println!("G partition named {} has {} SNPs", k, g_partition_sizes[i]);
+    });
+    gxg_partition_names.iter().enumerate().for_each(|(i, k)| {
+        println!("GxG partition named {} has {} SNPs", k, gxg_partition_sizes[i]);
+    });
+    Ok(())
+}
+
 pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
                                    gxg_basis_bed: PlinkBed, gxg_basis_bim: PlinkBim,
                                    mut pheno_arr: Array<f32, Ix1>,
                                    num_rand_vecs_g: usize,
                                    num_rand_vecs_gxg: usize,
                                    num_jackknife_partitions: usize)
-    -> Result<PartitionedJackknifeEstimates, String> {
+    -> Result<PartitionedJackknifeEstimates, Error> {
     let g_partitions = g_bim.get_fileline_partitions_or(
         DEFAULT_PARTITION_NAME, OrderedIntegerSet::from_slice(&[[0, g_bed.num_snps - 1]]),
     );
@@ -385,24 +418,14 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
     let num_gxg_partitions = gxg_partition_array.len();
     let total_num_partitions = num_g_partitions + num_gxg_partitions;
     let num_people = g_bed.num_people;
-
-    assert_eq!(num_people, gxg_basis_bed.num_people,
-               "g_bed has {} people but gxg_basis_bed has {} people",
-               num_people, gxg_basis_bed.num_people);
-    println!(
-        "num_people: {}\n\
-        total_num_g_snps: {}\n\
-        total_num_gxg_basis_snps: {}",
-        num_people,
-        g_partition_sizes.iter().fold(0, |acc, size| acc + *size),
-        gxg_partition_sizes.iter().fold(0, |acc, size| acc + *size)
-    );
-    g_partitions.ordered_partition_keys().iter().enumerate().for_each(|(i, k)| {
-        println!("G partition named {} has {} SNPs", k, g_partition_sizes[i]);
-    });
-    gxg_partitions.ordered_partition_keys().iter().enumerate().for_each(|(i, k)| {
-        println!("GxG partition named {} has {} SNPs", k, gxg_partition_sizes[i]);
-    });
+    check_and_print_g_and_gxg_partition_info(
+        &g_bed,
+        &gxg_basis_bed,
+        &g_partition_sizes,
+        &gxg_partition_sizes,
+        g_partitions.ordered_partition_keys(),
+        gxg_partitions.ordered_partition_keys(),
+    )?;
 
     normalize_vector_inplace(&mut pheno_arr, 0);
     println!("\n=> normalized the phenotype vector");
@@ -412,7 +435,12 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
 
     println!("=> generating ggz_jackknife");
     let g_random_vecs = generate_plus_minus_one_bernoulli_matrix(num_people, num_rand_vecs_g);
-    let ggz_jackknife = get_partitioned_ggz_jackknife(&g_bed, &g_partition_array, &g_jackknife_partitions, &g_random_vecs);
+    let ggz_jackknife = get_partitioned_ggz_jackknife(
+        &g_bed,
+        &g_partition_array,
+        &g_jackknife_partitions,
+        &g_random_vecs,
+    );
 
     println!("=> generating gz_jackknife");
     let gz_jackknife = get_partitioned_gz_jackknife(
@@ -423,7 +451,12 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
     );
 
     println!("=> generating ygy_jackknives");
-    let ygy_jackknives = get_partitioned_ygy_jackknife(&g_bed, &g_partition_array, &g_jackknife_partitions, &pheno_arr);
+    let ygy_jackknives = get_partitioned_ygy_jackknife(
+        &g_bed,
+        &g_partition_array,
+        &g_jackknife_partitions,
+        &pheno_arr,
+    );
 
     println!("=> generating gxg_gz_jackknife");
     let gxg_gz_jackknife = get_partitioned_gz_jackknife(
@@ -603,7 +636,7 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
         key.push_str(k);
         total_partition_keys.push(key);
     });
-    PartitionedJackknifeEstimates::from_jackknife_estimates(
+    Ok(PartitionedJackknifeEstimates::from_jackknife_estimates(
         &est_without_knife,
         &heritability_estimates,
         Some(total_partition_keys),
@@ -611,7 +644,7 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
             ("G".to_string(), OrderedIntegerSet::from_slice(&[[0, num_g_partitions - 1]])),
             ("GxG".to_string(), OrderedIntegerSet::from_slice(&[[num_g_partitions, total_num_partitions - 1]]))
         ]),
-    )
+    )?)
 }
 
 /// `geno_arr` is the genotype matrix for the G component
