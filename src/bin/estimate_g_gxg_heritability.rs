@@ -1,31 +1,65 @@
 use biofile::plink_bed::PlinkBed;
-use biofile::plink_bim::{FilelinePartitions, PlinkBim};
+use biofile::plink_bim::PlinkBim;
 use clap::{Arg, clap_app};
 
 use saber::heritability_estimator::estimate_g_gxg_heritability;
 use saber::program_flow::OrExit;
-use saber::util::{extract_optional_str_arg, extract_str_arg, extract_str_vec_arg, get_bed_bim_fam_path, get_pheno_arr, extract_numeric_arg};
+use saber::util::{
+    extract_numeric_arg, extract_optional_str_arg, extract_str_arg, extract_str_vec_arg,
+    get_bed_bim_fam_path, get_pheno_arr,
+};
 
 fn main() {
     let mut app = clap_app!(estimate_multi_gxg_heritability =>
         (version: "0.1")
         (author: "Aaron Zhou")
-        (@arg bfile: --bfile -b <BFILE> "The PLINK prefix for x.bed, x.bim, x.fam is x; required")
-        (@arg le_snps_path: --le <LE_SNPS> "Plink file prefix to the SNPs in linkage equilibrium to construct the GxG matrix; required")
-        (@arg num_random_vecs: --nrv <NUM_RAND_VECS> "Number of random vectors used to estimate traces related to G; required")
     );
     app = app
         .arg(
+            Arg::with_name("plink_filename_prefix")
+                .long("bfile").short("b").takes_value(true).required(true)
+                .help(
+                    "If we have files named \n\
+                    PATH/TO/x.bed PATH/TO/x.bim PATH/TO/x.fam \n\
+                    then the <plink_filename_prefix> should be path/to/x"
+                )
+        )
+        .arg(
+            Arg::with_name("le_snps_filename_prefix")
+                .long("le").takes_value(true).required(true)
+                .help(
+                    "The SNPs used to construct the GxG matrix.\n\
+                    If we have files named \n\
+                    PATH/TO/x.bed PATH/TO/x.bim PATH/TO/x.fam \n\
+                    then the <le_snps_filename_prefix> should be path/to/x"
+                )
+        )
+        .arg(
+            Arg::with_name("num_random_vecs")
+                .long("nrv").takes_value(true).required(true)
+                .help(
+                    "The number of random vectors used to estimate traces\n\
+                    Recommends at least 100 for small datasets, and 10 for huge datasets"
+                )
+        )
+        .arg(
             Arg::with_name("num_rand_vecs_gxg")
                 .long("nrv-gxg").takes_value(true).required(true)
-                .help("Number of random vectors used to estimate traces related to the GxG matrix; required")
+                .help(
+                    "The number of random vectors used to estimate traces related to the GxG matrix"
+                )
         )
         .arg(
             Arg::with_name("pheno_path")
                 .long("pheno").short("p").takes_value(true).required(true)
                 .multiple(true).number_of_values(1)
-                .help("Path to the phenotype file. If there are multiple phenotypes, say PHENO1 and PHENO2, \
-                pass the paths one by one as follows: -p PHENO1 -p PHENO2")
+                .help(
+                    "The header line should be\n\
+                    FID IID PHENOTYPE_NAME\n\
+                    where PHENOTYPE_NAME can be any string without white spaces.\n\
+                    The rest of the lines are of the form:\n\
+                    1000011 1000011 -12.11363"
+                )
         )
         .arg(
             Arg::with_name("trace_outpath")
@@ -34,7 +68,10 @@ fn main() {
         .arg(
             Arg::with_name("load_trace")
                 .long("load-trace").takes_value(true)
-                .help("Use the previously saved trace estimates instead of estimating them from scratch")
+                .help(
+                    "Use the previously saved trace estimates\n\
+                    instead of estimating them from scratch"
+                )
         )
         .arg(
             Arg::with_name("partition_file").long("partition").takes_value(true)
@@ -49,17 +86,20 @@ fn main() {
         );
     let matches = app.get_matches();
 
-    let bfile = extract_str_arg(&matches, "bfile");
-    let le_snps_path = extract_str_arg(&matches, "le_snps_path");
+    let plink_filename_prefix = extract_str_arg(&matches, "plink_filename_prefix");
+    let le_snps_filename_prefix = extract_str_arg(&matches, "le_snps_filename_prefix");
     let trace_outpath = extract_optional_str_arg(&matches, "trace_outpath");
     let load_trace = extract_optional_str_arg(&matches, "load_trace");
     let pheno_path_vec = extract_str_vec_arg(&matches, "pheno_path")
         .unwrap_or_exit(None::<String>);
-    let num_jackknife_partitions = extract_numeric_arg::<usize>(&matches, "num_jackknife_partitions")
-        .unwrap_or_exit(Some(format!("failed to extract num_jackknife_partitions")));
+    let num_jackknife_partitions = extract_numeric_arg::<usize>(
+        &matches, "num_jackknife_partitions",
+    ).unwrap_or_exit(Some(format!("failed to extract num_jackknife_partitions")));
 
-    let [bed_path, bim_path, fam_path] = get_bed_bim_fam_path(&bfile);
-    let [le_snps_bed_path, le_snps_bim_path, le_snps_fam_path] = get_bed_bim_fam_path(&le_snps_path);
+    let [bed_path, bim_path, fam_path] = get_bed_bim_fam_path(&plink_filename_prefix);
+    let [le_snps_bed_path, le_snps_bim_path, le_snps_fam_path] = get_bed_bim_fam_path(
+        &le_snps_filename_prefix
+    );
 
     let num_random_vecs = extract_str_arg(&matches, "num_random_vecs")
         .parse::<usize>()
@@ -70,10 +110,21 @@ fn main() {
     let g_partition_filepath = extract_optional_str_arg(&matches, "partition_file");
     let gxg_partition_filepath = extract_optional_str_arg(&matches, "gxg_partition_file");
 
-    println!("PLINK bed path: {}\nPLINK bim path: {}\nPLINK fam path: {}", bed_path, bim_path, fam_path);
     println!(
-        "LE SNPs bed path: {}\nLE SNPs bim path: {}\nLE SNPs fam path: {}",
-        le_snps_bed_path, le_snps_bim_path, le_snps_fam_path
+        "PLINK bed path: {}\n\
+        PLINK bim path: {}\n\
+        PLINK fam path: {}",
+        bed_path,
+        bim_path,
+        fam_path
+    );
+    println!(
+        "LE SNPs bed path: {}\n\
+        LE SNPs bim path: {}\n\
+        LE SNPs fam path: {}",
+        le_snps_bed_path,
+        le_snps_bim_path,
+        le_snps_fam_path
     );
     println!("phenotype paths:");
     for (i, path) in pheno_path_vec.iter().enumerate() {
@@ -121,9 +172,21 @@ fn main() {
         };
         let pheno_arr = get_pheno_arr(pheno_path)
             .unwrap_or_exit(None::<String>);
-        match estimate_g_gxg_heritability(geno_bed, geno_bim, le_snps_bed, le_snps_bim, pheno_arr,
-                                          num_random_vecs, num_rand_vecs_gxg, num_jackknife_partitions) {
-            Err(why) => println!("failed to get heritability estimate for {}: {}", &pheno_path, why),
+        match estimate_g_gxg_heritability(
+            geno_bed,
+            geno_bim,
+            le_snps_bed,
+            le_snps_bim,
+            pheno_arr,
+            num_random_vecs,
+            num_rand_vecs_gxg,
+            num_jackknife_partitions,
+        ) {
+            Err(why) => println!(
+                "failed to get heritability estimate for {}: {}",
+                &pheno_path,
+                why
+            ),
             Ok(est) => println!("estimate for {}:\n{}", &pheno_path, est)
         };
     }
