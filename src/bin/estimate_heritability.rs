@@ -1,7 +1,11 @@
+use analytic::set::ordered_integer_set::OrderedIntegerSet;
+use analytic::set::traits::Finite;
+use analytic::traits::Collecting;
+use biofile::plink_bed::PlinkBed;
+use biofile::plink_bim::{PlinkBim, FilelinePartitions};
 use clap::{Arg, clap_app};
 
-use biofile::plink_bed::PlinkBed;
-use biofile::plink_bim::PlinkBim;
+use saber::heritability_estimator::DEFAULT_PARTITION_NAME;
 use saber::heritability_estimator::estimate_heritability;
 use saber::program_flow::OrExit;
 use saber::util::{extract_numeric_arg, extract_optional_str_arg, extract_str_arg, get_pheno_arr};
@@ -53,13 +57,31 @@ fn main() {
                             &plink_fam_path)
         .unwrap_or_exit(None::<String>);
 
-    let bim = match &partition_filepath {
+    let maf = bed.get_minor_allele_frequencies(None);
+    let mut low_maf = OrderedIntegerSet::new();
+    let lowest_allowed_maf = 0.001;
+    for (i, f) in maf.into_iter().enumerate() {
+        if f < lowest_allowed_maf {
+            low_maf.collect(i);
+        }
+    }
+    println!("removing {} alleles with frequency < {}", low_maf.size(), lowest_allowed_maf);
+
+    let mut bim = match &partition_filepath {
         Some(partition_filepath) => PlinkBim::new_with_partition_file(&plink_bim_path, partition_filepath)
             .unwrap_or_exit(Some(format!("failed to create PlinkBim from bim file: {} and partition file: {}",
                                          &plink_bim_path, partition_filepath))),
         None => PlinkBim::new(&plink_bim_path)
             .unwrap_or_exit(Some(format!("failed to create PlinkBim from {}", &plink_bim_path))),
     };
+    let mut filtered_partitions = bim
+        .get_fileline_partitions_or(
+            DEFAULT_PARTITION_NAME,
+            OrderedIntegerSet::from_slice(&[[0, bed.num_snps - 1]]),
+        )
+        .into_hash_map();
+    filtered_partitions.values_mut().for_each(|v| *v -= &low_maf);
+    bim.set_fileline_partitions(Some(FilelinePartitions::new(filtered_partitions)));
 
     match estimate_heritability(bed,
                                 bim,

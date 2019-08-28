@@ -27,7 +27,7 @@ use crate::util::stats_util::{
     mean, n_choose_2, standard_deviation, sum_f32, sum_of_squares, sum_of_squares_f32,
 };
 
-const DEFAULT_PARTITION_NAME: &str = "default_partition";
+pub const DEFAULT_PARTITION_NAME: &str = "default_partition";
 const GXG_YKY_NUM_RAND_SCALING: usize = 10;
 
 pub fn estimate_heritability(geno_arr_bed: PlinkBed, plink_bim: PlinkBim,
