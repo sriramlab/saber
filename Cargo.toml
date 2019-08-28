@@ -8,7 +8,7 @@ edition = "2018"
 members = ["."]
 
 [dependencies]
-biofile = "0.1.10"
+biofile = "0.1.11"
 blas-src = { version = "0.3", features = ["openblas"] }
 clap = "2.32.0"
 colored = "1.7.0"
