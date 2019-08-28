@@ -8,7 +8,7 @@ use clap::{Arg, clap_app};
 use saber::heritability_estimator::DEFAULT_PARTITION_NAME;
 use saber::heritability_estimator::estimate_heritability;
 use saber::program_flow::OrExit;
-use saber::util::{extract_numeric_arg, extract_optional_str_arg, extract_str_arg, get_pheno_arr};
+use saber::util::{extract_numeric_arg, extract_optional_str_arg, extract_str_arg, get_pheno_arr, extract_optional_numeric_arg};
 
 fn main() {
     let mut app = clap_app!(estimate_heritability =>
@@ -26,14 +26,22 @@ fn main() {
         )
         .arg(
             Arg::with_name("partition_file").long("partition").takes_value(true)
-        );
+        )
+        .arg(
+            Arg::with_name("lowest_allowed_maf")
+                .long("lowest-maf").takes_value(true)
+                .help("lowest allowed minor allele frequency")
+        )
+    ;
     let matches = app.get_matches();
 
     let plink_filename_prefix = extract_str_arg(&matches, "plink_filename_prefix");
     let pheno_filename = extract_str_arg(&matches, "pheno_filename");
     let num_jackknife_partitions = extract_numeric_arg::<usize>(&matches, "num_jackknife_partitions")
-        .unwrap_or_exit(Some(format!("failed to extract num_jackknife_partitions")));
+        .unwrap_or_exit(Some("failed to extract num_jackknife_partitions"));
     let partition_filepath = extract_optional_str_arg(&matches, "partition_file");
+    let lowest_allowed_maf = extract_optional_numeric_arg::<f32>(&matches, "lowest_allowed_maf")
+        .unwrap_or_exit(Some("failed to extract lowest_allowed_maf"));
 
     let plink_bed_path = format!("{}.bed", plink_filename_prefix);
     let plink_bim_path = format!("{}.bim", plink_filename_prefix);
@@ -46,8 +54,12 @@ fn main() {
     println!("PLINK bed path: {}\nPLINK bim path: {}\nPLINK fam path: {}",
              plink_bed_path, plink_bim_path, plink_fam_path);
     println!("pheno_filepath: {}\nnum_random_vecs: {}", pheno_filename, num_random_vecs);
-    println!("partition_filepath: {}\nnum_jackknife_partitions: {}",
-             partition_filepath.as_ref().unwrap_or(&"".to_string()), num_jackknife_partitions);
+    println!(
+        "partition_filepath: {}\n\
+        num_jackknife_partitions: {}",
+        partition_filepath.as_ref().unwrap_or(&"".to_string()),
+        num_jackknife_partitions
+    );
 
     let pheno_arr = get_pheno_arr(&pheno_filename)
         .unwrap_or_exit(None::<String>);
@@ -59,13 +71,23 @@ fn main() {
 
     let maf = bed.get_minor_allele_frequencies(None);
     let mut low_maf = OrderedIntegerSet::new();
-    let lowest_allowed_maf = 0.001;
-    for (i, f) in maf.into_iter().enumerate() {
-        if f < lowest_allowed_maf {
-            low_maf.collect(i);
+    match lowest_allowed_maf {
+        None => {
+            maf.into_iter().enumerate().for_each(|(i, f)| {
+                if f == 0. {
+                    low_maf.collect(i);
+                }
+            })
         }
-    }
-    println!("removing {} alleles with frequency < {}", low_maf.size(), lowest_allowed_maf);
+        Some(l) => {
+            maf.into_iter().enumerate().for_each(|(i, f)| {
+                if f < l {
+                    low_maf.collect(i);
+                }
+            })
+        }
+    };
+    println!("removing {} alleles with frequency < {}", low_maf.size(), lowest_allowed_maf.unwrap_or(0.));
 
     let mut bim = match &partition_filepath {
         Some(partition_filepath) => PlinkBim::new_with_partition_file(&plink_bim_path, partition_filepath)
