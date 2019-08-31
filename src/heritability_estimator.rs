@@ -27,15 +27,15 @@ use crate::util::stats_util::{
     mean, n_choose_2, standard_deviation, sum_f32, sum_of_squares, sum_of_squares_f32,
 };
 
-const DEFAULT_PARTITION_NAME: &str = "default_partition";
+pub const DEFAULT_PARTITION_NAME: &str = "default_partition";
 const GXG_YKY_NUM_RAND_SCALING: usize = 10;
 
-pub fn estimate_heritability(geno_arr_bed: PlinkBed, plink_bim: PlinkBim,
+pub fn estimate_heritability(geno_bed: PlinkBed, geno_bim: PlinkBim,
                              mut pheno_arr: Array<f32, Ix1>, num_random_vecs: usize,
                              num_jackknife_partitions: usize)
     -> Result<PartitionedJackknifeEstimates, String> {
-    let partitions = plink_bim.get_fileline_partitions_or(
-        DEFAULT_PARTITION_NAME, OrderedIntegerSet::from_slice(&[[0, geno_arr_bed.num_snps - 1]]));
+    let partitions = geno_bim.get_fileline_partitions_or(
+        DEFAULT_PARTITION_NAME, OrderedIntegerSet::from_slice(&[[0, geno_bed.num_snps - 1]]));
     let partition_array: Vec<OrderedIntegerSet<usize>> = partitions.iter()
                                                                    .map(|(_, p)| p.clone())
                                                                    .collect();
@@ -49,7 +49,7 @@ pub fn estimate_heritability(geno_arr_bed: PlinkBed, plink_bim: PlinkBim,
         true);
 
     let num_partitions = partition_array.len();
-    let num_people = geno_arr_bed.num_people;
+    let num_people = geno_bed.num_people;
 
     println!("num_people: {}\ntotal_num_snps: {}\n",
              num_people, partition_sizes.iter().fold(0, |acc, size| acc + *size));
@@ -66,7 +66,7 @@ pub fn estimate_heritability(geno_arr_bed: PlinkBed, plink_bim: PlinkBim,
     println!("=> generating ggz_jackknife");
     let random_vecs = generate_plus_minus_one_bernoulli_matrix(num_people, num_random_vecs);
     let ggz_jackknife = get_partitioned_ggz_jackknife(
-        &geno_arr_bed,
+        &geno_bed,
         &partition_array,
         &jackknife_partitions,
         &random_vecs,
@@ -74,7 +74,7 @@ pub fn estimate_heritability(geno_arr_bed: PlinkBed, plink_bim: PlinkBim,
 
     println!("=> generating ygy_jackknife");
     let ygy_jackknife = get_partitioned_ygy_jackknife(
-        &geno_arr_bed,
+        &geno_bed,
         &partition_array,
         &jackknife_partitions,
         &pheno_arr,
