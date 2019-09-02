@@ -1,30 +1,32 @@
-use std::{fmt, io};
-
 use analytic::set::ordered_integer_set::OrderedIntegerSet;
 use analytic::set::traits::{Finite, Set};
-use biofile::error::Error as PlinkBedError;
 use biofile::plink_bed::PlinkBed;
 use biofile::plink_bim::PlinkBim;
 use colored::Colorize;
-use ndarray::{Array, array, Axis, Ix1, Ix2, s};
+use ndarray::{Array, array, Ix1, Ix2};
 use ndarray_linalg::Solve;
 use ndarray_parallel::prelude::*;
 use rayon::prelude::*;
 
+use crate::error::Error;
 use crate::jackknife::{AdditiveJackknife, Jackknife, JackknifePartitions};
+use crate::matrix_ops::{DEFAULT_NUM_SNPS_PER_CHUNK, get_column_mean_and_std,
+                        get_gxg_dot_semi_kronecker_z_from_gz_and_ssq, normalized_g_dot_matrix,
+                        normalized_g_transpose_dot_matrix, normalized_gxg_ssq, pheno_k_pheno,
+                        sum_of_column_wise_inner_product,
+};
 use crate::partitioned_jackknife_estimates::PartitionedJackknifeEstimates;
 use crate::trace_estimator::{
-    DEFAULT_NUM_SNPS_PER_CHUNK, estimate_gxg_dot_y_norm_sq,
-    estimate_gxg_dot_y_norm_sq_from_basis_bed, estimate_gxg_gram_trace, estimate_gxg_kk_trace,
-    estimate_tr_gxg_ki_gxg_kj, estimate_tr_k_gxg_k, estimate_tr_kk, normalized_g_dot_matrix,
-    normalized_g_transpose_dot_matrix, normalized_gxg_ssq,
+    estimate_gxg_dot_y_norm_sq, estimate_gxg_dot_y_norm_sq_from_basis_bed,
+    estimate_gxg_gram_trace, estimate_gxg_kk_trace, estimate_tr_gxg_ki_gxg_kj,
+    estimate_tr_k_gxg_k, estimate_tr_kk,
 };
 use crate::util::matrix_util::{
     generate_plus_minus_one_bernoulli_matrix, normalize_matrix_columns_inplace,
     normalize_vector_inplace,
 };
 use crate::util::stats_util::{
-    mean, n_choose_2, standard_deviation, sum_f32, sum_of_squares, sum_of_squares_f32,
+    n_choose_2, sum_of_squares, sum_of_squares_f32,
 };
 
 pub const DEFAULT_PARTITION_NAME: &str = "default_partition";
@@ -385,7 +387,11 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
                     / nrv_gxg
             }).collect();
 
-            let (snp_mean_i, snp_std_i) = get_column_mean_and_std(&gxg_basis_bed, &range);
+            let (snp_mean_i, snp_std_i) = get_column_mean_and_std(
+                &gxg_basis_bed,
+                &range,
+                DEFAULT_NUM_SNPS_PER_CHUNK,
+            );
             let y_gxg_k_y_est = estimate_gxg_dot_y_norm_sq_from_basis_bed(
                 &gxg_basis_bed,
                 Some(range),
@@ -495,121 +501,6 @@ fn check_and_print_g_and_gxg_partition_info(
     Ok(())
 }
 
-#[inline]
-fn bold_print(msg: &String) {
-    println!("{}", msg.bold());
-}
-
-pub enum Error {
-    IO { why: String, io_error: io::Error },
-    Generic(String),
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Error::IO { why, .. } => write!(f, "IO error: {}", why),
-            Error::Generic(why) => write!(f, "Generic Error: {}", why)
-        }
-    }
-}
-
-impl From<PlinkBedError> for Error {
-    fn from(err: PlinkBedError) -> Error {
-        match err {
-            PlinkBedError::BadFormat(why) => Error::Generic(why),
-            PlinkBedError::Generic(why) => Error::Generic(why),
-            PlinkBedError::IO { why, io_error } => Error::IO { why, io_error },
-        }
-    }
-}
-
-impl From<io::Error> for Error {
-    fn from(err: io::Error) -> Error {
-        Error::IO { why: "IO Error: ".to_string(), io_error: err }
-    }
-}
-
-impl From<String> for Error {
-    fn from(err: String) -> Error {
-        Error::Generic(err)
-    }
-}
-
-pub fn pheno_dot_geno(pheno_arr: &Array<f32, Ix1>,
-                      geno_bed: &PlinkBed, snp_range: &OrderedIntegerSet<usize>,
-                      chunk_size: usize) -> Vec<f32> {
-    geno_bed.col_chunk_iter(chunk_size, Some(snp_range.clone()))
-            .into_par_iter()
-            .flat_map(|mut snp_chunk| {
-                normalize_matrix_columns_inplace(&mut snp_chunk, 0);
-                pheno_arr.dot(&snp_chunk).as_slice().unwrap().to_owned()
-            })
-            .collect()
-}
-
-pub fn pheno_k_pheno(
-    pheno_arr: &Array<f32, Ix1>,
-    snp_range: &OrderedIntegerSet<usize>,
-    geno_bed: &PlinkBed,
-    snp_means: &Array<f32, Ix1>,
-    snp_stds: &Array<f32, Ix1>,
-    chunk_size: usize,
-) -> f64 {
-    let pheno_sum = sum_f32(pheno_arr.iter());
-    let yggy = geno_bed.col_chunk_iter(chunk_size, Some(snp_range.clone()))
-                       .into_par_iter()
-                       .enumerate()
-                       .fold(|| 0f32, |acc, (chunk_index, snp_chunk)| {
-                           let mut arr = pheno_arr.dot(&snp_chunk).as_slice().unwrap().to_owned();
-                           let offset = chunk_index * chunk_size;
-                           for (i, x) in arr.iter_mut().enumerate() {
-                               *x = (*x - pheno_sum * snp_means[offset + i]) / snp_stds[offset + i];
-                           }
-                           acc + sum_of_squares_f32(arr.iter())
-                       })
-                       .sum::<f32>();
-    yggy as f64 / snp_range.size() as f64
-}
-
-pub fn sum_of_column_wise_inner_product(arr1: &Array<f32, Ix2>, arr2: &Array<f32, Ix2>) -> f32 {
-    arr1.axis_iter(Axis(1))
-        .into_par_iter()
-        .enumerate()
-        .map(|(b, col)| {
-            col.t().dot(&arr2.slice(s![.., b]))
-        })
-        .sum::<f32>()
-}
-
-// TODO: test
-pub fn get_column_mean_and_std(
-    geno_bed: &PlinkBed,
-    snp_range: &OrderedIntegerSet<usize>,
-) -> (Array<f32, Ix1>, Array<f32, Ix1>) {
-    let chunk_size = DEFAULT_NUM_SNPS_PER_CHUNK;
-    let mut snp_means = Vec::new();
-    let mut snp_stds = Vec::new();
-    geno_bed
-        .col_chunk_iter(chunk_size, Some(snp_range.clone()))
-        .into_par_iter()
-        .flat_map(|snp_chunk| {
-            let mut m_and_s = Vec::new();
-            for col in snp_chunk.gencolumns() {
-                m_and_s.push((mean(col.iter()) as f32, standard_deviation(col.iter(), 0) as f32));
-            }
-            m_and_s
-        })
-        .collect::<Vec<(f32, f32)>>()
-        .into_iter()
-        .for_each(|(m, s)| {
-            snp_means.push(m);
-            snp_stds.push(s);
-        });
-    (Array::from_shape_vec(snp_means.len(), snp_means).unwrap(),
-     Array::from_shape_vec(snp_stds.len(), snp_stds).unwrap())
-}
-
 fn get_normal_eqn_matrices(
     num_partitions: usize,
     num_people: usize,
@@ -644,21 +535,6 @@ fn get_gxg_dot_semi_kronecker_z_from_gz_and_ssq_jackknife(
     }
 }
 
-pub fn get_gxg_dot_semi_kronecker_z_from_gz_and_ssq(
-    mut gz: Array<f32, Ix2>,
-    ssq: &Array<f32, Ix1>,
-) -> Array<f32, Ix2> {
-    let (num_people, num_cols) = gz.dim();
-    for i in 0..num_people {
-        let s = ssq[i];
-        for b in 0..num_cols {
-            let val1 = gz[[i, b]];
-            gz[[i, b]] = (val1 * val1 - s) / 2.;
-        }
-    }
-    gz
-}
-
 fn get_partitioned_gz_jackknife(bed: &PlinkBed,
                                 snp_partition_array: &Vec<OrderedIntegerSet<usize>>,
                                 jackknife_partitions: &JackknifePartitions,
@@ -669,7 +545,11 @@ fn get_partitioned_gz_jackknife(bed: &PlinkBed,
             |_, knife| {
                 let range_intersect = knife.intersect(partition);
                 let range_size = range_intersect.size();
-                let (snp_mean, snp_std) = get_column_mean_and_std(bed, &range_intersect);
+                let (snp_mean, snp_std) = get_column_mean_and_std(
+                    bed,
+                    &range_intersect,
+                    DEFAULT_NUM_SNPS_PER_CHUNK,
+                );
                 normalized_g_dot_matrix(
                     bed,
                     Some(range_intersect),
@@ -692,7 +572,11 @@ fn get_partitioned_ggz_jackknife(
     snp_partition_array.par_iter().map(|partition| {
         AdditiveJackknife::from_op_over_jackknife_partitions(&jackknife_partitions, |_, knife| {
             let range_intersect = knife.intersect(partition);
-            let (snp_mean, snp_std) = get_column_mean_and_std(&bed, &range_intersect);
+            let (snp_mean, snp_std) = get_column_mean_and_std(
+                &bed,
+                &range_intersect,
+                DEFAULT_NUM_SNPS_PER_CHUNK,
+            );
             let gtz = normalized_g_transpose_dot_matrix(
                 &bed,
                 Some(range_intersect.clone()),
@@ -722,7 +606,11 @@ fn get_partitioned_ygy_jackknife(
 ) -> Vec<AdditiveJackknife<f64>> {
     snp_partition_array.par_iter().map(|partition| {
         let means_and_stds_jackknife = Jackknife::from_op_over_jackknife_partitions(
-            jackknife_partitions, |knife| get_column_mean_and_std(bed, &knife.intersect(partition)),
+            jackknife_partitions, |knife| get_column_mean_and_std(
+                bed,
+                &knife.intersect(partition),
+                DEFAULT_NUM_SNPS_PER_CHUNK,
+            ),
         );
         AdditiveJackknife::from_op_over_jackknife_partitions(jackknife_partitions, |k, knife| {
             let range = knife.intersect(partition);
@@ -737,6 +625,11 @@ fn get_partitioned_ygy_jackknife(
             ) * num_snps_in_range
         })
     }).collect()
+}
+
+#[inline]
+fn bold_print(msg: &String) {
+    println!("{}", msg.bold());
 }
 
 /// `geno_arr` is the genotype matrix for the G component
@@ -915,6 +808,7 @@ fn get_yky_gxg_yky_and_yy(geno_arr: &mut PlinkBed, normalized_pheno_arr: &Array<
     b
 }
 
+#[deprecated]
 pub fn estimate_gxg_heritability(
     gxg_basis_arr: Array<f32, Ix2>,
     mut pheno_arr: Array<f32, Ix1>,
