@@ -63,65 +63,6 @@ impl<C: Send> AdditiveJackknife<C> {
     }
 }
 
-pub struct BipartiteAdditiveJackknife<C> {
-    bipartite_additive_components: Vec<Vec<C>>,
-    sum: Option<C>,
-}
-
-impl<C> BipartiteAdditiveJackknife<C> {
-    pub fn from_op_over_jackknife_partitions<F>(jackknife_partitions: &JackknifePartitions, mut op: F) -> BipartiteAdditiveJackknife<C>
-        where F: FnMut(usize, &Partition, usize, &Partition) -> C,
-              C: for<'a> Add<&'a C, Output=C> + Clone {
-        let bipartite_additive_components: Vec<Vec<C>> = jackknife_partitions.iter().enumerate().map(|(k1, knife_i)|
-            jackknife_partitions.iter().enumerate().map(|(k2, knife_j)|
-                op(k1, &knife_i, k2, &knife_j)
-            ).collect::<Vec<C>>()
-        ).collect();
-
-        let mut sum = None;
-        if let Some(first_row) = bipartite_additive_components.first() {
-            if let Some(first) = first_row.first() {
-                let init = first_row.iter().skip(1).fold(first.clone(), |acc, x| acc + x);
-                sum = Some(bipartite_additive_components.iter()
-                                                        .skip(1)
-                                                        .fold(init.clone(), |acc, v|
-                                                            acc + &v.iter()
-                                                                    .skip(1)
-                                                                    .fold(v[0].clone(), |acc, x| acc + x)));
-            }
-        }
-
-        BipartiteAdditiveJackknife {
-            bipartite_additive_components,
-            sum,
-        }
-    }
-
-    #[inline]
-    pub fn sum_minus_component(&self, component_index: usize) -> C
-        where C: for<'a> Sub<&'a C, Output=C>, C: Clone {
-        let mut s = self.sum.as_ref().unwrap().clone();
-        for j in &self.bipartite_additive_components[component_index] {
-            s = s - j;
-        }
-        for i in 0..component_index {
-            s = s - &self.bipartite_additive_components[i][component_index]
-        }
-        for i in component_index + 1..self.bipartite_additive_components.len() {
-            s = s - &self.bipartite_additive_components[i][component_index]
-        }
-        s
-    }
-
-    #[inline]
-    pub fn get_sum(&self) -> Option<&C> {
-        match &self.sum {
-            Some(sum) => Some(sum),
-            None => None,
-        }
-    }
-}
-
 #[derive(Clone, PartialEq, Debug)]
 pub struct JackknifePartitions {
     partitions: IntegerPartitions,
