@@ -82,6 +82,15 @@ pub fn sum_of_squares_f32<'a, A, T: Iterator<Item=&'a A>>(element_iterator: T) -
 }
 
 #[inline]
+pub fn sum_of_fourth_power_f32<'a, A, T: Iterator<Item=&'a A>>(element_iterator: T) -> f32
+    where A: Copy + ToPrimitive + 'a, &'a A: Deref {
+    kahan_sigma_f32(element_iterator, |a| {
+        let a_f32 = a.to_f32().unwrap();
+        a_f32 * a_f32 * a_f32 * a_f32
+    })
+}
+
+#[inline]
 pub fn mean<'a, A, T: Iterator<Item=&'a A>>(element_iterator: T) -> f64
     where A: Copy + ToPrimitive + 'a, &'a A: Deref {
     let (sum, count) = kahan_sigma_return_counter(element_iterator, |a| a.to_f64().unwrap());

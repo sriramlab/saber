@@ -12,7 +12,7 @@ use crate::error::Error;
 use crate::jackknife::{AdditiveJackknife, Jackknife, JackknifePartitions};
 use crate::matrix_ops::{DEFAULT_NUM_SNPS_PER_CHUNK, get_column_mean_and_std,
                         get_gxg_dot_semi_kronecker_z_from_gz_and_ssq, normalized_g_dot_matrix,
-                        normalized_g_transpose_dot_matrix, normalized_gxg_ssq, pheno_k_pheno,
+                        normalized_g_transpose_dot_matrix, column_normalized_row_ssq, pheno_k_pheno,
                         sum_of_column_wise_inner_product,
 };
 use crate::partitioned_jackknife_estimates::PartitionedJackknifeEstimates;
@@ -248,7 +248,7 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
     println!("=> generating gxg_ssq_jackknife");
     let gxg_ssq_jackknife: Vec<AdditiveJackknife<Array<f32, Ix1>>> = gxg_partition_array.par_iter().map(|partition| {
         AdditiveJackknife::from_op_over_jackknife_partitions(&gxg_basis_jackknife_partitions, |_, knife| {
-            normalized_gxg_ssq(&gxg_basis_bed, Some(knife.intersect(partition)), None)
+            column_normalized_row_ssq(&gxg_basis_bed, Some(knife.intersect(partition)), None)
         })
     }).collect();
 
