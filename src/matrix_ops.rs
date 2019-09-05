@@ -65,7 +65,7 @@ pub fn column_normalized_row_wise_sigma<F>(
     Array::from_shape_vec(num_people, sigma_vec).unwrap()
 }
 
-// TODO: test
+// TODO: unit test
 pub fn get_column_mean_and_std(
     geno_bed: &PlinkBed,
     snp_range: &OrderedIntegerSet<usize>,
@@ -125,12 +125,13 @@ pub fn normalized_g_dot_rand(
     normalized_g_dot_matrix(geno_bed, snp_range, snp_mean, snp_std, &rand_mat, None, num_snps_per_chunk)
 }
 
-pub fn normalized_g_transpose_dot_matrix(geno_bed: &PlinkBed,
-                                         snp_range: Option<OrderedIntegerSet<usize>>,
-                                         snp_mean: &Array<f32, Ix1>,
-                                         snp_std: &Array<f32, Ix1>,
-                                         random_vecs: &Array<f32, Ix2>,
-                                         num_snps_per_chunk: Option<usize>,
+pub fn normalized_g_transpose_dot_matrix(
+    geno_bed: &PlinkBed,
+    snp_range: Option<OrderedIntegerSet<usize>>,
+    snp_mean: &Array<f32, Ix1>,
+    snp_std: &Array<f32, Ix1>,
+    random_vecs: &Array<f32, Ix2>,
+    num_snps_per_chunk: Option<usize>,
 ) -> Array<f32, Ix2> {
     let chunk_size = num_snps_per_chunk.unwrap_or(DEFAULT_NUM_SNPS_PER_CHUNK);
 
@@ -171,13 +172,15 @@ pub fn normalized_g_transpose_dot_matrix(geno_bed: &PlinkBed,
     Array::from_shape_vec((num_snps, num_random_vecs), product_vec).unwrap()
 }
 
-pub fn normalized_g_dot_matrix(geno_bed: &PlinkBed,
-                               snp_range: Option<OrderedIntegerSet<usize>>,
-                               snp_mean: &Array<f32, Ix1>,
-                               snp_std: &Array<f32, Ix1>,
-                               rhs_matrix: &Array<f32, Ix2>,
-                               row_scaling: Option<&Array<f32, Ix1>>,
-                               num_snps_per_chunk: Option<usize>) -> Array<f32, Ix2> {
+pub fn normalized_g_dot_matrix(
+    geno_bed: &PlinkBed,
+    snp_range: Option<OrderedIntegerSet<usize>>,
+    snp_mean: &Array<f32, Ix1>,
+    snp_std: &Array<f32, Ix1>,
+    rhs_matrix: &Array<f32, Ix2>,
+    row_scaling: Option<&Array<f32, Ix1>>,
+    num_snps_per_chunk: Option<usize>,
+) -> Array<f32, Ix2> {
     let chunk_size = num_snps_per_chunk.unwrap_or(DEFAULT_NUM_SNPS_PER_CHUNK);
 
     let num_people = geno_bed.num_people;
@@ -213,9 +216,11 @@ pub fn normalized_g_dot_matrix(geno_bed: &PlinkBed,
     Array::from_shape_vec((num_people, num_cols), product_vec).unwrap()
 }
 
-pub fn pheno_dot_geno(pheno_arr: &Array<f32, Ix1>,
-                      geno_bed: &PlinkBed, snp_range: &OrderedIntegerSet<usize>,
-                      chunk_size: usize) -> Vec<f32> {
+pub fn pheno_dot_geno(
+    pheno_arr: &Array<f32, Ix1>,
+    geno_bed: &PlinkBed, snp_range: &OrderedIntegerSet<usize>,
+    chunk_size: usize,
+) -> Vec<f32> {
     geno_bed.col_chunk_iter(chunk_size, Some(snp_range.clone()))
             .into_par_iter()
             .flat_map(|mut snp_chunk| {
