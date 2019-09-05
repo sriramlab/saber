@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["Aaron"]
 edition = "2018"
 license = "Apache-2.0"
+description = "ScAlaBle Estimator Regressor for heritability estimation"
 repository = "https://github.com/Rustinante/saber.git"
 
 [workspace]
