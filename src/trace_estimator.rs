@@ -6,7 +6,7 @@ use ndarray_parallel::prelude::*;
 use rayon::prelude::*;
 
 use crate::matrix_ops::{normalized_g_dot_matrix, normalized_g_dot_rand,
-                        normalized_g_transpose_dot_matrix, DEFAULT_NUM_SNPS_PER_CHUNK
+                        normalized_g_transpose_dot_matrix, DEFAULT_NUM_SNPS_PER_CHUNK,
 };
 use crate::util::matrix_util::{
     generate_plus_minus_one_bernoulli_matrix, normalize_matrix_columns_inplace,
@@ -14,8 +14,12 @@ use crate::util::matrix_util::{
 use crate::util::stats_util::{n_choose_2, sum_f32, sum_of_squares, sum_of_squares_f32};
 
 /// geno_bed has shape num_people x num_snps
-pub fn estimate_tr_kk(geno_bed: &mut PlinkBed, snp_range: Option<OrderedIntegerSet<usize>>,
-                      num_random_vecs: usize, num_snps_per_chunk: Option<usize>) -> f64 {
+pub fn estimate_tr_kk(
+    geno_bed: &mut PlinkBed,
+    snp_range: Option<OrderedIntegerSet<usize>>,
+    num_random_vecs: usize,
+    num_snps_per_chunk: Option<usize>,
+) -> f64 {
     let chunk_size = num_snps_per_chunk.unwrap_or(DEFAULT_NUM_SNPS_PER_CHUNK);
 
     let num_people = geno_bed.num_people;
@@ -44,16 +48,18 @@ pub fn estimate_tr_kk(geno_bed: &mut PlinkBed, snp_range: Option<OrderedIntegerS
     sum_of_squares_f32(xxz_arr.iter()) as f64 / (num_snps * num_snps * num_random_vecs) as f64
 }
 
-pub fn estimate_tr_ki_kj(geno_bed: &mut PlinkBed,
-                         snp_range_i: Option<OrderedIntegerSet<usize>>,
-                         snp_range_j: Option<OrderedIntegerSet<usize>>,
-                         snp_mean_i: &Array<f32, Ix1>,
-                         snp_std_i: &Array<f32, Ix1>,
-                         snp_mean_j: &Array<f32, Ix1>,
-                         snp_std_j: &Array<f32, Ix1>,
-                         precomputed_normalized_g_j_dot_rand: Option<&Array<f32, Ix2>>,
-                         num_random_vecs: usize,
-                         num_snps_per_chunk: Option<usize>) -> f64 {
+pub fn estimate_tr_ki_kj(
+    geno_bed: &mut PlinkBed,
+    snp_range_i: Option<OrderedIntegerSet<usize>>,
+    snp_range_j: Option<OrderedIntegerSet<usize>>,
+    snp_mean_i: &Array<f32, Ix1>,
+    snp_std_i: &Array<f32, Ix1>,
+    snp_mean_j: &Array<f32, Ix1>,
+    snp_std_j: &Array<f32, Ix1>,
+    precomputed_normalized_g_j_dot_rand: Option<&Array<f32, Ix2>>,
+    num_random_vecs: usize,
+    num_snps_per_chunk: Option<usize>,
+) -> f64 {
     let chunk_size = num_snps_per_chunk.unwrap_or(DEFAULT_NUM_SNPS_PER_CHUNK);
 
     let num_snps_i = match &snp_range_i {
@@ -95,8 +101,12 @@ pub fn estimate_tr_ki_kj(geno_bed: &mut PlinkBed,
     ssq as f64 / (num_snps_i * num_snps_j * num_random_vecs) as f64
 }
 
-pub fn estimate_tr_k(geno_bed: &mut PlinkBed, snp_range: Option<OrderedIntegerSet<usize>>,
-                     num_random_vecs: usize, num_snps_per_chunk: Option<usize>) -> f64 {
+pub fn estimate_tr_k(
+    geno_bed: &mut PlinkBed,
+    snp_range: Option<OrderedIntegerSet<usize>>,
+    num_random_vecs: usize,
+    num_snps_per_chunk: Option<usize>,
+) -> f64 {
     let chunk_size = num_snps_per_chunk.unwrap_or(DEFAULT_NUM_SNPS_PER_CHUNK);
 
     let num_people = geno_bed.num_people;
@@ -116,8 +126,12 @@ pub fn estimate_tr_k(geno_bed: &mut PlinkBed, snp_range: Option<OrderedIntegerSe
     sum_of_squares / (num_snps * num_random_vecs) as f64
 }
 
-pub fn estimate_tr_k_gxg_k(geno_arr: &mut PlinkBed, le_snps_arr: &Array<f32, Ix2>, num_random_vecs: usize,
-                           num_snps_per_chunk: Option<usize>) -> f64 {
+pub fn estimate_tr_k_gxg_k(
+    geno_arr: &mut PlinkBed,
+    le_snps_arr: &Array<f32, Ix2>,
+    num_random_vecs: usize,
+    num_snps_per_chunk: Option<usize>,
+) -> f64 {
     let u_arr = generate_plus_minus_one_bernoulli_matrix(le_snps_arr.dim().1, num_random_vecs);
     let mut sums = Vec::new();
     le_snps_arr.axis_iter(Axis(0))
@@ -153,7 +167,11 @@ pub fn estimate_tr_k_gxg_k(geno_arr: &mut PlinkBed, le_snps_arr: &Array<f32, Ix2
 }
 
 // TODO: test
-pub fn estimate_tr_gxg_ki_gxg_kj(arr_i: &Array<f32, Ix2>, arr_j: &Array<f32, Ix2>, num_random_vecs: usize) -> f64 {
+pub fn estimate_tr_gxg_ki_gxg_kj(
+    arr_i: &Array<f32, Ix2>,
+    arr_j: &Array<f32, Ix2>,
+    num_random_vecs: usize,
+) -> f64 {
     let u_arr = generate_plus_minus_one_bernoulli_matrix(arr_i.dim().1, num_random_vecs);
     let mut arr_i_row_sq_sums = Vec::new();
     arr_i.axis_iter(Axis(0))
@@ -182,7 +200,10 @@ pub fn estimate_tr_gxg_ki_gxg_kj(arr_i: &Array<f32, Ix2>, arr_j: &Array<f32, Ix2
     (sums.into_iter().sum::<f32>() / (n_choose_2(arr_i.dim().1) * n_choose_2(arr_j.dim().1) * num_random_vecs) as f32) as f64
 }
 
-pub fn estimate_gxg_gram_trace(geno_arr: &Array<f32, Ix2>, num_random_vecs: usize) -> Result<f64, String> {
+pub fn estimate_gxg_gram_trace(
+    geno_arr: &Array<f32, Ix2>,
+    num_random_vecs: usize,
+) -> Result<f64, String> {
     let (_num_rows, num_cols) = geno_arr.dim();
 
     let mut row_sums = Vec::new();
@@ -207,7 +228,10 @@ pub fn estimate_gxg_gram_trace(geno_arr: &Array<f32, Ix2>, num_random_vecs: usiz
     Ok(sums.into_iter().sum::<f64>() / num_random_vecs as f64)
 }
 
-pub fn estimate_gxg_kk_trace(gxg_basis: &Array<f32, Ix2>, num_random_vecs: usize) -> Result<f64, String> {
+pub fn estimate_gxg_kk_trace(
+    gxg_basis: &Array<f32, Ix2>,
+    num_random_vecs: usize,
+) -> Result<f64, String> {
     let num_rand_z_vecs = 100;
     println!("estimate_gxg_kk_trace\nnum_random_vecs: {}\nnum_rand_z_vecs: {}", num_random_vecs, num_rand_z_vecs);
     let (_num_rows, num_le_snps) = gxg_basis.dim();
@@ -255,7 +279,11 @@ pub fn estimate_gxg_kk_trace(gxg_basis: &Array<f32, Ix2>, num_random_vecs: usize
 //    Ok(avg)
 }
 
-pub fn estimate_gxg_dot_y_norm_sq(gxg_basis_arr: &Array<f32, Ix2>, y: &Array<f32, Ix1>, num_random_vecs: usize) -> f64 {
+pub fn estimate_gxg_dot_y_norm_sq(
+    gxg_basis_arr: &Array<f32, Ix2>,
+    y: &Array<f32, Ix1>,
+    num_random_vecs: usize,
+) -> f64 {
     let (_num_rows, num_cols) = gxg_basis_arr.dim();
     let gg_sq_dot_y = (gxg_basis_arr * gxg_basis_arr).t().dot(y);
     let s = (&gg_sq_dot_y * &gg_sq_dot_y).sum();
@@ -267,12 +295,14 @@ pub fn estimate_gxg_dot_y_norm_sq(gxg_basis_arr: &Array<f32, Ix2>, y: &Array<f32
     ((ggz.sum() / num_random_vecs as f32 - s) / 2.) as f64
 }
 
-pub fn estimate_gxg_dot_y_norm_sq_from_basis_bed(gxg_basis_bed: &PlinkBed,
-                                                 snp_range: Option<OrderedIntegerSet<usize>>,
-                                                 snp_mean: &Array<f32, Ix1>,
-                                                 snp_std: &Array<f32, Ix1>,
-                                                 y: &Array<f32, Ix1>,
-                                                 num_random_vecs: usize) -> f64 {
+pub fn estimate_gxg_dot_y_norm_sq_from_basis_bed(
+    gxg_basis_bed: &PlinkBed,
+    snp_range: Option<OrderedIntegerSet<usize>>,
+    snp_mean: &Array<f32, Ix1>,
+    snp_std: &Array<f32, Ix1>,
+    y: &Array<f32, Ix1>,
+    num_random_vecs: usize,
+) -> f64 {
     let num_cols = match &snp_range {
         Some(range) => range.size(),
         None => gxg_basis_bed.num_snps,
@@ -306,6 +336,41 @@ pub fn estimate_gxg_dot_y_norm_sq_from_basis_bed(gxg_basis_bed: &PlinkBed,
     );
     hhz.par_iter_mut().for_each(|x| *x = (*x) * (*x));
     ((hhz.sum() / num_random_vecs as f32 - ssq_of_hi_hi) / 2.) as f64
+}
+
+pub fn estimate_inter_gxg_dot_y_norm_sq_from_basis_bed(
+    gxg_basis_bed: &PlinkBed,
+    snp_range_1: Option<OrderedIntegerSet<usize>>,
+    snp_range_2: Option<OrderedIntegerSet<usize>>,
+    snp_mean_1: &Array<f32, Ix1>,
+    snp_std_1: &Array<f32, Ix1>,
+    snp_mean_2: &Array<f32, Ix1>,
+    snp_std_2: &Array<f32, Ix1>,
+    y: &Array<f32, Ix1>,
+    num_random_vecs: usize,
+) -> f64 {
+    let num_snps_1 = match &snp_range_1 {
+        Some(range) => range.size(),
+        None => gxg_basis_bed.num_snps,
+    };
+    let y_scaled_basis_dot_rand_vecs = normalized_g_dot_matrix(
+        gxg_basis_bed,
+        snp_range_1,
+        snp_mean_1,
+        snp_std_1,
+        &generate_plus_minus_one_bernoulli_matrix(num_snps_1, num_random_vecs),
+        Some(y),
+        None,
+    );
+    let hhz = normalized_g_transpose_dot_matrix(
+        gxg_basis_bed,
+        snp_range_2,
+        snp_mean_2,
+        snp_std_2,
+        &y_scaled_basis_dot_rand_vecs,
+        None,
+    );
+    sum_of_squares_f32(hhz.iter()) as f64 / num_random_vecs as f64
 }
 
 /*
