@@ -1,0 +1,32 @@
+[package]
+name = "saber"
+version = "0.1.0"
+authors = ["Aaron"]
+edition = "2018"
+license = "Apache-2.0"
+repository = "https://github.com/Rustinante/saber.git"
+
+[workspace]
+members = ["."]
+
+[dependencies]
+analytic = "0.2.4"
+biofile = "0.1.11"
+blas-src = { version = "0.3", features = ["openblas"] }
+clap = "2.32.0"
+colored = "1.7.0"
+ndarray = {version = "0.12.1", features = ["blas"] }
+ndarray-linalg = "0.10.0"
+ndarray-parallel = "0.9.0"
+ndarray-rand = "0.9.0"
+num-traits = "0.2.6"
+rand = "0.6.5"
+rayon = "1.1.0"
+time = "0.1.42"
+
+[dev-dependencies]
+tempfile = "3.0.8"
+bencher = "0.1.5"
+
+[profile.bench]
+opt-level = 3
