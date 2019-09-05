@@ -16,7 +16,6 @@ use saber::util::{
 fn main() {
     let mut app = clap_app!(estimate_heritability =>
         (version: "0.1")
-        (author: "Aaron Zhou")
     );
     app = app
         .arg(

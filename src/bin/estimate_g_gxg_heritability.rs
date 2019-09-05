@@ -12,7 +12,6 @@ use saber::util::{
 fn main() {
     let mut app = clap_app!(estimate_multi_gxg_heritability =>
         (version: "0.1")
-        (author: "Aaron Zhou")
     );
     app = app
         .arg(
@@ -28,7 +27,8 @@ fn main() {
             Arg::with_name("le_snps_filename_prefix")
                 .long("le").takes_value(true).required(true)
                 .help(
-                    "The SNPs used to construct the GxG matrix.\n\
+                    "The SNPs that are in linkage equilibrium.\n\
+                    To be used to construct the GxG matrix.\n\
                     If we have files named \n\
                     PATH/TO/x.bed PATH/TO/x.bim PATH/TO/x.fam \n\
                     then the <le_snps_filename_prefix> should be path/to/x"
@@ -62,22 +62,23 @@ fn main() {
                 )
         )
         .arg(
-            Arg::with_name("trace_outpath")
-                .long("save-trace").takes_value(true)
-                .help("The output path for saving the trace estimates"))
-        .arg(
-            Arg::with_name("load_trace")
-                .long("load-trace").takes_value(true)
+            Arg::with_name("partition_file").long("partition").takes_value(true)
                 .help(
-                    "Use the previously saved trace estimates\n\
-                    instead of estimating them from scratch"
+                    "A file to partition the G SNPs into multiple components.\n\
+                    Each line consists of two values of the form:\n\
+                    SNP_ID PARTITION\n\
+                    For example,\n\
+                    rs3115860 1\n\
+                    will assign SNP with ID rs3115860 in the BIM file to a partition named 1"
                 )
         )
         .arg(
-            Arg::with_name("partition_file").long("partition").takes_value(true)
-        )
-        .arg(
             Arg::with_name("gxg_partition_file").long("gxg-partition").takes_value(true)
+                .help(
+                    "Form GxG for each of the partitions instead of\n\
+                    over the entire range of LE SNPs.\n\
+                    Taking the same file format as the --partition option"
+                )
         )
         .arg(
             Arg::with_name("num_jackknife_partitions")
@@ -88,8 +89,6 @@ fn main() {
 
     let plink_filename_prefix = extract_str_arg(&matches, "plink_filename_prefix");
     let le_snps_filename_prefix = extract_str_arg(&matches, "le_snps_filename_prefix");
-    let trace_outpath = extract_optional_str_arg(&matches, "trace_outpath");
-    let load_trace = extract_optional_str_arg(&matches, "load_trace");
     let pheno_path_vec = extract_str_vec_arg(&matches, "pheno_path")
         .unwrap_or_exit(None::<String>);
     let num_jackknife_partitions = extract_numeric_arg::<usize>(
