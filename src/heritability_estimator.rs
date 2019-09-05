@@ -33,18 +33,23 @@ use crate::util::stats_util::{
 pub const DEFAULT_PARTITION_NAME: &str = "default_partition";
 const GXG_YKY_NUM_RAND_SCALING: usize = 10;
 
-pub fn estimate_heritability(geno_bed: PlinkBed, geno_bim: PlinkBim,
-                             mut pheno_arr: Array<f32, Ix1>, num_random_vecs: usize,
-                             num_jackknife_partitions: usize)
-    -> Result<PartitionedJackknifeEstimates, String> {
+pub fn estimate_heritability(
+    geno_bed: PlinkBed,
+    geno_bim: PlinkBim,
+    mut pheno_arr: Array<f32, Ix1>,
+    num_random_vecs: usize,
+    num_jackknife_partitions: usize,
+) -> Result<PartitionedJackknifeEstimates, String> {
     let partitions = geno_bim.get_fileline_partitions_or(
         DEFAULT_PARTITION_NAME, OrderedIntegerSet::from_slice(&[[0, geno_bed.num_snps - 1]]));
-    let partition_array: Vec<OrderedIntegerSet<usize>> = partitions.iter()
-                                                                   .map(|(_, p)| p.clone())
-                                                                   .collect();
-    let partition_sizes: Vec<usize> = partition_array.iter()
-                                                     .map(|p| p.size())
-                                                     .collect();
+    let partition_array: Vec<Partition> = partitions
+        .iter()
+        .map(|(_, p)| p.clone())
+        .collect();
+    let partition_sizes: Vec<usize> = partition_array
+        .iter()
+        .map(|p| p.size())
+        .collect();
 
     let jackknife_partitions = JackknifePartitions::from_integer_set(
         partition_array.clone(),
@@ -84,7 +89,7 @@ pub fn estimate_heritability(geno_bed: PlinkBed, geno_bim: PlinkBim,
     );
 
     let get_heritability_point_estimate = |k: Option<usize>,
-                                           jackknife_partition: Option<&OrderedIntegerSet<usize>>| {
+                                           jackknife_partition: Option<&Partition>| {
         let (mut a, mut b) = get_normal_eqn_matrices(num_partitions, num_people, yy);
         for i in 0..num_partitions {
             let num_snps_i = match jackknife_partition {
@@ -149,18 +154,21 @@ pub fn estimate_heritability(geno_bed: PlinkBed, geno_bim: PlinkBim,
         None)
 }
 
-pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
-                                   gxg_basis_bed: PlinkBed, gxg_basis_bim: PlinkBim,
-                                   mut pheno_arr: Array<f32, Ix1>,
-                                   num_rand_vecs_g: usize,
-                                   num_rand_vecs_gxg: usize,
-                                   num_jackknife_partitions: usize)
-    -> Result<PartitionedJackknifeEstimates, Error> {
+pub fn estimate_g_gxg_heritability(
+    g_bed: PlinkBed,
+    g_bim: PlinkBim,
+    gxg_basis_bed: PlinkBed,
+    gxg_basis_bim: PlinkBim,
+    mut pheno_arr: Array<f32, Ix1>,
+    num_rand_vecs_g: usize,
+    num_rand_vecs_gxg: usize,
+    num_jackknife_partitions: usize,
+) -> Result<PartitionedJackknifeEstimates, Error> {
     let g_partitions = g_bim.get_fileline_partitions_or(
         DEFAULT_PARTITION_NAME,
         OrderedIntegerSet::from_slice(&[[0, g_bed.num_snps - 1]]),
     );
-    let g_partition_array: Vec<OrderedIntegerSet<usize>> = g_partitions
+    let g_partition_array: Vec<Partition> = g_partitions
         .iter()
         .map(|(_, p)| p.clone())
         .collect();
@@ -173,7 +181,7 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
         DEFAULT_PARTITION_NAME,
         OrderedIntegerSet::from_slice(&[[0, gxg_basis_bed.num_snps - 1]]),
     );
-    let gxg_partition_array: Vec<OrderedIntegerSet<usize>> = gxg_partitions
+    let gxg_partition_array: Vec<Partition> = gxg_partitions
         .iter()
         .map(|(_, p)| p.clone())
         .collect();
@@ -273,8 +281,8 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
     let nrv_g = num_rand_vecs_g as f64;
     let nrv_gxg = num_rand_vecs_gxg as f64;
     let get_heritability_point_estimate = |k: Option<usize>,
-                                           g_jackknife_range: Option<&OrderedIntegerSet<usize>>,
-                                           gxg_jackknife_range: Option<&OrderedIntegerSet<usize>>| {
+                                           g_jackknife_range: Option<&Partition>,
+                                           gxg_jackknife_range: Option<&Partition>| {
         let (mut a, mut b) = get_normal_eqn_matrices(total_num_partitions, num_people, yy);
         // g_pairwise_est contains Vec<(str_kk_est, tr_gk_i_gk_j_est_list, tr_g_gxg_est_list, tr_g_inter_gxg_est_list, yky_est)>
         let g_pairwise_est: Vec<(f64, Vec<f64>, Vec<f64>, Vec<f64>, f64)> = (0..num_g_partitions)
@@ -454,15 +462,16 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
                     .collect::<Vec<usize>>()
                     .par_iter()
                     .flat_map(|&ii| {
+                        let num_snps_ii = partition_minus_knife(
+                            &gxg_partition_array[ii],
+                            gxg_jackknife_range,
+                        ).size();
                         (ii + 1..num_gxg_partitions)
                             .collect::<Vec<usize>>()
                             .par_iter()
                             .map(|&jj| {
                                 let num_inter_gxg_snps = (
-                                    partition_minus_knife(
-                                        &gxg_partition_array[ii],
-                                        gxg_jackknife_range,
-                                    ).size()
+                                    num_snps_ii
                                         * partition_minus_knife(
                                         &gxg_partition_array[jj],
                                         gxg_jackknife_range,
@@ -544,14 +553,19 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
             .collect::<Vec<usize>>()
             .par_iter()
             .flat_map(|&i1| {
+                let range_i1 = partition_minus_knife(
+                    &gxg_partition_array[i1],
+                    gxg_jackknife_range,
+                );
+                let (snp_mean_i1, snp_std_i1) = get_column_mean_and_std(
+                    &gxg_basis_bed,
+                    &range_i1,
+                    DEFAULT_NUM_SNPS_PER_CHUNK,
+                );
                 (i1 + 1..num_gxg_partitions)
                     .collect::<Vec<usize>>()
                     .par_iter()
                     .map(|&j1| {
-                        let range_i1 = partition_minus_knife(
-                            &gxg_partition_array[i1],
-                            gxg_jackknife_range,
-                        );
                         let range_j1 = partition_minus_knife(
                             &gxg_partition_array[j1],
                             gxg_jackknife_range,
@@ -578,15 +592,15 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
                             .collect::<Vec<usize>>()
                             .par_iter()
                             .flat_map(|&i2| {
+                                let range_i2 = partition_minus_knife(
+                                    &gxg_partition_array[i2],
+                                    gxg_jackknife_range,
+                                );
                                 let j2_start = if i1 == i2 { j1 + 1 } else { i2 + 1 };
                                 (j2_start..num_gxg_partitions)
                                     .collect::<Vec<usize>>()
                                     .par_iter()
                                     .map(|&j2| {
-                                        let range_i2 = partition_minus_knife(
-                                            &gxg_partition_array[i2],
-                                            gxg_jackknife_range,
-                                        );
                                         let range_j2 = partition_minus_knife(
                                             &gxg_partition_array[j2],
                                             gxg_jackknife_range,
@@ -608,11 +622,6 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
                             })
                             .collect();
 
-                        let (snp_mean_i1, snp_std_i1) = get_column_mean_and_std(
-                            &gxg_basis_bed,
-                            &range_i1,
-                            DEFAULT_NUM_SNPS_PER_CHUNK,
-                        );
                         let (snp_mean_j1, snp_std_j1) = get_column_mean_and_std(
                             &gxg_basis_bed,
                             &range_j1,
@@ -621,7 +630,7 @@ pub fn estimate_g_gxg_heritability(g_bed: PlinkBed, g_bim: PlinkBim,
 
                         let y_gxg_k_y_est = estimate_inter_gxg_dot_y_norm_sq_from_basis_bed(
                             &gxg_basis_bed,
-                            Some(range_i1),
+                            Some(range_i1.clone()),
                             Some(range_j1),
                             &snp_mean_i1,
                             &snp_std_i1,
@@ -838,7 +847,7 @@ fn get_mean_ssq_of_z1g1g2z2(
 }
 
 fn get_partitioned_gz_jackknife(bed: &PlinkBed,
-                                snp_partition_array: &Vec<OrderedIntegerSet<usize>>,
+                                snp_partition_array: &Vec<Partition>,
                                 jackknife_partitions: &JackknifePartitions,
                                 num_rand_vecs: usize) -> Vec<AdditiveJackknife<Array<f32, Ix2>>> {
     snp_partition_array.par_iter().map(|partition| {
@@ -867,7 +876,7 @@ fn get_partitioned_gz_jackknife(bed: &PlinkBed,
 
 fn get_partitioned_ggz_jackknife(
     bed: &PlinkBed,
-    snp_partition_array: &Vec<OrderedIntegerSet<usize>>,
+    snp_partition_array: &Vec<Partition>,
     jackknife_partitions: &JackknifePartitions,
     rand_vecs: &Array<f32, Ix2>,
 ) -> Vec<AdditiveJackknife<Array<f32, Ix2>>> {
@@ -902,7 +911,7 @@ fn get_partitioned_ggz_jackknife(
 
 fn get_partitioned_ygy_jackknife(
     bed: &PlinkBed,
-    snp_partition_array: &Vec<OrderedIntegerSet<usize>>,
+    snp_partition_array: &Vec<Partition>,
     jackknife_partitions: &JackknifePartitions,
     pheno_arr: &Array<f32, Ix1>,
 ) -> Vec<AdditiveJackknife<f64>> {
