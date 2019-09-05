@@ -652,7 +652,7 @@ dependencies = [
 
 [[package]]
 name = "saber"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "analytic 0.2.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "bencher 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
