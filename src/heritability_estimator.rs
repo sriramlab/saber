@@ -102,32 +102,21 @@ pub fn estimate_heritability(
                 ) as f64,
                 None => partition_sizes[i] as f64,
             };
-            let ggz_i = match k {
-                Some(k) => ggz_jackknife[i].sum_minus_component(k),
-                None => ggz_jackknife[i].get_component_sum().unwrap().clone(),
-            };
+            let ggz_i = ggz_jackknife[i].sum_minus_component_or_sum(k).unwrap();
             a[[i, i]] = sum_of_squares_f32(ggz_i.iter()) as f64
                 / num_snps_i
                 / num_snps_i
                 / num_random_vecs as f64;
             println!("tr(k_{}_k_{})_est: {} num_snps_i: {}", i, i, a[[i, i]], num_snps_i);
-            b[i] = match k {
-                Some(k) => ygy_jackknife[i].sum_minus_component(k) / num_snps_i,
-                None => ygy_jackknife[i].get_component_sum().unwrap() / num_snps_i,
-            };
+            b[i] = ygy_jackknife[i].sum_minus_component_or_sum(k).unwrap() / num_snps_i;
             for j in i + 1..num_partitions {
                 let num_snps_j = match jackknife_partition {
                     Some(jackknife_partition) => (
-                        partition_sizes[j]
-                            - jackknife_partition.intersect(&partition_array[j]).size()
-                    ) as f64,
+                        partition_array[j].clone() - jackknife_partition
+                    ).size() as f64,
                     None => partition_sizes[j] as f64,
                 };
-                let ggz_j = match k {
-                    Some(k) => ggz_jackknife[j].sum_minus_component(k),
-                    None => ggz_jackknife[j].get_component_sum().unwrap().clone(),
-                };
-
+                let ggz_j = ggz_jackknife[j].sum_minus_component_or_sum(k).unwrap();
                 let tr_ki_kj_est = sum_of_column_wise_inner_product(&ggz_i, &ggz_j) as f64
                     / num_snps_i
                     / num_snps_j
@@ -302,11 +291,7 @@ pub fn estimate_g_gxg_heritability(
                     let num_snps_i = partition_minus_knife(
                         &g_partition_array[i], g_jackknife_range,
                     ).size() as f64;
-                    let ggz_i = match k {
-                        Some(k) => ggz_jackknife[i].sum_minus_component(k),
-                        None => ggz_jackknife[i].get_component_sum().unwrap().clone()
-                    };
-
+                    let ggz_i = ggz_jackknife[i].sum_minus_component_or_sum(k).unwrap();
                     let tr_gk_i_gk_j_est_list: Vec<f64> = (i + 1..num_g_partitions)
                         .collect::<Vec<usize>>()
                         .par_iter()
@@ -314,11 +299,7 @@ pub fn estimate_g_gxg_heritability(
                             let num_snps_j = partition_minus_knife(
                                 &g_partition_array[j], g_jackknife_range,
                             ).size() as f64;
-                            let ggz_j = match k {
-                                Some(k) => ggz_jackknife[j].sum_minus_component(k),
-                                None => ggz_jackknife[j].get_component_sum().unwrap().clone(),
-                            };
-
+                            let ggz_j = ggz_jackknife[j].sum_minus_component_or_sum(k).unwrap();
                             let tr_ki_kj_est = sum_of_column_wise_inner_product(&ggz_i, &ggz_j) as f64
                                 / num_snps_i
                                 / num_snps_j
@@ -328,10 +309,7 @@ pub fn estimate_g_gxg_heritability(
                         .collect();
 
                     // tr(g_k gxg_k)
-                    let gz = match k {
-                        Some(k) => gz_jackknife[i].sum_minus_component(k),
-                        None => gz_jackknife[i].get_component_sum().unwrap().clone(),
-                    };
+                    let gz = gz_jackknife[i].sum_minus_component_or_sum(k).unwrap();
                     let tr_g_gxg_est_list: Vec<f64> = (0..num_gxg_partitions)
                         .collect::<Vec<usize>>()
                         .par_iter()
@@ -387,10 +365,7 @@ pub fn estimate_g_gxg_heritability(
                         })
                         .collect();
 
-                    let yky_est = match k {
-                        Some(k) => ygy_jackknives[i].sum_minus_component(k) / num_snps_i,
-                        None => ygy_jackknives[i].get_component_sum().unwrap() / num_snps_i,
-                    };
+                    let yky_est = ygy_jackknives[i].sum_minus_component_or_sum(k).unwrap() / num_snps_i;
                     (sum_of_squares_f32(ggz_i.iter()) as f64 / num_snps_i / num_snps_i / nrv_g,
                      tr_gk_i_gk_j_est_list,
                      tr_g_gxg_est_list,

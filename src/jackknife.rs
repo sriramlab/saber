@@ -1,5 +1,5 @@
 use std::marker::{Send, Sync};
-use std::ops::{Add, Index, Sub};
+use std::ops::{Add, Index, Sub, Deref};
 
 use analytic::partition::integer_partitions::{IntegerPartitionIter, IntegerPartitions, Partition};
 use analytic::sample::Sample;
@@ -26,12 +26,25 @@ pub struct AdditiveJackknife<C> {
 }
 
 impl<C: Send> AdditiveJackknife<C> {
-    pub fn from_op_over_jackknife_partitions<F>(jackknife_partitions: &JackknifePartitions, op: F) -> AdditiveJackknife<C>
+    pub fn from_op_over_jackknife_partitions<F>(
+        jackknife_partitions: &JackknifePartitions,
+        op: F,
+    ) -> AdditiveJackknife<C>
         where F: Fn(usize, &Partition) -> C + Send + Sync,
               C: for<'a> Add<&'a C, Output=C> + Clone {
-        let additive_components: Vec<C> = jackknife_partitions.iter().into_par_iter().enumerate().map(|(i, p)| op(i, &p)).collect();
+        let additive_components: Vec<C> = jackknife_partitions
+            .iter()
+            .into_par_iter()
+            .enumerate()
+            .map(|(i, p)| op(i, &p))
+            .collect();
         let sum = match additive_components.first() {
-            Some(first) => Some(additive_components.iter().skip(1).fold(first.clone(), |acc, x| acc + x)),
+            Some(first) => Some(
+                additive_components
+                    .iter()
+                    .skip(1)
+                    .fold(first.clone(), |acc, x| acc + x)
+            ),
             None => None
         };
         AdditiveJackknife {
@@ -60,6 +73,20 @@ impl<C: Send> AdditiveJackknife<C> {
     pub fn sum_minus_component<'a>(&'a self, component_index: usize) -> C
         where &'a C: Sub<Output=C> {
         self.sum.as_ref().unwrap() - &self.additive_components[component_index]
+    }
+
+    pub fn sum_minus_component_or_sum<'a>(
+        &'a self,
+        component_index: Option<usize>,
+    ) -> Result<C, String>
+        where &'a C: Sub<Output=C> + Deref, C: Clone {
+        match component_index {
+            Some(k) => Ok(self.sum_minus_component(k)),
+            None => match &self.sum {
+                Some(s) => Ok((*s).clone()),
+                None => Err("component sum is None".to_string())
+            }
+        }
     }
 }
 
