@@ -333,9 +333,43 @@ pub fn estimate_gxg_dot_y_norm_sq_from_basis_bed(
         snp_std,
         &y_scaled_basis_dot_rand_vecs,
         None,
+        None,
     );
     hhz.par_iter_mut().for_each(|x| *x = (*x) * (*x));
     ((hhz.sum() / num_random_vecs as f32 - ssq_of_hi_hi) / 2.) as f64
+}
+
+pub fn get_gxg_dot_y_norm_sq_from_basis_bed(
+    gxg_basis_bed: &PlinkBed,
+    snp_range: Option<OrderedIntegerSet<usize>>,
+    snp_mean: &Array<f32, Ix1>,
+    snp_std: &Array<f32, Ix1>,
+    y: &Array<f32, Ix1>,
+) -> f64 {
+    let ssq_of_hi_hi = gxg_basis_bed
+        .col_chunk_iter(DEFAULT_NUM_SNPS_PER_CHUNK, snp_range.clone())
+        .into_par_iter()
+        .fold(|| 0f32, |acc, mut snp_chunk| {
+            normalize_matrix_columns_inplace(&mut snp_chunk, 0);
+            let gg_sq_dot_y = ((&snp_chunk) * (&snp_chunk)).t().dot(y);
+            acc + sum_of_squares_f32(gg_sq_dot_y.iter())
+        })
+        .sum::<f32>();
+
+    let mut rhs_matrix = gxg_basis_bed
+        .get_genotype_matrix(snp_range.clone())
+        .unwrap();
+    normalize_matrix_columns_inplace(&mut rhs_matrix, 0);
+    let hh = normalized_g_transpose_dot_matrix(
+        &gxg_basis_bed,
+        snp_range,
+        &snp_mean,
+        &snp_std,
+        &rhs_matrix,
+        Some(&y),
+        None,
+    );
+    ((sum_of_squares_f32(hh.iter()) - ssq_of_hi_hi) / 2.) as f64
 }
 
 pub fn estimate_inter_gxg_dot_y_norm_sq_from_basis_bed(
@@ -368,6 +402,7 @@ pub fn estimate_inter_gxg_dot_y_norm_sq_from_basis_bed(
         snp_mean_2,
         snp_std_2,
         &y_scaled_basis_dot_rand_vecs,
+        None,
         None,
     );
     sum_of_squares_f32(hhz.iter()) as f64 / num_random_vecs as f64

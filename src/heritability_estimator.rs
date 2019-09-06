@@ -19,8 +19,8 @@ use crate::matrix_ops::{column_normalized_row_ssq, DEFAULT_NUM_SNPS_PER_CHUNK,
 use crate::partitioned_jackknife_estimates::PartitionedJackknifeEstimates;
 use crate::trace_estimator::{
     estimate_gxg_dot_y_norm_sq, estimate_gxg_dot_y_norm_sq_from_basis_bed, estimate_gxg_gram_trace,
-    estimate_gxg_kk_trace, estimate_inter_gxg_dot_y_norm_sq_from_basis_bed,
-    estimate_tr_gxg_ki_gxg_kj, estimate_tr_k_gxg_k, estimate_tr_kk,
+    estimate_gxg_kk_trace, estimate_tr_gxg_ki_gxg_kj, estimate_tr_k_gxg_k, estimate_tr_kk,
+    get_gxg_dot_y_norm_sq_from_basis_bed
 };
 use crate::util::matrix_util::{
     generate_plus_minus_one_bernoulli_matrix, normalize_matrix_columns_inplace,
@@ -491,14 +491,21 @@ pub fn estimate_g_gxg_heritability(
                         &range_i,
                         DEFAULT_NUM_SNPS_PER_CHUNK,
                     );
-                    let y_gxg_k_y_est = estimate_gxg_dot_y_norm_sq_from_basis_bed(
+                    let y_gxg_k_y = get_gxg_dot_y_norm_sq_from_basis_bed(
                         &gxg_basis_bed,
-                        Some(range_i),
+                        Some(range_i.clone()),
                         &snp_mean_i,
                         &snp_std_i,
                         &pheno_arr,
-                        num_rand_vecs_gxg * GXG_YKY_NUM_RAND_SCALING,
                     ) / num_gxg_snps_i;
+//                    let y_gxg_k_y_est = estimate_gxg_dot_y_norm_sq_from_basis_bed(
+//                        &gxg_basis_bed,
+//                        Some(range_i),
+//                        &snp_mean_i,
+//                        &snp_std_i,
+//                        &pheno_arr,
+//                        num_rand_vecs_gxg * GXG_YKY_NUM_RAND_SCALING,
+//                    ) / num_gxg_snps_i;
 
                     (sum_of_squares_f32(gxg_i_dot_semi_kronecker_z.iter()) as f64 / num_gxg_snps_i / nrv_gxg,
                      get_mean_ssq_of_z1g1g2z2(&gxg_i_dot_semi_kronecker_z, &gxg_i_dot_semi_kronecker_u)
@@ -506,7 +513,7 @@ pub fn estimate_g_gxg_heritability(
                          / num_gxg_snps_i,
                      tr_gxg_ki_kj_est_list,
                      tr_gxg_inter_gxg_est_list,
-                     y_gxg_k_y_est)
+                     y_gxg_k_y)
                 })
                 .collect();
 
@@ -638,6 +645,7 @@ pub fn estimate_g_gxg_heritability(
                                     &snp_mean_i1,
                                     &snp_std_i1,
                                     &rhs_matrix,
+                                    Some(&pheno_arr),
                                     None,
                                 ).iter()
                             ) as f64 / num_gxg_snps_i1j1;
@@ -910,6 +918,7 @@ fn get_partitioned_ggz_jackknife(
                 &snp_mean,
                 &snp_std,
                 &rand_vecs,
+                None,
                 None,
             );
             normalized_g_dot_matrix(

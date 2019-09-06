@@ -131,6 +131,7 @@ pub fn normalized_g_transpose_dot_matrix(
     snp_mean: &Array<f32, Ix1>,
     snp_std: &Array<f32, Ix1>,
     rhs_matrix: &Array<f32, Ix2>,
+    rhs_matrix_row_scaling: Option<&Array<f32, Ix1>>,
     num_snps_per_chunk: Option<usize>,
 ) -> Array<f32, Ix2> {
     let chunk_size = num_snps_per_chunk.unwrap_or(DEFAULT_NUM_SNPS_PER_CHUNK);
@@ -141,11 +142,24 @@ pub fn normalized_g_transpose_dot_matrix(
     };
     let num_random_vecs = rhs_matrix.dim().1;
 
+    let scaled_rhs_matrix = match rhs_matrix_row_scaling {
+        Some(scales) => {
+            assert_eq!(rhs_matrix.dim().0, scales.dim());
+            rhs_matrix * &scales.to_owned().into_shape((rhs_matrix.dim().0, 1)).unwrap()
+        }
+        // never used
+        None => Array::zeros((1, 1)),
+    };
+    let rhs_matrix = match rhs_matrix_row_scaling {
+        Some(_) => &scaled_rhs_matrix,
+        None => rhs_matrix
+    };
+
     let mut z_col_sum = Vec::<f32>::new();
     rhs_matrix.axis_iter(Axis(1))
-               .into_par_iter()
-               .map(|col| sum_f32(col.iter()))
-               .collect_into_vec(&mut z_col_sum);
+              .into_par_iter()
+              .map(|col| sum_f32(col.iter()))
+              .collect_into_vec(&mut z_col_sum);
 
     let product_vec = geno_bed
         .col_chunk_iter(chunk_size, snp_range)
