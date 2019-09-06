@@ -1,5 +1,3 @@
-#![feature(test)]
-
 pub mod error;
 pub mod heritability_estimator;
 pub mod jackknife;

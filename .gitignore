@@ -2,7 +2,8 @@
 **/*.rs.bk
 */**/Cargo.lock
 .idea
-*.iml
-*.txt
 *.effects
+*.iml
+*.jackknife
 *.swp
+*.txt
