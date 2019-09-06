@@ -636,7 +636,7 @@ pub fn estimate_g_gxg_heritability(
                                 &snp_mean_j1,
                                 &snp_std_j1,
                                 &pheno_arr,
-                                num_rand_vecs_gxg,
+                                num_rand_vecs_gxg * GXG_YKY_NUM_RAND_SCALING,
                             ) / num_gxg_snps_i1j1;
 
                             (
