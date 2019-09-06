@@ -72,7 +72,7 @@ fn main() {
                 .unwrap_or_exit(Some(format!("must provide --bfile as g_var: {} > 0.", g_var)));
             let [bed_path, bim_path, fam_path] = get_bed_bim_fam_path(&bfile);
             println!("\nPLINK bed path: {}\nPLINK bim path: {}\nPLINK fam path: {}", bed_path, bim_path, fam_path);
-            let mut bed = PlinkBed::new(&bed_path, &bim_path, &fam_path)
+            let bed = PlinkBed::new(&bed_path, &bim_path, &fam_path)
                 .unwrap_or_exit(None::<String>);
             let geno_arr = bed.get_genotype_matrix(None)
                               .unwrap_or_exit(Some("failed to get the genotype matrix"));
@@ -92,7 +92,7 @@ fn main() {
             .unwrap_or_exit(Some("must provide --counts as le_snps_bfile is specified"));
         println!("\nLE SNPs bed path: {}\nLE SNPs bim path: {}\nLE SNPs fam path: {}", le_snps_bed_path, le_snps_bim_path, le_snps_fam_path);
         println!("gxg_component_count_filename: {}", gxg_component_count_filename);
-        let mut le_snps_bed = PlinkBed::new(&le_snps_bed_path, &le_snps_bim_path, &le_snps_fam_path)
+        let le_snps_bed = PlinkBed::new(&le_snps_bed_path, &le_snps_bim_path, &le_snps_fam_path)
             .unwrap_or_exit(None::<String>);
         let le_snps_arr = le_snps_bed.get_genotype_matrix(None)
                                      .unwrap_or_exit(Some("failed to get the le_snps genotype matrix"));

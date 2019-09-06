@@ -130,7 +130,7 @@ pub fn normalized_g_transpose_dot_matrix(
     snp_range: Option<OrderedIntegerSet<usize>>,
     snp_mean: &Array<f32, Ix1>,
     snp_std: &Array<f32, Ix1>,
-    random_vecs: &Array<f32, Ix2>,
+    rhs_matrix: &Array<f32, Ix2>,
     num_snps_per_chunk: Option<usize>,
 ) -> Array<f32, Ix2> {
     let chunk_size = num_snps_per_chunk.unwrap_or(DEFAULT_NUM_SNPS_PER_CHUNK);
@@ -139,10 +139,10 @@ pub fn normalized_g_transpose_dot_matrix(
         Some(range) => range.size(),
         None => geno_bed.num_snps,
     };
-    let num_random_vecs = random_vecs.dim().1;
+    let num_random_vecs = rhs_matrix.dim().1;
 
     let mut z_col_sum = Vec::<f32>::new();
-    random_vecs.axis_iter(Axis(1))
+    rhs_matrix.axis_iter(Axis(1))
                .into_par_iter()
                .map(|col| sum_f32(col.iter()))
                .collect_into_vec(&mut z_col_sum);
@@ -152,7 +152,7 @@ pub fn normalized_g_transpose_dot_matrix(
         .into_par_iter()
         .enumerate()
         .fold(|| vec![0f32; num_snps * num_random_vecs], |mut acc, (chunk_index, snp_chunk)| {
-            let chunk_product = snp_chunk.t().dot(random_vecs).as_slice().unwrap().to_owned();
+            let chunk_product = snp_chunk.t().dot(rhs_matrix).as_slice().unwrap().to_owned();
             for local_snp_index in 0..snp_chunk.dim().1 {
                 let global_snp_index = chunk_index * chunk_size + local_snp_index;
                 let m = snp_mean[global_snp_index];

@@ -96,7 +96,7 @@ fn main() {
     let mut geno_bed = PlinkBed::new(&bed_path, &bim_path, &fam_path)
         .unwrap_or_exit(None::<String>);
 
-    let mut le_snps_bed = PlinkBed::new(&le_snps_bed_path, &le_snps_bim_path, &le_snps_fam_path)
+    let le_snps_bed = PlinkBed::new(&le_snps_bed_path, &le_snps_bim_path, &le_snps_fam_path)
         .unwrap_or_exit(None::<String>);
     let mut le_snps_bim = PlinkBim::new(&le_snps_bim_path)
         .unwrap_or_exit(Some(format!("failed to create PlinkBim for {}", le_snps_bim_path)));
