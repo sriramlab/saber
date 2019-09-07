@@ -317,6 +317,14 @@ pub fn estimate_g_gxg_heritability(
                 })
                 .collect();
 
+            let gxg_range_sizes_array: Vec<f64> = gxg_partition_array
+                .par_iter()
+                .map(|p| {
+                    partition_minus_knife(p, gxg_jackknife_range).size() as f64
+                })
+                .collect();
+
+            println!("=> computing g_pairwise_est");
             // g_pairwise_est contains Vec<(
             // tr_kk_est,
             // tr_gk_i_gk_j_est_list,
@@ -439,6 +447,7 @@ pub fn estimate_g_gxg_heritability(
                 }
             }
 
+            println!("=> computing gxg_pairwise_est");
             // gxg_pairwise_est contains Vec<(
             // tr_gxg_ki_est,
             // tr_gxg_kki_est,
@@ -605,11 +614,11 @@ pub fn estimate_g_gxg_heritability(
                                 &gxg_partition_array[j1],
                                 gxg_jackknife_range,
                             );
-                            let num_gxg_snps_i1j1 = (range_i1.size() * range_j1.size()) as f64;
+                            let num_gxg_snps_i1j1 = gxg_range_sizes_array[i1] * gxg_range_sizes_array[j1];
 
-                            let inter_chrom_gxg_zz_i1j1 = &inter_chrom_gxg_zz_array[
-                                i_j_to_index(i1, j1, num_gxg_partitions)
-                                ];
+                            let inter_chrom_gxg_zz_i1j1 =
+                                &inter_chrom_gxg_zz_array[i_j_to_index(i1, j1, num_gxg_partitions)];
+
                             let tr_inter_kk_ij_est = get_mean_ssq_of_z1g1g2z2(
                                 inter_chrom_gxg_zz_i1j1,
                                 &inter_chrom_gxg_uu_array[i_j_to_index(i1, j1, num_gxg_partitions)],
@@ -621,20 +630,13 @@ pub fn estimate_g_gxg_heritability(
                                 .collect::<Vec<usize>>()
                                 .par_iter()
                                 .flat_map(|&i2| {
-                                    let range_i2 = partition_minus_knife(
-                                        &gxg_partition_array[i2],
-                                        gxg_jackknife_range,
-                                    );
                                     let j2_start = if i1 == i2 { j1 + 1 } else { i2 + 1 };
                                     (j2_start..num_gxg_partitions)
                                         .collect::<Vec<usize>>()
                                         .par_iter()
                                         .map(|&j2| {
-                                            let range_j2 = partition_minus_knife(
-                                                &gxg_partition_array[j2],
-                                                gxg_jackknife_range,
-                                            );
-                                            let num_gxg_snps_i2j2 = (range_i2.size() * range_j2.size()) as f64;
+                                            let num_gxg_snps_i2j2 =
+                                                gxg_range_sizes_array[i2] * gxg_range_sizes_array[j2];
 
                                             get_mean_ssq_of_z1g1g2z2(
                                                 inter_chrom_gxg_zz_i1j1,
