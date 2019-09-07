@@ -192,12 +192,12 @@ fn main() {
 mod tests {
     use std::collections::HashSet;
 
+    use analytic::stats::sum_of_squares;
     use ndarray::Array;
     use ndarray_rand::RandomExt;
     use rand::distributions::StandardNormal;
 
     use saber::util::matrix_util::generate_plus_minus_one_bernoulli_matrix;
-    use saber::util::stats_util::sum_of_squares;
 
     #[test]
     fn test_trace_estimator() {

@@ -1,17 +1,17 @@
 use analytic::set::ordered_integer_set::OrderedIntegerSet;
 use analytic::set::traits::Finite;
+use analytic::stats::{n_choose_2, sum_f32, sum_of_squares, sum_of_squares_f32};
 use biofile::plink_bed::PlinkBed;
 use ndarray::{Array, Axis, Ix1, Ix2};
 use ndarray_parallel::prelude::*;
 use rayon::prelude::*;
 
-use crate::matrix_ops::{normalized_g_dot_matrix, normalized_g_dot_rand,
-                        normalized_g_transpose_dot_matrix, DEFAULT_NUM_SNPS_PER_CHUNK,
+use crate::matrix_ops::{DEFAULT_NUM_SNPS_PER_CHUNK, normalized_g_dot_matrix,
+                        normalized_g_dot_rand, normalized_g_transpose_dot_matrix,
 };
 use crate::util::matrix_util::{
     generate_plus_minus_one_bernoulli_matrix, normalize_matrix_columns_inplace,
 };
-use crate::util::stats_util::{n_choose_2, sum_f32, sum_of_squares, sum_of_squares_f32};
 
 /// geno_bed has shape num_people x num_snps
 pub fn estimate_tr_kk(

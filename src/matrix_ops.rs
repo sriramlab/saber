@@ -1,19 +1,20 @@
+use std::marker::Sync;
+
 use analytic::set::ordered_integer_set::OrderedIntegerSet;
 use analytic::set::traits::Finite;
+use analytic::stats::{
+    mean, standard_deviation, sum_f32, sum_of_fourth_power_f32, sum_of_squares_f32,
+};
 use biofile::plink_bed::PlinkBed;
 use ndarray::{Array, Axis, Ix1, Ix2, s};
-use ndarray::iter;
 use ndarray::Dim;
+use ndarray::iter;
 use ndarray_parallel::prelude::*;
 use rayon::prelude::*;
 
 use crate::util::matrix_util::{
     generate_plus_minus_one_bernoulli_matrix, normalize_matrix_columns_inplace,
 };
-use crate::util::stats_util::{
-    mean, standard_deviation, sum_f32, sum_of_fourth_power_f32, sum_of_squares_f32,
-};
-use std::marker::Sync;
 
 pub const DEFAULT_NUM_SNPS_PER_CHUNK: usize = 25;
 

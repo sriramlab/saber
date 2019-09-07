@@ -1,6 +1,9 @@
 use analytic::partition::integer_partitions::Partition;
 use analytic::set::ordered_integer_set::OrderedIntegerSet;
 use analytic::set::traits::{Finite, Set};
+use analytic::stats::{
+    n_choose_2, sum_of_squares, sum_of_squares_f32,
+};
 use biofile::plink_bed::PlinkBed;
 use biofile::plink_bim::PlinkBim;
 use colored::Colorize;
@@ -11,10 +14,11 @@ use rayon::prelude::*;
 
 use crate::error::Error;
 use crate::jackknife::{AdditiveJackknife, Jackknife, JackknifePartitions};
-use crate::matrix_ops::{column_normalized_row_ssq, DEFAULT_NUM_SNPS_PER_CHUNK,
-                        get_column_mean_and_std, get_gxg_dot_semi_kronecker_z_from_gz_and_ssq,
-                        normalized_g_dot_matrix, normalized_g_transpose_dot_matrix, pheno_k_pheno,
-                        sum_of_column_wise_inner_product,
+use crate::matrix_ops::{
+    column_normalized_row_ssq, DEFAULT_NUM_SNPS_PER_CHUNK,
+    get_column_mean_and_std, get_gxg_dot_semi_kronecker_z_from_gz_and_ssq,
+    normalized_g_dot_matrix, normalized_g_transpose_dot_matrix, pheno_k_pheno,
+    sum_of_column_wise_inner_product,
 };
 use crate::partitioned_jackknife_estimates::PartitionedJackknifeEstimates;
 use crate::trace_estimator::{
@@ -25,9 +29,6 @@ use crate::trace_estimator::{
 use crate::util::matrix_util::{
     generate_plus_minus_one_bernoulli_matrix, normalize_matrix_columns_inplace,
     normalize_vector_inplace,
-};
-use crate::util::stats_util::{
-    n_choose_2, sum_of_squares, sum_of_squares_f32,
 };
 
 pub const DEFAULT_PARTITION_NAME: &str = "default_partition";

@@ -1,10 +1,9 @@
+use analytic::stats::{mean, standard_deviation};
 use ndarray::{Array, Axis, Ix1, Ix2, ScalarOperand};
 use ndarray_parallel::prelude::*;
 use ndarray_rand::RandomExt;
 use num_traits::{Float, FromPrimitive, NumAssign, ToPrimitive};
 use rand::distributions::{Bernoulli, StandardNormal};
-
-use crate::util::stats_util::{mean, standard_deviation};
 
 pub fn generate_plus_minus_one_bernoulli_matrix(num_rows: usize, num_cols: usize) -> Array<f32, Ix2> {
     Array::random((num_rows, num_cols), Bernoulli::new(0.5)).mapv(|e| (e as i32 * 2 - 1) as f32)
@@ -97,11 +96,10 @@ pub fn get_correlation<A>(arr1: &Array<A, Ix1>, arr2: &Array<A, Ix1>) -> f64
 
 #[cfg(test)]
 mod tests {
+    use analytic::stats::{mean, standard_deviation};
     use ndarray::Array;
     use ndarray_rand::RandomExt;
     use rand::distributions::Uniform;
-
-    use crate::util::stats_util::{mean, standard_deviation};
 
     use super::{get_correlation, mean_center_vector, normalize_matrix_columns_inplace,
                 normalize_matrix_row_wise_inplace, normalize_vector_inplace};

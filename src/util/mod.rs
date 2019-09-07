@@ -7,7 +7,6 @@ use clap::ArgMatches;
 use ndarray::{Array, Ix1, Ix2, ShapeBuilder};
 
 pub mod matrix_util;
-pub mod stats_util;
 pub mod timer;
 
 pub fn get_line_count(filepath: &str) -> Result<usize, String> {

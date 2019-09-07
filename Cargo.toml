@@ -11,7 +11,7 @@ repository = "https://github.com/Rustinante/saber.git"
 members = ["."]
 
 [dependencies]
-analytic = "^0.3.0"
+analytic = "0.3.1"
 bincode = "1.1.4"
 biofile = "0.1.13"
 blas-src = { version = "0.3", features = ["openblas"] }
