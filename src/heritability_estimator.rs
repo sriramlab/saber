@@ -20,7 +20,7 @@ use crate::partitioned_jackknife_estimates::PartitionedJackknifeEstimates;
 use crate::trace_estimator::{
     estimate_gxg_dot_y_norm_sq, estimate_gxg_dot_y_norm_sq_from_basis_bed, estimate_gxg_gram_trace,
     estimate_gxg_kk_trace, estimate_tr_gxg_ki_gxg_kj, estimate_tr_k_gxg_k, estimate_tr_kk,
-    get_gxg_dot_y_norm_sq_from_basis_bed
+    get_gxg_dot_y_norm_sq_from_basis_bed,
 };
 use crate::util::matrix_util::{
     generate_plus_minus_one_bernoulli_matrix, normalize_matrix_columns_inplace,
@@ -278,6 +278,45 @@ pub fn estimate_g_gxg_heritability(
          g_jackknife_range: Option<&Partition>,
          gxg_jackknife_range: Option<&Partition>| {
             let (mut a, mut b) = get_normal_eqn_matrices(total_num_partitions, num_people, yy);
+
+            println!("=> generating inter_chrom_gxg_zz_array");
+            let inter_chrom_gxg_zz_array: Vec<Array<f32, Ix2>> = (0..num_gxg_partitions)
+                .collect::<Vec<usize>>()
+                .par_iter()
+                .flat_map(|&i| {
+                    (i + 1..num_gxg_partitions)
+                        .collect::<Vec<usize>>()
+                        .par_iter()
+                        .map(|&j| {
+                            get_inter_chrom_gxg_zz_from_gz_gz_jackknife(
+                                &gxg_gz_jackknife[i],
+                                &gxg_gz_jackknife[j],
+                                k,
+                            )
+                        })
+                        .collect::<Vec<Array<f32, Ix2>>>()
+                })
+                .collect();
+
+            println!("=> generating inter_chrom_gxg_uu_array");
+            let inter_chrom_gxg_uu_array: Vec<Array<f32, Ix2>> = (0..num_gxg_partitions)
+                .collect::<Vec<usize>>()
+                .par_iter()
+                .flat_map(|&i| {
+                    (i + 1..num_gxg_partitions)
+                        .collect::<Vec<usize>>()
+                        .par_iter()
+                        .map(|&j| {
+                            get_inter_chrom_gxg_zz_from_gz_gz_jackknife(
+                                &gxg_gu_jackknife[i],
+                                &gxg_gu_jackknife[j],
+                                k,
+                            )
+                        })
+                        .collect::<Vec<Array<f32, Ix2>>>()
+                })
+                .collect();
+
             // g_pairwise_est contains Vec<(
             // tr_kk_est,
             // tr_gk_i_gk_j_est_list,
@@ -354,11 +393,7 @@ pub fn estimate_g_gxg_heritability(
 
                                     get_mean_ssq_of_z1g1g2z2(
                                         &gz,
-                                        &get_inter_chrom_gxg_zz_from_gz_gz_jackknife(
-                                            &gxg_gz_jackknife[gxg_i],
-                                            &gxg_gz_jackknife[gxg_j],
-                                            k,
-                                        ),
+                                        &inter_chrom_gxg_zz_array[i_j_to_index(gxg_i, gxg_j, num_gxg_partitions)],
                                     ) / num_inter_gxg_snps / num_snps_i
                                 })
                                 .collect::<Vec<f64>>()
@@ -472,11 +507,7 @@ pub fn estimate_g_gxg_heritability(
 
                                     get_mean_ssq_of_z1g1g2z2(
                                         &gxg_i_dot_semi_kronecker_z,
-                                        &get_inter_chrom_gxg_zz_from_gz_gz_jackknife(
-                                            &gxg_gu_jackknife[ii],
-                                            &gxg_gu_jackknife[jj],
-                                            k,
-                                        ),
+                                        &inter_chrom_gxg_uu_array[i_j_to_index(ii, jj, num_gxg_partitions)],
                                     ) / num_gxg_snps_i / num_inter_gxg_snps
                                 })
                                 .collect::<Vec<f64>>()
@@ -547,6 +578,7 @@ pub fn estimate_g_gxg_heritability(
                 }
             }
 
+            println!("=> computing inter_gxg_pairwise_est");
             // inter_gxg_pairwise_est contains Vec<(
             // tr_inter_k_ij_est,
             // tr_inter_kk_ij_est,
@@ -575,18 +607,12 @@ pub fn estimate_g_gxg_heritability(
                             );
                             let num_gxg_snps_i1j1 = (range_i1.size() * range_j1.size()) as f64;
 
-                            let inter_chrom_gxg_zz_i1j1 = get_inter_chrom_gxg_zz_from_gz_gz_jackknife(
-                                &gxg_gz_jackknife[i1],
-                                &gxg_gz_jackknife[j1],
-                                k,
-                            );
+                            let inter_chrom_gxg_zz_i1j1 = &inter_chrom_gxg_zz_array[
+                                i_j_to_index(i1, j1, num_gxg_partitions)
+                                ];
                             let tr_inter_kk_ij_est = get_mean_ssq_of_z1g1g2z2(
-                                &inter_chrom_gxg_zz_i1j1,
-                                &get_inter_chrom_gxg_zz_from_gz_gz_jackknife(
-                                    &gxg_gu_jackknife[i1],
-                                    &gxg_gu_jackknife[j1],
-                                    k,
-                                ),
+                                inter_chrom_gxg_zz_i1j1,
+                                &inter_chrom_gxg_uu_array[i_j_to_index(i1, j1, num_gxg_partitions)],
                             )
                                 / num_gxg_snps_i1j1
                                 / num_gxg_snps_i1j1;
@@ -611,12 +637,8 @@ pub fn estimate_g_gxg_heritability(
                                             let num_gxg_snps_i2j2 = (range_i2.size() * range_j2.size()) as f64;
 
                                             get_mean_ssq_of_z1g1g2z2(
-                                                &inter_chrom_gxg_zz_i1j1,
-                                                &get_inter_chrom_gxg_zz_from_gz_gz_jackknife(
-                                                    &gxg_gu_jackknife[i2],
-                                                    &gxg_gu_jackknife[j2],
-                                                    k,
-                                                ),
+                                                inter_chrom_gxg_zz_i1j1,
+                                                &inter_chrom_gxg_uu_array[i_j_to_index(i2, j2, num_gxg_partitions)],
                                             )
                                                 / num_gxg_snps_i1j1
                                                 / num_gxg_snps_i2j2
@@ -958,6 +980,10 @@ fn get_partitioned_ygy_jackknife(
             ) * num_snps_in_range
         })
     }).collect()
+}
+
+fn i_j_to_index(i: usize, j: usize, num_partitions: usize) -> usize {
+    (num_partitions - 2) * i + j - 1 - i * (i - 1) / 2
 }
 
 #[inline]
@@ -1646,4 +1672,25 @@ pub fn estimate_heritability_directly(
     println!("heritability: {}", heritability);
 
     Ok(heritability)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::i_j_to_index;
+
+    #[test]
+    fn test_i_j_to_index() {
+        fn test(n: usize) {
+            let mut c = 0;
+            for i in 0..n {
+                for j in i + 1..n {
+                    assert_eq!(i_j_to_index(i, j, n), c);
+                    c += 1;
+                }
+            }
+        }
+        for n in 2..100 {
+            test(n);
+        }
+    }
 }

@@ -3,7 +3,11 @@ use std::io::{BufWriter, BufReader};
 use std::marker::{Send, Sync};
 use std::ops::{Add, Deref, Index, Sub};
 
-use analytic::partition::integer_partitions::{IntegerPartitionIter, IntegerPartitions, Partition};
+use analytic::partition::integer_partitions::{
+    IntegerPartitionIter,
+    IntegerPartitions,
+    Partition,
+};
 use analytic::sample::Sample;
 use analytic::set::ordered_integer_set::{ContiguousIntegerSet, OrderedIntegerSet};
 use analytic::set::traits::Finite;
@@ -16,7 +20,10 @@ pub struct Jackknife<C> {
 }
 
 impl<C: Send> Jackknife<C> {
-    pub fn from_op_over_jackknife_partitions<F>(jackknife_partitions: &JackknifePartitions, op: F) -> Jackknife<C>
+    pub fn from_op_over_jackknife_partitions<F>(
+        jackknife_partitions: &JackknifePartitions,
+        op: F,
+    ) -> Jackknife<C>
         where F: Fn(&Partition) -> C + Send + Sync {
         Jackknife {
             components: jackknife_partitions.iter().into_par_iter().map(|p| op(&p)).collect()
@@ -119,7 +126,10 @@ impl<C: Send> AdditiveJackknife<C> {
         where for<'a> C: serde::de::Deserialize<'a> {
         let buf_reader = BufReader::new(
             OpenOptions::new().read(true).open(
-                AdditiveJackknife::<C>::get_sum_minus_component_filepath(file_prefix, component_index)
+                AdditiveJackknife::<C>::get_sum_minus_component_filepath(
+                    file_prefix,
+                    component_index,
+                )
             )?
         );
         let decoded: C = bincode::deserialize_from(buf_reader)?;
@@ -146,7 +156,10 @@ impl JackknifePartitions {
         num_partitions: usize,
         randomize: bool,
     ) -> JackknifePartitions {
-        let partition_size: Vec<usize> = integer_sets.iter().map(|s| s.size() / num_partitions).collect();
+        let partition_size: Vec<usize> = integer_sets
+            .iter()
+            .map(|s| s.size() / num_partitions)
+            .collect();
         let mut partitions = Vec::new();
         for _ in 0..num_partitions - 1 {
             let mut merged_partition = Vec::new();
@@ -214,7 +227,11 @@ mod tests {
         let num_partitions = 7;
         let integer_set = OrderedIntegerSet::from_slice(&[[1, 5], [8, 12], [14, 20], [25, 32]]);
         let size = integer_set.size();
-        let config = JackknifePartitions::from_integer_set(vec![integer_set.clone()], num_partitions, true);
+        let config = JackknifePartitions::from_integer_set(
+            vec![integer_set.clone()],
+            num_partitions,
+            true,
+        );
         for (i, p) in config.partitions.iter().enumerate() {
             if i == num_partitions - 1 {
                 assert!(p.size() >= size / num_partitions);
@@ -222,7 +239,11 @@ mod tests {
                 assert_eq!(p.size(), size / num_partitions);
             }
         }
-        let config = JackknifePartitions::from_integer_set(vec![integer_set], num_partitions, false);
+        let config = JackknifePartitions::from_integer_set(
+            vec![integer_set],
+            num_partitions,
+            false,
+        );
         for (i, p) in config.partitions.iter().enumerate() {
             if i == num_partitions - 1 {
                 assert!(p.size() >= size / num_partitions);
@@ -245,10 +266,8 @@ mod tests {
         let file_prefix = "test_serialize_jackknife";
         let jackknife = AdditiveJackknife::from_op_over_jackknife_partitions(
             &config,
-            |k, knife| {
-                println!("knife: {:?}", knife);
+            |_k, knife| {
                 let s = knife.to_iter().sum::<usize>();
-                println!("s: {}", s);
                 Array::<f32, Ix2>::ones((2, 2)) * s as f32
             },
         );
