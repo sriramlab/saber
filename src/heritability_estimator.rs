@@ -414,10 +414,7 @@ pub fn estimate_g_gxg_heritability(
                 .collect::<Vec<usize>>()
                 .par_iter()
                 .map(|&i| {
-                    let range_i = match gxg_jackknife_range {
-                        None => gxg_partition_array[i].clone(),
-                        Some(r) => gxg_partition_array[i].clone() - r,
-                    };
+                    let range_i = partition_minus_knife(&gxg_partition_array[i], gxg_jackknife_range);
                     let num_gxg_snps_i = n_choose_2(range_i.size()) as f64;
 
                     let gxg_i_dot_semi_kronecker_z =
