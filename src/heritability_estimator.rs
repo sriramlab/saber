@@ -886,7 +886,7 @@ fn get_mean_ssq_of_z1g1g2z2(
 ) -> f64 {
     let b1 = g1z1.dim().1;
     let b2 = g2z2.dim().1;
-    sum_of_squares(g1z1.t().dot(g2z2).iter())
+    sum_of_squares_f32(g1z1.t().dot(g2z2).iter()) as f64
         / b1 as f64
         / b2 as f64
 }
