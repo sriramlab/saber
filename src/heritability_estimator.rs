@@ -840,11 +840,11 @@ fn get_mean_ssq_of_z1g1g2z2(
     g1z1: &Array<f32, Ix2>,
     g2z2: &Array<f32, Ix2>,
 ) -> f64 {
-    let b1 = g1z1.dim().1;
-    let b2 = g2z2.dim().1;
+    let b1 = g1z1.dim().1 as f64;
+    let b2 = g2z2.dim().1 as f64;
     sum_of_squares_f32(g1z1.t().dot(g2z2).iter()) as f64
-        / b1 as f64
-        / b2 as f64
+        / b1
+        / b2
 }
 
 fn get_partitioned_gz_jackknife(bed: &PlinkBed,
