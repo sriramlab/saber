@@ -29,6 +29,9 @@ use crate::util::matrix_util::{
     generate_plus_minus_one_bernoulli_matrix, normalize_matrix_columns_inplace,
     normalize_vector_inplace,
 };
+use std::collections::HashMap;
+use crate::util::get_pheno_arr;
+use program_flow::OrExit;
 
 pub const DEFAULT_PARTITION_NAME: &str = "default_partition";
 
@@ -151,11 +154,20 @@ pub fn estimate_g_gxg_heritability(
     g_bim: PlinkBim,
     gxg_basis_bed: PlinkBed,
     gxg_basis_bim: PlinkBim,
-    mut pheno_arr: Array<f32, Ix1>,
+    pheno_path_vec: Vec<String>,
     num_rand_vecs_g: usize,
     num_rand_vecs_gxg: usize,
     num_jackknife_partitions: usize,
-) -> Result<PartitionedJackknifeEstimates, Error> {
+) -> Result<HashMap<String, PartitionedJackknifeEstimates>, Error> {
+    let mut pheno_path_to_arr: HashMap<String, Array<f32, Ix1>> = pheno_path_vec
+        .iter()
+        .map(|p| (
+            p.to_string(),
+            get_pheno_arr(p)
+                .unwrap_or_exit(Some(format!("failed to create phenotype array for {}", p))))
+        )
+        .collect();
+
     let g_partitions = g_bim.get_fileline_partitions_or(
         DEFAULT_PARTITION_NAME,
         OrderedIntegerSet::from_slice(&[[0, g_bed.num_snps - 1]]),
@@ -210,11 +222,12 @@ pub fn estimate_g_gxg_heritability(
         gxg_partitions.ordered_partition_keys(),
     )?;
 
-    normalize_vector_inplace(&mut pheno_arr, 0);
-    println!("\n=> normalized the phenotype vector");
+    pheno_path_to_arr
+        .iter_mut()
+        .for_each(|(_path, mut pheno_arr)| normalize_vector_inplace(&mut pheno_arr, 0));
+    println!("\n=> normalized the phenotype vectors");
 
-    let yy = sum_of_squares(pheno_arr.iter());
-    println!("\n=> yy: {}", yy);
+    let yy = num_people as f64;
 
     println!("=> generating ggz_jackknife");
     let g_random_vecs = generate_plus_minus_one_bernoulli_matrix(
@@ -237,12 +250,20 @@ pub fn estimate_g_gxg_heritability(
     );
 
     println!("=> generating ygy_jackknives");
-    let ygy_jackknives = get_partitioned_ygy_jackknife(
-        &g_bed,
-        &g_partition_array,
-        &g_jackknife_partitions,
-        &pheno_arr,
-    );
+    let ygy_jackknives: HashMap<String, Vec<AdditiveJackknife<f64>>> = pheno_path_to_arr
+        .iter()
+        .map(|(path, pheno_arr)| {
+            (
+                path.clone(),
+                get_partitioned_ygy_jackknife(
+                    &g_bed,
+                    &g_partition_array,
+                    &g_jackknife_partitions,
+                    &pheno_arr,
+                )
+            )
+        })
+        .collect();
 
     println!("=> generating gxg_gz_jackknife");
     let gxg_gz_jackknife = get_partitioned_gz_jackknife(
@@ -279,11 +300,11 @@ pub fn estimate_g_gxg_heritability(
     let get_heritability_point_estimate =
         |leave_out_index: Option<usize>,
          g_jackknife_range: Option<&Partition>,
-         gxg_jackknife_range: Option<&Partition>| -> Vec<f64> {
+         gxg_jackknife_range: Option<&Partition>| -> HashMap<String, Vec<f64>> {
             let JackknifeSelectorOutput {
                 gz_array,
                 ggz_array,
-                ygy_array,
+                pheno_path_to_ygy_array,
                 gxg_gz_array,
                 gxg_gu_array,
                 gxg_ssq_array,
@@ -319,24 +340,36 @@ pub fn estimate_g_gxg_heritability(
                 num_rand_vecs_g,
                 num_rand_vecs_gxg,
             );
-            let b = get_rhs_vec_for_heritability_point_estimate(
-                &gxg_basis_bed,
-                &pheno_arr,
-                &ygy_array,
-                yy,
-                &gxg_range_array,
-                &g_range_sizes_array,
-                &gxg_range_sizes_array,
-            );
-            println!("=> Solving Ax=B\nA = {:?}\nb = {:?}", a, b);
-            let mut sig_sq = a.solve_into(b).unwrap().as_slice().unwrap().to_owned();
-            sig_sq.truncate(total_num_partitions);
-            println!("\nsig_sq: {:?}", sig_sq);
-            sig_sq
+            let pheno_to_heritability_est: HashMap<String, Vec<f64>> = pheno_path_to_arr
+                .iter()
+                .map(|(path, pheno_arr)| {
+                    let b = get_rhs_vec_for_heritability_point_estimate(
+                        &gxg_basis_bed,
+                        &pheno_arr,
+                        &pheno_path_to_ygy_array[path],
+                        yy,
+                        &gxg_range_array,
+                        &g_range_sizes_array,
+                        &gxg_range_sizes_array,
+                    );
+                    println!("=> Solving Ax=B for phenotype at {}", path);
+                    let mut sig_sq = a.solve_into(b).unwrap().as_slice().unwrap().to_owned();
+                    sig_sq.truncate(total_num_partitions);
+                    (path.clone(), sig_sq)
+                })
+                .collect();
+
+            pheno_to_heritability_est
+                .iter()
+                .for_each(|(path, est)| {
+                    println!("\npheno {} sig_sq: {:?}", path, est);
+                });
+
+            pheno_to_heritability_est
         };
 
     // TODO: check if calling par_iter on this will take up too much memory
-    let heritability_estimates: Vec<Vec<f64>> = g_jackknife_partitions
+    let heritability_estimates: Vec<HashMap<String, Vec<f64>>> = g_jackknife_partitions
         .iter()
         .zip(gxg_basis_jackknife_partitions.iter())
         .enumerate()
@@ -352,7 +385,6 @@ pub fn estimate_g_gxg_heritability(
 
     println!("\n=> Computing heritability without Jackknife");
     let est_without_knife = get_heritability_point_estimate(None, None, None);
-    println!("\nest_without_knife: {:?}", est_without_knife);
 
     let mut total_partition_keys: Vec<String> = g_partitions
         .ordered_partition_keys()
@@ -382,20 +414,43 @@ pub fn estimate_g_gxg_heritability(
             .collect()
     );
 
-    Ok(PartitionedJackknifeEstimates::from_jackknife_estimates(
-        &est_without_knife,
-        &heritability_estimates,
-        Some(total_partition_keys),
-        Some(vec![
-            ("G".to_string(), OrderedIntegerSet::from_slice(&[[0, num_g_partitions - 1]])),
-            ("GxG".to_string(), OrderedIntegerSet::from_slice(&[[
-                num_g_partitions, num_g_partitions + num_gxg_partitions - 1
-            ]])),
-            ("inter-chromosome GxG".to_string(), OrderedIntegerSet::from_slice(&[[
-                num_g_partitions + num_gxg_partitions, total_num_partitions - 1
-            ]]))
-        ]),
-    )?)
+    let path_to_estimates: HashMap<String, Vec<Vec<f64>>> = pheno_path_vec
+        .iter()
+        .map(|path| {
+            let estimates = heritability_estimates
+                .iter()
+                .map(|pheno_to_est| pheno_to_est[path].clone())
+                .collect::<Vec<Vec<f64>>>();
+            (path.clone(), estimates)
+        })
+        .collect();
+
+    let path_to_partitioned_estimates: HashMap<String, PartitionedJackknifeEstimates> =
+        path_to_estimates
+            .into_iter()
+            .map(|(path, estimates)| {
+                let partitioned_estimates = PartitionedJackknifeEstimates::from_jackknife_estimates(
+                    &est_without_knife[&path],
+                    &estimates,
+                    Some(total_partition_keys.clone()),
+                    Some(vec![
+                        ("G".to_string(), OrderedIntegerSet::from_slice(&[[0, num_g_partitions - 1]])),
+                        ("GxG".to_string(), OrderedIntegerSet::from_slice(&[[
+                            num_g_partitions, num_g_partitions + num_gxg_partitions - 1
+                        ]])),
+                        ("inter-chromosome GxG".to_string(), OrderedIntegerSet::from_slice(&[[
+                            num_g_partitions + num_gxg_partitions, total_num_partitions - 1
+                        ]]))
+                    ]),
+                )
+                    .unwrap_or_exit(
+                        Some(format!("failed to get partitioned jackknife estimates for {}", path))
+                    );
+                (path, partitioned_estimates)
+            })
+            .collect();
+
+    Ok(path_to_partitioned_estimates)
 }
 
 fn get_lhs_matrix_for_heritability_point_estimate(
@@ -802,7 +857,7 @@ fn get_rhs_vec_for_heritability_point_estimate(
 struct JackknifeSelectorOutput {
     gz_array: Vec<Array<f32, Ix2>>,
     ggz_array: Vec<Array<f32, Ix2>>,
-    ygy_array: Vec<f64>,
+    pheno_path_to_ygy_array: HashMap<String, Vec<f64>>,
     gxg_gz_array: Vec<Array<f32, Ix2>>,
     gxg_gu_array: Vec<Array<f32, Ix2>>,
     gxg_ssq_array: Vec<Array<f32, Ix1>>,
@@ -819,7 +874,7 @@ fn leave_out_jackknife(
     gxg_jackknife_range: Option<&Partition>,
     gz_jackknife: &Vec<AdditiveJackknife<Array<f32, Ix2>>>,
     ggz_jackknife: &Vec<AdditiveJackknife<Array<f32, Ix2>>>,
-    ygy_jackknives: &Vec<AdditiveJackknife<f64>>,
+    ygy_jackknives: &HashMap<String, Vec<AdditiveJackknife<f64>>>,
     gxg_gz_jackknife: &Vec<AdditiveJackknife<Array<f32, Ix2>>>,
     gxg_gu_jackknife: &Vec<AdditiveJackknife<Array<f32, Ix2>>>,
     gxg_ssq_jackknife: &Vec<AdditiveJackknife<Array<f32, Ix1>>>,
@@ -842,11 +897,17 @@ fn leave_out_jackknife(
         )
         .collect();
 
-    let ygy_array: Vec<f64> = ygy_jackknives
+    let pheno_path_to_ygy_array: HashMap<String, Vec<f64>> = ygy_jackknives
         .iter()
-        .map(|additive_jackknife|
-            additive_jackknife.sum_minus_component_or_sum(leave_out_index).unwrap()
-        )
+        .map(|(path, ygy_jackknife_list)| {
+            let ygy_array: Vec<f64> = ygy_jackknife_list
+                .par_iter()
+                .map(|additive_jackknife|
+                    additive_jackknife.sum_minus_component_or_sum(leave_out_index).unwrap()
+                )
+                .collect();
+            (path.clone(), ygy_array)
+        })
         .collect();
 
     let gxg_gz_array: Vec<Array<f32, Ix2>> = gxg_gz_jackknife
@@ -930,7 +991,7 @@ fn leave_out_jackknife(
     JackknifeSelectorOutput {
         gz_array,
         ggz_array,
-        ygy_array,
+        pheno_path_to_ygy_array,
         gxg_gz_array,
         gxg_gu_array,
         gxg_ssq_array,
