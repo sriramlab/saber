@@ -536,14 +536,6 @@ pub fn estimate_g_gxg_heritability(
                         &snp_std_i,
                         &pheno_arr,
                     ) / num_gxg_snps_i;
-//                    let y_gxg_k_y_est = estimate_gxg_dot_y_norm_sq_from_basis_bed(
-//                        &gxg_basis_bed,
-//                        Some(range_i),
-//                        &snp_mean_i,
-//                        &snp_std_i,
-//                        &pheno_arr,
-//                        num_rand_vecs_gxg * GXG_YKY_NUM_RAND_SCALING,
-//                    ) / num_gxg_snps_i;
 
                     (sum_of_squares_f32(gxg_i_dot_semi_kronecker_z.iter()) as f64 / num_gxg_snps_i / nrv_gxg,
                      get_mean_ssq_of_z1g1g2z2(&gxg_i_dot_semi_kronecker_z, &gxg_i_dot_semi_kronecker_u)
@@ -650,12 +642,6 @@ pub fn estimate_g_gxg_heritability(
                                 })
                                 .collect();
 
-//                            let (snp_mean_j1, snp_std_j1) = get_column_mean_and_std(
-//                                &gxg_basis_bed,
-//                                &range_j1,
-//                                DEFAULT_NUM_SNPS_PER_CHUNK,
-//                            );
-
                             let mut rhs_matrix = gxg_basis_bed
                                 .get_genotype_matrix(Some(range_j1))
                                 .unwrap();
@@ -671,18 +657,6 @@ pub fn estimate_g_gxg_heritability(
                                     None,
                                 ).iter()
                             ) as f64 / num_gxg_snps_i1j1;
-
-//                            let y_gxg_k_y_est = estimate_inter_gxg_dot_y_norm_sq_from_basis_bed(
-//                                &gxg_basis_bed,
-//                                Some(range_i1.clone()),
-//                                Some(range_j1),
-//                                &snp_mean_i1,
-//                                &snp_std_i1,
-//                                &snp_mean_j1,
-//                                &snp_std_j1,
-//                                &pheno_arr,
-//                                num_rand_vecs_gxg * GXG_YKY_NUM_RAND_SCALING,
-//                            ) / num_gxg_snps_i1j1;
 
                             (
                                 sum_of_squares_f32(inter_chrom_gxg_zz_i1j1.iter()) as f64 / nrv_gxg / num_gxg_snps_i1j1,
