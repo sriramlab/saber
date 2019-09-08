@@ -22,8 +22,8 @@ use crate::matrix_ops::{
 };
 use crate::partitioned_jackknife_estimates::PartitionedJackknifeEstimates;
 use crate::trace_estimator::{
-    estimate_gxg_dot_y_norm_sq, estimate_gxg_dot_y_norm_sq_from_basis_bed, estimate_gxg_gram_trace,
-    estimate_gxg_kk_trace, estimate_tr_gxg_ki_gxg_kj, estimate_tr_k_gxg_k, estimate_tr_kk,
+    estimate_gxg_dot_y_norm_sq, estimate_gxg_gram_trace, estimate_gxg_kk_trace,
+    estimate_tr_gxg_ki_gxg_kj, estimate_tr_k_gxg_k, estimate_tr_kk,
     get_gxg_dot_y_norm_sq_from_basis_bed,
 };
 use crate::util::matrix_util::{
@@ -32,7 +32,6 @@ use crate::util::matrix_util::{
 };
 
 pub const DEFAULT_PARTITION_NAME: &str = "default_partition";
-const GXG_YKY_NUM_RAND_SCALING: usize = 10;
 
 pub fn estimate_heritability(
     geno_bed: PlinkBed,
@@ -318,10 +317,10 @@ pub fn estimate_g_gxg_heritability(
                 })
                 .collect();
 
-            let gxg_range_sizes_array: Vec<f64> = gxg_partition_array
+            let gxg_range_sizes_array: Vec<usize> = gxg_partition_array
                 .par_iter()
                 .map(|p| {
-                    partition_minus_knife(p, gxg_jackknife_range).size() as f64
+                    partition_minus_knife(p, gxg_jackknife_range).size()
                 })
                 .collect();
 
@@ -362,12 +361,7 @@ pub fn estimate_g_gxg_heritability(
                         .collect::<Vec<usize>>()
                         .par_iter()
                         .map(|&gxg_i| {
-                            let num_gxg_snps_i = n_choose_2(
-                                partition_minus_knife(
-                                    &gxg_partition_array[gxg_i],
-                                    gxg_jackknife_range,
-                                ).size()
-                            ) as f64;
+                            let num_gxg_snps_i = n_choose_2(gxg_range_sizes_array[gxg_i]) as f64;
                             let gxg_i_dot_semi_kronecker_z =
                                 get_gxg_dot_semi_kronecker_z_from_gz_and_ssq_jackknife(
                                     &gxg_gz_jackknife[gxg_i],
@@ -384,20 +378,12 @@ pub fn estimate_g_gxg_heritability(
                         .collect::<Vec<usize>>()
                         .par_iter()
                         .flat_map(|&gxg_i| {
-                            let num_gxg_basis_i = partition_minus_knife(
-                                &gxg_partition_array[gxg_i],
-                                gxg_jackknife_range,
-                            ).size();
                             (gxg_i + 1..num_gxg_partitions)
                                 .collect::<Vec<usize>>()
                                 .par_iter()
                                 .map(|&gxg_j| {
                                     let num_inter_gxg_snps = (
-                                        num_gxg_basis_i
-                                            * partition_minus_knife(
-                                            &gxg_partition_array[gxg_j],
-                                            gxg_jackknife_range,
-                                        ).size()
+                                        gxg_range_sizes_array[gxg_i] * gxg_range_sizes_array[gxg_j]
                                     ) as f64;
 
                                     get_mean_ssq_of_z1g1g2z2(
@@ -460,7 +446,7 @@ pub fn estimate_g_gxg_heritability(
                 .par_iter()
                 .map(|&i| {
                     let range_i = partition_minus_knife(&gxg_partition_array[i], gxg_jackknife_range);
-                    let num_gxg_snps_i = n_choose_2(range_i.size()) as f64;
+                    let num_gxg_snps_i = n_choose_2(gxg_range_sizes_array[i]) as f64;
 
                     let gxg_i_dot_semi_kronecker_z =
                         get_gxg_dot_semi_kronecker_z_from_gz_and_ssq_jackknife(
@@ -479,7 +465,7 @@ pub fn estimate_g_gxg_heritability(
                         .par_iter()
                         .map(|&j| {
                             let num_gxg_snps_j = n_choose_2(
-                                partition_minus_knife(&gxg_partition_array[j], gxg_jackknife_range).size()
+                                gxg_range_sizes_array[j]
                             ) as f64;
                             let gxg_j_dot_semi_kronecker_z =
                                 get_gxg_dot_semi_kronecker_z_from_gz_and_ssq_jackknife(
@@ -499,20 +485,12 @@ pub fn estimate_g_gxg_heritability(
                         .collect::<Vec<usize>>()
                         .par_iter()
                         .flat_map(|&ii| {
-                            let num_snps_ii = partition_minus_knife(
-                                &gxg_partition_array[ii],
-                                gxg_jackknife_range,
-                            ).size();
                             (ii + 1..num_gxg_partitions)
                                 .collect::<Vec<usize>>()
                                 .par_iter()
                                 .map(|&jj| {
                                     let num_inter_gxg_snps = (
-                                        num_snps_ii
-                                            * partition_minus_knife(
-                                            &gxg_partition_array[jj],
-                                            gxg_jackknife_range,
-                                        ).size()
+                                        gxg_range_sizes_array[ii] * gxg_range_sizes_array[jj]
                                     ) as f64;
 
                                     get_mean_ssq_of_z1g1g2z2(
@@ -607,7 +585,9 @@ pub fn estimate_g_gxg_heritability(
                                 &gxg_partition_array[j1],
                                 gxg_jackknife_range,
                             );
-                            let num_gxg_snps_i1j1 = gxg_range_sizes_array[i1] * gxg_range_sizes_array[j1];
+                            let num_gxg_snps_i1j1 = (
+                                gxg_range_sizes_array[i1] * gxg_range_sizes_array[j1]
+                            ) as f64;
 
                             let inter_chrom_gxg_zz_i1j1 =
                                 &inter_chrom_gxg_zz_array[i_j_to_index(i1, j1, num_gxg_partitions)];
@@ -628,8 +608,9 @@ pub fn estimate_g_gxg_heritability(
                                         .collect::<Vec<usize>>()
                                         .par_iter()
                                         .map(|&j2| {
-                                            let num_gxg_snps_i2j2 =
-                                                gxg_range_sizes_array[i2] * gxg_range_sizes_array[j2];
+                                            let num_gxg_snps_i2j2 = (
+                                                gxg_range_sizes_array[i2] * gxg_range_sizes_array[j2]
+                                            ) as f64;
 
                                             get_mean_ssq_of_z1g1g2z2(
                                                 inter_chrom_gxg_zz_i1j1,
