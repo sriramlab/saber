@@ -4,8 +4,8 @@ use std::io::{BufWriter, Write};
 use clap::{Arg, clap_app};
 
 use biofile::plink_bim::{CHROM_FIELD_INDEX, PlinkBim, VARIANT_ID_FIELD_INDEX};
-use saber::program_flow::OrExit;
-use saber::util::extract_str_arg;
+use program_flow::OrExit;
+use program_flow::argparse::extract_str_arg;
 
 fn main() {
     let mut app = clap_app!(partition_by_chrom =>

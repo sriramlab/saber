@@ -4,14 +4,14 @@ use analytic::traits::Collecting;
 use biofile::plink_bed::PlinkBed;
 use biofile::plink_bim::{FilelinePartitions, PlinkBim};
 use clap::{Arg, clap_app};
+use program_flow::argparse::{
+    extract_numeric_arg, extract_optional_numeric_arg, extract_optional_str_arg, extract_str_arg,
+};
 
 use saber::heritability_estimator::DEFAULT_PARTITION_NAME;
 use saber::heritability_estimator::estimate_heritability;
-use saber::program_flow::OrExit;
-use saber::util::{
-    extract_numeric_arg, extract_optional_numeric_arg, extract_optional_str_arg, extract_str_arg,
-    get_pheno_arr,
-};
+use program_flow::OrExit;
+use saber::util::get_pheno_arr;
 
 fn main() {
     let mut app = clap_app!(estimate_heritability =>

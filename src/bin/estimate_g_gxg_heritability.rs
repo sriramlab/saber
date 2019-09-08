@@ -1,13 +1,13 @@
 use biofile::plink_bed::PlinkBed;
 use biofile::plink_bim::PlinkBim;
 use clap::{Arg, clap_app};
+use program_flow::argparse::{
+    extract_numeric_arg, extract_optional_str_arg, extract_str_arg, extract_str_vec_arg,
+};
 
 use saber::heritability_estimator::estimate_g_gxg_heritability;
-use saber::program_flow::OrExit;
-use saber::util::{
-    extract_numeric_arg, extract_optional_str_arg, extract_str_arg, extract_str_vec_arg,
-    get_bed_bim_fam_path, get_pheno_arr,
-};
+use program_flow::OrExit;
+use saber::util::{get_bed_bim_fam_path, get_pheno_arr};
 
 fn main() {
     let mut app = clap_app!(estimate_multi_gxg_heritability =>
@@ -63,22 +63,22 @@ fn main() {
         )
         .arg(
             Arg::with_name("partition_file").long("partition").takes_value(true)
-                .help(
-                    "A file to partition the G SNPs into multiple components.\n\
+                                            .help(
+                                                "A file to partition the G SNPs into multiple components.\n\
                     Each line consists of two values of the form:\n\
                     SNP_ID PARTITION\n\
                     For example,\n\
                     rs3115860 1\n\
                     will assign SNP with ID rs3115860 in the BIM file to a partition named 1"
-                )
+                                            )
         )
         .arg(
             Arg::with_name("gxg_partition_file").long("gxg-partition").takes_value(true)
-                .help(
-                    "Form GxG for each of the partitions instead of\n\
+                                                .help(
+                                                    "Form GxG for each of the partitions instead of\n\
                     over the entire range of LE SNPs.\n\
                     Taking the same file format as the --partition option"
-                )
+                                                )
         )
         .arg(
             Arg::with_name("num_jackknife_partitions")

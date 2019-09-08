@@ -5,13 +5,13 @@ use clap::{Arg, clap_app};
 use ndarray::{Array, Axis, Ix2, s};
 use ndarray_rand::RandomExt;
 use num_traits::Float;
+//use saber::trace_estimator::{estimate_gxg_dot_y_norm_sq, estimate_gxg_gram_trace, estimate_gxg_kk_trace};
+use program_flow::argparse::{extract_numeric_arg, extract_optional_numeric_arg};
+use program_flow::OrExit;
 use rand::distributions::Uniform;
 
 use saber::matrix_ops::get_gxg_dot_semi_kronecker_z_from_gz_and_ssq;
-use saber::program_flow::OrExit;
 use saber::simulation::sim_geno::get_gxg_arr;
-use saber::trace_estimator::{estimate_gxg_dot_y_norm_sq, estimate_gxg_gram_trace, estimate_gxg_kk_trace};
-use saber::util::{extract_numeric_arg, extract_optional_numeric_arg};
 use saber::util::matrix_util::generate_plus_minus_one_bernoulli_matrix;
 use saber::util::timer::Timer;
 

@@ -1,14 +1,15 @@
 use std::fs::OpenOptions;
 use std::io::{BufWriter, Write};
 
-use clap::{Arg, clap_app};
-
-use biofile::plink_bed::PlinkBed;
-use biofile::plink_bim::PlinkBim;
 use analytic::interval::traits::{CoalesceIntervals, Interval};
 use analytic::set::ordered_integer_set::ContiguousIntegerSet;
-use saber::program_flow::OrExit;
-use saber::util::{extract_str_arg, get_bed_bim_fam_path};
+use biofile::plink_bed::PlinkBed;
+use biofile::plink_bim::PlinkBim;
+use clap::{Arg, clap_app};
+use program_flow::argparse::extract_str_arg;
+
+use program_flow::OrExit;
+use saber::util::get_bed_bim_fam_path;
 
 const CHUNK_SIZE: usize = 1024;
 

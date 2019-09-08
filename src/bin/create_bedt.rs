@@ -1,8 +1,9 @@
-use clap::{Arg, clap_app};
-
 use biofile::plink_bed::PlinkBed;
-use saber::program_flow::OrExit;
-use saber::util::{extract_optional_str_arg, extract_str_arg, get_bed_bim_fam_path};
+use clap::{Arg, clap_app};
+use program_flow::argparse::{extract_optional_str_arg, extract_str_arg};
+
+use program_flow::OrExit;
+use saber::util::get_bed_bim_fam_path;
 
 fn main() {
     let mut app = clap_app!(create_bedt =>
