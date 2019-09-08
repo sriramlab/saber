@@ -433,15 +433,34 @@ pub fn estimate_g_gxg_heritability(
                     &est_without_knife[&path],
                     &estimates,
                     Some(total_partition_keys.clone()),
-                    Some(vec![
-                        ("G".to_string(), OrderedIntegerSet::from_slice(&[[0, num_g_partitions - 1]])),
-                        ("GxG".to_string(), OrderedIntegerSet::from_slice(&[[
-                            num_g_partitions, num_g_partitions + num_gxg_partitions - 1
-                        ]])),
-                        ("inter-chromosome GxG".to_string(), OrderedIntegerSet::from_slice(&[[
-                            num_g_partitions + num_gxg_partitions, total_num_partitions - 1
-                        ]]))
-                    ]),
+                    Some(
+                        vec![
+                            (
+                                "G".to_string(),
+                                OrderedIntegerSet::from_slice(&[[0, num_g_partitions - 1]])
+                            ),
+                            (
+                                "intra-GxG-partition".to_string(),
+                                OrderedIntegerSet::from_slice(&[[
+                                    num_g_partitions, num_g_partitions + num_gxg_partitions - 1
+                                ]])
+                            ),
+                            (
+                                "inter-GxG-partition".to_string(),
+                                OrderedIntegerSet::from_slice(&[[
+                                    num_g_partitions + num_gxg_partitions, total_num_partitions - 1
+                                ]]
+                                )
+                            ),
+                            (
+                                "GxG".to_string(),
+                                OrderedIntegerSet::from_slice(&[[
+                                    num_g_partitions, total_num_partitions - 1
+                                ]]
+                                )
+                            )
+                        ]
+                    ),
                 )
                     .unwrap_or_exit(
                         Some(format!("failed to get partitioned jackknife estimates for {}", path))
