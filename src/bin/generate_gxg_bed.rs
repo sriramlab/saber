@@ -1,12 +1,13 @@
 use std::fs::OpenOptions;
 use std::io::{BufWriter, Write};
 
+use analytic::set::ordered_integer_set::OrderedIntegerSet;
 use biofile::plink_bed::PlinkBed;
 use clap::clap_app;
+use program_flow::argparse::extract_str_arg;
 
-use saber::program_flow::OrExit;
-use saber::util::{extract_str_arg, get_bed_bim_fam_path};
-use analytic::set::ordered_integer_set::OrderedIntegerSet;
+use program_flow::OrExit;
+use saber::util::get_bed_bim_fam_path;
 
 fn main() {
     let app = clap_app!(generate_gxg_bed =>

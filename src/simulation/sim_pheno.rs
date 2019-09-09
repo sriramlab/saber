@@ -1,10 +1,10 @@
+use analytic::stats::{mean, n_choose_2, variance};
 use ndarray::{Array, Axis, Ix1, Ix2, s};
 use ndarray_parallel::prelude::*;
 use ndarray_rand::RandomExt;
 use rand::distributions::Normal;
 
 use crate::util::matrix_util::normalize_matrix_columns_inplace;
-use crate::util::stats_util::{mean, n_choose_2, variance};
 
 /// * `geno_arr` is the 2D genotype array, of shape (num_individuals, num_snps)
 /// * `effect_variance` is the variance of the total effect sizes, i.e. each coefficient will have a variance of effect_variance / num_individuals
@@ -129,11 +129,10 @@ pub fn generate_gxg_pheno_arr_from_gxg_basis(geno_arr: &Array<f32, Ix2>, gxg_bas
 
 #[cfg(test)]
 mod tests {
+    use analytic::stats::variance;
     use ndarray::Array;
     use ndarray_rand::RandomExt;
     use rand::distributions::Uniform;
-
-    use crate::util::stats_util::variance;
 
     use super::{generate_g_contribution, generate_gxg_contribution_from_gxg_basis};
 

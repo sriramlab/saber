@@ -2,9 +2,10 @@ use std::fs::OpenOptions;
 use std::io::{BufWriter, Write};
 
 use clap::{Arg, clap_app};
+use program_flow::argparse::{extract_optional_str_vec_arg, extract_str_arg};
 
-use saber::program_flow::OrExit;
-use saber::util::{extract_optional_str_vec_arg, extract_str_arg, get_plink_pheno_data_replace_missing_with_mean};
+use program_flow::OrExit;
+use saber::util::get_plink_pheno_data_replace_missing_with_mean;
 use saber::util::matrix_util::normalize_vector_inplace;
 
 fn main() {

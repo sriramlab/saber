@@ -1,12 +1,14 @@
 use biofile::plink_bed::PlinkBed;
 use biofile::plink_bim::PlinkBim;
 use clap::{Arg, clap_app};
+use program_flow::argparse::{extract_optional_str_arg, extract_str_arg, extract_str_vec_arg};
 
 use saber::heritability_estimator::{estimate_g_and_multi_gxg_heritability,
                                     estimate_g_and_multi_gxg_heritability_from_saved_traces};
-use saber::program_flow::OrExit;
-use saber::util::{extract_optional_str_arg, extract_str_arg, extract_str_vec_arg, get_bed_bim_fam_path, get_pheno_arr,
-                  load_trace_estimates, write_trace_estimates};
+use program_flow::OrExit;
+use saber::util::{
+    get_bed_bim_fam_path, get_pheno_arr, load_trace_estimates, write_trace_estimates,
+};
 
 fn main() {
     let mut app = clap_app!(estimate_multi_gxg_heritability =>

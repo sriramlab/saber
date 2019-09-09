@@ -36,7 +36,10 @@ pub struct PartitionedJackknifeEstimates {
     pub subset_sum_estimates: Option<Vec<(String, Estimate<f64>)>>,
 }
 
-fn get_jackknife_mean_and_std(point_estimate_without_jackknife: f64, estimates: &Vec<f64>) -> Estimate<f64> {
+fn get_jackknife_mean_and_std(
+    point_estimate_without_jackknife: f64,
+    estimates: &Vec<f64>,
+) -> Estimate<f64> {
     let n = estimates.len() as f64;
     let n_minus_one = n - 1.;
 
@@ -84,8 +87,10 @@ impl PartitionedJackknifeEstimates {
         let num_partitions = point_estimate_without_jackknife.len();
         if let Some(names) = &partition_names {
             if names.len() != num_partitions {
-                return Err(format!("partition_names.len() {} != the number of partitions in the jackknife estimates {}",
-                                   names.len(), num_partitions));
+                return Err(format!(
+                    "partition_names.len() {} != the number of partitions in the jackknife estimates {}",
+                    names.len(), num_partitions
+                ));
             }
         }
         let mut partition_raw_estimates = vec![vec![0f64; jackknife_iteration_estimates.len()]; num_partitions];

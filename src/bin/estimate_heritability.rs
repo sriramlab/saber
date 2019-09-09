@@ -4,14 +4,14 @@ use analytic::traits::Collecting;
 use biofile::plink_bed::PlinkBed;
 use biofile::plink_bim::{FilelinePartitions, PlinkBim};
 use clap::{Arg, clap_app};
+use program_flow::argparse::{
+    extract_numeric_arg, extract_optional_numeric_arg, extract_optional_str_arg, extract_str_arg,
+};
 
 use saber::heritability_estimator::DEFAULT_PARTITION_NAME;
 use saber::heritability_estimator::estimate_heritability;
-use saber::program_flow::OrExit;
-use saber::util::{
-    extract_numeric_arg, extract_optional_numeric_arg, extract_optional_str_arg, extract_str_arg,
-    get_pheno_arr,
-};
+use program_flow::OrExit;
+use saber::util::get_pheno_arr;
 
 fn main() {
     let mut app = clap_app!(estimate_heritability =>
@@ -192,12 +192,12 @@ fn main() {
 mod tests {
     use std::collections::HashSet;
 
+    use analytic::stats::sum_of_squares;
     use ndarray::Array;
     use ndarray_rand::RandomExt;
     use rand::distributions::StandardNormal;
 
     use saber::util::matrix_util::generate_plus_minus_one_bernoulli_matrix;
-    use saber::util::stats_util::sum_of_squares;
 
     #[test]
     fn test_trace_estimator() {

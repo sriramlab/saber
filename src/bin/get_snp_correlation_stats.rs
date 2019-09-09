@@ -1,15 +1,16 @@
 use std::fs::OpenOptions;
 use std::io::{BufWriter, Write};
 
+use analytic::stats::n_choose_2;
+use biofile::plink_bed::PlinkBed;
 use clap::clap_app;
 use ndarray::{Axis, s};
 use ndarray_parallel::prelude::*;
+use program_flow::argparse::extract_str_arg;
 
-use biofile::plink_bed::PlinkBed;
-use saber::program_flow::OrExit;
-use saber::util::{extract_str_arg, get_bed_bim_fam_path};
+use program_flow::OrExit;
+use saber::util::get_bed_bim_fam_path;
 use saber::util::matrix_util::get_correlation;
-use saber::util::stats_util::n_choose_2;
 
 fn main() {
     let matches = clap_app!(get_snp_correlation_stats =>

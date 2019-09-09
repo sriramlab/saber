@@ -1,6 +1,7 @@
 use std::{fmt, io};
 use biofile::error::Error as PlinkBedError;
 
+#[derive(Debug)]
 pub enum Error {
     IO { why: String, io_error: io::Error },
     Generic(String),
@@ -34,5 +35,11 @@ impl From<io::Error> for Error {
 impl From<String> for Error {
     fn from(err: String) -> Error {
         Error::Generic(err)
+    }
+}
+
+impl From<bincode::Error> for Error {
+    fn from(err: bincode::Error) -> Error {
+        Error::Generic(format!("bincode::error: {}", *err))
     }
 }
