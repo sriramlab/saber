@@ -13,7 +13,7 @@ members = ["."]
 [dependencies]
 analytic = "0.3.1"
 bincode = "1.1.4"
-biofile = "0.1.13"
+biofile = "0.2.0"
 blas-src = { version = "0.3", features = ["openblas"] }
 clap = "2.32.0"
 colored = "1.7.0"

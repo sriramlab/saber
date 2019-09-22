@@ -368,10 +368,15 @@ pub fn estimate_g_gxg_heritability(
             pheno_to_heritability_est
         };
 
-    // TODO: check if calling par_iter on this will take up too much memory
-    let heritability_estimates: Vec<HashMap<String, Vec<f64>>> = g_jackknife_partitions
-        .iter()
-        .zip(gxg_basis_jackknife_partitions.iter())
+    let zipped_jackknife_partitions: Vec<(Partition, Partition)> =
+        g_jackknife_partitions
+            .iter()
+            .zip(gxg_basis_jackknife_partitions.iter())
+            .map(|(a, b)| (a, b))
+            .collect();
+
+    let heritability_estimates: Vec<HashMap<String, Vec<f64>>> = zipped_jackknife_partitions
+        .into_iter()
         .enumerate()
         .map(|(k, (g_jackknife_range, gxg_jackknife_range))| {
             println!("\n=> leaving out jackknife partition with index {}", k);

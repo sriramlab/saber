@@ -36,7 +36,7 @@ fn main() {
     let [bed_path, bim_path, fam_path] = get_bed_bim_fam_path(&bfile);
     println!("PLINK bed path: {}\nPLINK bim path: {}\nPLINK fam path: {}\nout_path_prefix: {}",
              bed_path, bim_path, fam_path, out_path_prefix);
-    let mut bed = PlinkBed::new(&bed_path, &bim_path, &fam_path)
+    let bed = PlinkBed::new(&bed_path, &bim_path, &fam_path)
         .unwrap_or_exit(None::<String>);
 
     let mut bim = PlinkBim::new(&bim_path).unwrap_or_exit(Some("failed to create PlinkBim"));
