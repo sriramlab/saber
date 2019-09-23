@@ -2,7 +2,7 @@ use analytic::histogram::Histogram;
 use analytic::stats::mean;
 use biofile::plink_bed::PlinkBed;
 use clap::{Arg, clap_app};
-use program_flow::argparse::extract_str_arg;
+use program_flow::argparse::{extract_str_arg, extract_numeric_arg};
 use program_flow::OrExit;
 use rayon::prelude::*;
 
@@ -22,24 +22,32 @@ fn main() {
                     PATH/TO/x.bed PATH/TO/x.bim PATH/TO/x.fam \n\
                     then the <plink_filename_prefix> should be path/to/x"
                 )
+        )
+        .arg(
+            Arg::with_name("chunk_size")
+                .long("chunk-size").takes_value(true).default_value("50")
         );
     let matches = app.get_matches();
 
     let bfile = extract_str_arg(&matches, "plink_filename_prefix");
+    let chunk_size = extract_numeric_arg::<usize>(&matches, "chunk_size")
+        .unwrap_or_exit(None::<String>);
     let [bed_path, bim_path, fam_path] = get_bed_bim_fam_path(&bfile);
     println!(
         "PLINK bed path: {}\n\
         PLINK bim path: {}\n\
-        PLINK fam path: {}",
+        PLINK fam path: {}\n\
+        chunk_size: {}",
         bed_path,
         bim_path,
         fam_path,
+        chunk_size,
     );
     let bed = PlinkBed::new(&bed_path, &bim_path, &fam_path)
         .unwrap_or_exit(None::<String>);
 
     let frequencies: Vec<f64> = bed
-        .col_chunk_iter(1000, None)
+        .col_chunk_iter(chunk_size, None)
         .into_par_iter()
         .flat_map(|snp_chunk| {
             snp_chunk.gencolumns()
