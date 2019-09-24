@@ -25,7 +25,7 @@ pub fn estimate_tr_kk(
     let num_people = geno_bed.num_people;
     let num_snps = match &snp_range {
         Some(range) => range.size(),
-        None => geno_bed.num_snps,
+        None => geno_bed.total_num_snps(),
     };
     let rand_mat = generate_plus_minus_one_bernoulli_matrix(num_people, num_random_vecs);
     let xxz_arr: Vec<f32> = geno_bed
@@ -64,11 +64,11 @@ pub fn estimate_tr_ki_kj(
 
     let num_snps_i = match &snp_range_i {
         Some(range) => range.size(),
-        None => geno_bed.num_snps,
+        None => geno_bed.total_num_snps(),
     };
     let num_snps_j = match &snp_range_j {
         Some(range) => range.size(),
-        None => geno_bed.num_snps,
+        None => geno_bed.total_num_snps(),
     };
 
     let gj_z = match precomputed_normalized_g_j_dot_rand {
@@ -112,7 +112,7 @@ pub fn estimate_tr_k(
     let num_people = geno_bed.num_people;
     let num_snps = match &snp_range {
         Some(range) => range.size(),
-        None => geno_bed.num_snps,
+        None => geno_bed.total_num_snps(),
     };
     let rand_mat = generate_plus_minus_one_bernoulli_matrix(num_people, num_random_vecs);
     let sum_of_squares: f64 = geno_bed
@@ -155,7 +155,7 @@ pub fn estimate_tr_k_gxg_k(
         .reduce(|| 0f32, |a, b| {
             a + b
         });
-    (ssq / (geno_arr.num_snps * n_choose_2(le_snps_arr.dim().1) * num_random_vecs) as f32) as f64
+    (ssq / (geno_arr.total_num_snps() * n_choose_2(le_snps_arr.dim().1) * num_random_vecs) as f32) as f64
 
 //    let gc = geno_arr.t().dot(&corrected);
 //    let mut sums = Vec::new();
@@ -305,7 +305,7 @@ pub fn estimate_gxg_dot_y_norm_sq_from_basis_bed(
 ) -> f64 {
     let num_cols = match &snp_range {
         Some(range) => range.size(),
-        None => gxg_basis_bed.num_snps,
+        None => gxg_basis_bed.total_num_snps(),
     };
     let ssq_of_hi_hi = gxg_basis_bed
         .col_chunk_iter(DEFAULT_NUM_SNPS_PER_CHUNK, snp_range.clone())
@@ -385,7 +385,7 @@ pub fn estimate_inter_gxg_dot_y_norm_sq_from_basis_bed(
 ) -> f64 {
     let num_snps_1 = match &snp_range_1 {
         Some(range) => range.size(),
-        None => gxg_basis_bed.num_snps,
+        None => gxg_basis_bed.total_num_snps(),
     };
     let y_scaled_basis_dot_rand_vecs = normalized_g_dot_matrix(
         gxg_basis_bed,

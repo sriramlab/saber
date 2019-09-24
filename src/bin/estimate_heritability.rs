@@ -21,6 +21,7 @@ fn main() {
         .arg(
             Arg::with_name("plink_filename_prefix")
                 .long("bfile").short("b").takes_value(true).required(true)
+                .multiple(true).number_of_values(1)
                 .help(
                     "If we have files named \n\
                     PATH/TO/x.bed PATH/TO/x.bim PATH/TO/x.fam \n\
@@ -121,11 +122,8 @@ fn main() {
     let pheno_arr = get_pheno_arr(&pheno_path)
         .unwrap_or_exit(None::<String>);
 
-    let bed = PlinkBed::new(
-        &plink_bed_path,
-        &plink_bim_path,
-        &plink_fam_path,
-    ).unwrap_or_exit(None::<String>);
+    let bed = PlinkBed::new(&vec![(plink_bed_path, plink_bim_path.clone(), plink_fam_path)])
+        .unwrap_or_exit(None::<String>);
 
     let maf = bed.get_minor_allele_frequencies(None);
     let mut low_maf = OrderedIntegerSet::new();
@@ -167,25 +165,20 @@ fn main() {
     let mut filtered_partitions = bim
         .get_fileline_partitions_or(
             DEFAULT_PARTITION_NAME,
-            OrderedIntegerSet::from_slice(&[[0, bed.num_snps - 1]]),
+            OrderedIntegerSet::from_slice(&[[0, bed.total_num_snps() - 1]]),
         )
         .into_hash_map();
     filtered_partitions.values_mut().for_each(|v| *v -= &low_maf);
     bim.set_fileline_partitions(Some(FilelinePartitions::new(filtered_partitions)));
 
-    match estimate_heritability(bed,
-                                bim,
-                                pheno_arr,
-                                num_random_vecs,
-                                num_jackknife_partitions) {
-        Ok(h) => {
-            println!("\nheritability estimates:\n{}", h);
-        }
-        Err(why) => {
-            eprintln!("{}", why);
-            return ();
-        }
-    };
+    let est = estimate_heritability(
+        bed,
+        bim,
+        pheno_arr,
+        num_random_vecs,
+        num_jackknife_partitions,
+    ).unwrap_or_exit(None::<String>);
+    println!("\nheritability estimates:\n{}", est);
 }
 
 #[cfg(test)]

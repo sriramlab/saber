@@ -139,7 +139,7 @@ fn main() {
     );
 
     println!("\n=> generating the phenotype array and the genotype matrix");
-    let geno_bed = PlinkBed::new(&bed_path, &bim_path, &fam_path)
+    let geno_bed = PlinkBed::new(&vec![(bed_path, bim_path.clone(), fam_path)])
         .unwrap_or_exit(None::<String>);
     let geno_bim = match &g_partition_filepath {
         Some(p) => PlinkBim::new_with_partition_file(&bim_path, p)
@@ -151,7 +151,7 @@ fn main() {
             .unwrap_or_exit(Some(format!("failed to create PlinkBim from {}", &bim_path))),
     };
 
-    let le_snps_bed = PlinkBed::new(&le_snps_bed_path, &le_snps_bim_path, &le_snps_fam_path)
+    let le_snps_bed = PlinkBed::new(&vec![(le_snps_bed_path, le_snps_bim_path.clone(), le_snps_fam_path)])
         .unwrap_or_exit(None::<String>);
     let le_snps_bim = match &gxg_partition_filepath {
         Some(p) => PlinkBim::new_with_partition_file(&le_snps_bim_path, p)

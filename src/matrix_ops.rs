@@ -120,7 +120,7 @@ pub fn normalized_g_dot_rand(
 ) -> Array<f32, Ix2> {
     let num_snps = match &snp_range {
         Some(range) => range.size(),
-        None => geno_bed.num_snps,
+        None => geno_bed.total_num_snps(),
     };
     let rand_mat = generate_plus_minus_one_bernoulli_matrix(num_snps, num_random_vecs);
     normalized_g_dot_matrix(geno_bed, snp_range, snp_mean, snp_std, &rand_mat, None, num_snps_per_chunk)
@@ -139,7 +139,7 @@ pub fn normalized_g_transpose_dot_matrix(
 
     let num_snps = match &snp_range {
         Some(range) => range.size(),
-        None => geno_bed.num_snps,
+        None => geno_bed.total_num_snps(),
     };
     let num_random_vecs = rhs_matrix.dim().1;
 

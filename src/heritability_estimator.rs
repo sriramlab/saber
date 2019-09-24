@@ -43,7 +43,9 @@ pub fn estimate_heritability(
     num_jackknife_partitions: usize,
 ) -> Result<PartitionedJackknifeEstimates, String> {
     let partitions = geno_bim.get_fileline_partitions_or(
-        DEFAULT_PARTITION_NAME, OrderedIntegerSet::from_slice(&[[0, geno_bed.num_snps - 1]]));
+        DEFAULT_PARTITION_NAME,
+        OrderedIntegerSet::from_slice(&[[0, geno_bed.total_num_snps() - 1]]),
+    );
     let partition_array: Vec<Partition> = partitions
         .iter()
         .map(|(_, p)| p.clone())
@@ -170,7 +172,7 @@ pub fn estimate_g_gxg_heritability(
 
     let g_partitions = g_bim.get_fileline_partitions_or(
         DEFAULT_PARTITION_NAME,
-        OrderedIntegerSet::from_slice(&[[0, g_bed.num_snps - 1]]),
+        OrderedIntegerSet::from_slice(&[[0, g_bed.total_num_snps() - 1]]),
     );
     let g_partition_array: Vec<Partition> = g_partitions
         .iter()
@@ -183,7 +185,7 @@ pub fn estimate_g_gxg_heritability(
 
     let gxg_partitions = gxg_basis_bim.get_fileline_partitions_or(
         DEFAULT_PARTITION_NAME,
-        OrderedIntegerSet::from_slice(&[[0, gxg_basis_bed.num_snps - 1]]),
+        OrderedIntegerSet::from_slice(&[[0, gxg_basis_bed.total_num_snps() - 1]]),
     );
     let gxg_partition_array: Vec<Partition> = gxg_partitions
         .iter()
@@ -1270,7 +1272,7 @@ fn i_j_to_index(i: usize, j: usize, num_partitions: usize) -> usize {
 pub fn estimate_g_and_multi_gxg_heritability(geno_arr: &mut PlinkBed, mut le_snps_arr: Vec<Array<f32, Ix2>>,
                                              mut pheno_arr: Array<f32, Ix1>, num_random_vecs: usize,
 ) -> Result<(Array<f64, Ix2>, Array<f64, Ix1>, Vec<f64>, Vec<Array<f32, Ix2>>, Array<f32, Ix1>), Error> {
-    let (num_people, num_snps) = (geno_arr.num_people, geno_arr.num_snps);
+    let (num_people, num_snps) = (geno_arr.num_people, geno_arr.total_num_snps());
     let num_gxg_components = le_snps_arr.len();
     println!("\n\
     => estimating heritability due to G and GxG\n\
@@ -1358,7 +1360,7 @@ pub fn estimate_g_and_multi_gxg_heritability_from_saved_traces(
     num_random_vecs: usize,
     saved_traces: Array<f64, Ix2>,
 ) -> Result<(Array<f64, Ix2>, Array<f64, Ix1>, Vec<f64>, Vec<Array<f32, Ix2>>, Array<f32, Ix1>), Error> {
-    let (num_people, num_snps) = (geno_bed.num_people, geno_bed.num_snps);
+    let (num_people, num_snps) = (geno_bed.num_people, geno_bed.total_num_snps());
     let num_gxg_components = le_snps_arr.len();
     println!("\n\
     => estimating heritability due to G and GxG\n\
@@ -1398,7 +1400,7 @@ pub fn estimate_g_and_multi_gxg_heritability_from_saved_traces(
 fn get_yky_gxg_yky_and_yy(geno_arr: &mut PlinkBed, normalized_pheno_arr: &Array<f32, Ix1>,
                           normalized_le_snps_arr: &Vec<Array<f32, Ix2>>, num_random_vecs: usize)
     -> Array<f64, Ix1> {
-    let num_snps = geno_arr.num_snps;
+    let num_snps = geno_arr.total_num_snps();
     let num_gxg_components = normalized_le_snps_arr.len();
 
     let mut b = Array::<f64, Ix1>::zeros(num_gxg_components + 2);

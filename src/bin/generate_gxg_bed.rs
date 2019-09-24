@@ -27,12 +27,12 @@ fn main() {
         PLINK fam path: {}\n\
         out_path: {}",
         bed_path, bim_path, fam_path, out_path);
-    let bed = PlinkBed::new(&bed_path, &bim_path, &fam_path)
+    let bed = PlinkBed::new(&vec![(bed_path, bim_path, fam_path)])
         .unwrap_or_exit(None::<String>);
 
     println!("\n=> writing gxg bed to {}", out_path);
     let num_people = bed.num_people;
-    let num_g_snps = bed.num_snps;
+    let num_g_snps = bed.total_num_snps();
     let mut buf_writer = BufWriter::new(OpenOptions::new()
         .create(true)
         .truncate(true)
