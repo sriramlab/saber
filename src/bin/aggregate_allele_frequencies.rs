@@ -43,7 +43,7 @@ fn main() {
         fam_path,
         chunk_size,
     );
-    let bed = PlinkBed::new(&bed_path, &bim_path, &fam_path)
+    let bed = PlinkBed::new(&vec![(bed_path, bim_path, fam_path)])
         .unwrap_or_exit(None::<String>);
 
     let frequencies: Vec<f64> = bed

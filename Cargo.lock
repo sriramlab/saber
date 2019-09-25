@@ -62,7 +62,7 @@ dependencies = [
 
 [[package]]
 name = "biofile"
-version = "0.2.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "analytic 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -676,12 +676,12 @@ dependencies = [
 
 [[package]]
 name = "saber"
-version = "0.1.2"
+version = "0.2.1"
 dependencies = [
  "analytic 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "bencher 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "bincode 1.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "biofile 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "biofile 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "blas-src 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "clap 2.33.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "colored 1.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -831,7 +831,7 @@ dependencies = [
 "checksum autocfg 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)" = "22130e92352b948e7e82a49cdb0aa94f2211761117f29e052dd397c1ac33542b"
 "checksum bencher 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)" = "7dfdb4953a096c551ce9ace855a604d702e6e62d77fac690575ae347571717f5"
 "checksum bincode 1.1.4 (registry+https://github.com/rust-lang/crates.io-index)" = "9f04a5e50dc80b3d5d35320889053637d15011aed5e66b66b37ae798c65da6f7"
-"checksum biofile 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "3f1cf6e0fe18f3f491cfdb273d54337bff7bdd568dba23a743357c3633d1d033"
+"checksum biofile 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)" = "cfd523a5aeda1572e3a723e6592a145a0c580542707df13405060d0a164509df"
 "checksum bitflags 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "3d155346769a6855b86399e9bc3814ab343cd3d62c7e985113d46a0ec3c281fd"
 "checksum blas-src 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "a7b894d1cc14af76750a80f64387f7986fe93a9d3786a9a8926a340ae50b2c51"
 "checksum blas-src 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "46fff4479d0099bbf7d7a093d095aea3cce49986642f3c9cb27375fed6b1b433"

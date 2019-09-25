@@ -45,8 +45,7 @@ fn main() {
     let (header, fid_vec, iid_vec, mut pheno_arr) =
         match missing_rep {
             None => get_plink_pheno_data(&pheno_path)
-                .unwrap_or_exit(Some("failed to get the phenotype array"))
-            ,
+                .unwrap_or_exit(Some("failed to get the phenotype array")),
             Some(r) => {
                 println!("\nmissing phenotype representation: {:?}", r);
                 get_plink_pheno_data_replace_missing_with_mean(&pheno_path, &r)

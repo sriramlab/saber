@@ -30,9 +30,9 @@ fn main() {
     let [bed_path, bim_path, fam_path] = get_bed_bim_fam_path(&bfile);
     println!("PLINK bed path: {}\nPLINK bim path: {}\nPLINK fam path: {}\nout_path: {}\nsnp_chunk_size: {}",
              bed_path, bim_path, fam_path, out_path, snp_chunk_size);
-    let mut bed = PlinkBed::new(&bed_path, &bim_path, &fam_path)
+    let mut bed = PlinkBed::new(&vec![(bed_path, bim_path, fam_path)])
         .unwrap_or_exit(None::<String>);
 
     println!("\n=> writing the BED transpose to {}", out_path);
-    bed.create_bed_t(&out_path, 4096).unwrap_or_exit(Some("failed to create bedt"));
+    bed.create_bed_t(0, &out_path, 4096).unwrap_or_exit(Some("failed to create bedt"));
 }

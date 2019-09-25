@@ -39,9 +39,7 @@ fn main() {
     println!("PLINK bed path: {}\nPLINK bim path: {}\nPLINK fam path: {}\nout_path: {}",
              bed_path, bim_path, fam_path, out_path);
 
-    let bed = PlinkBed::new(&bed_path,
-                            &bim_path,
-                            &fam_path)
+    let bed = PlinkBed::new(&vec![(bed_path, bim_path, fam_path)])
         .unwrap_or_exit(None::<String>);
 
     let geno_arr = bed.get_genotype_matrix(None)

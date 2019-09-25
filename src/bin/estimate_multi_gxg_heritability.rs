@@ -86,7 +86,14 @@ fn main() {
         .unwrap_or_exit(Some("failed to parse num_random_vecs"));
 
     println!("PLINK bed path: {}\nPLINK bim path: {}\nPLINK fam path: {}", bed_path, bim_path, fam_path);
-    println!("LE SNPs bed path: {}\nLE SNPs bim path: {}\nLE SNPs fam path: {}", le_snps_bed_path, le_snps_bim_path, le_snps_fam_path);
+    println!(
+        "LE SNPs bed path: {}\n\
+        LE SNPs bim path: {}\n\
+        LE SNPs fam path: {}",
+        le_snps_bed_path,
+        le_snps_bim_path,
+        le_snps_fam_path
+    );
     println!("phenotype paths:");
     for (i, path) in pheno_path_vec.iter().enumerate() {
         println!("[{}/{}] {}", i + 1, pheno_path_vec.len(), path);
@@ -95,12 +102,12 @@ fn main() {
 
     println!("\n=> generating the phenotype array and the genotype matrix");
 
-    let mut geno_bed = PlinkBed::new(&bed_path, &bim_path, &fam_path)
+    let mut geno_bed = PlinkBed::new(&vec![(bed_path, bim_path, fam_path)])
         .unwrap_or_exit(None::<String>);
 
-    let le_snps_bed = PlinkBed::new(&le_snps_bed_path, &le_snps_bim_path, &le_snps_fam_path)
+    let le_snps_bed = PlinkBed::new(&vec![(le_snps_bed_path, le_snps_bim_path.clone(), le_snps_fam_path)])
         .unwrap_or_exit(None::<String>);
-    let mut le_snps_bim = PlinkBim::new(&le_snps_bim_path)
+    let mut le_snps_bim = PlinkBim::new(vec![le_snps_bim_path.clone()])
         .unwrap_or_exit(Some(format!("failed to create PlinkBim for {}", le_snps_bim_path)));
     let le_snps_partition = le_snps_bim.get_chrom_to_fileline_positions()
                                        .unwrap_or_exit(Some(format!("failed to get chrom partitions from {}", le_snps_bim_path)));
@@ -118,23 +125,31 @@ fn main() {
 
     let mut saved_traces_in_memory = None;
     for (pheno_index, pheno_path) in pheno_path_vec.iter().enumerate() {
-        println!("\n=> [{}/{}] estimating the heritability for the phenotype at {}", pheno_index + 1, pheno_path_vec.len(), pheno_path);
+        println!(
+            "\n=> [{}/{}] estimating the heritability for the phenotype at {}",
+            pheno_index + 1,
+            pheno_path_vec.len(),
+            pheno_path
+        );
         let pheno_arr = get_pheno_arr(pheno_path)
             .unwrap_or_exit(None::<String>);
 
         let heritability_estimate_result = match saved_traces_in_memory {
-            Some(saved_traces) => estimate_g_and_multi_gxg_heritability_from_saved_traces(&mut geno_bed,
-                                                                                          le_snps_arr_vec,
-                                                                                          pheno_arr,
-                                                                                          num_random_vecs,
-                                                                                          saved_traces),
+            Some(saved_traces) => estimate_g_and_multi_gxg_heritability_from_saved_traces(
+                &mut geno_bed,
+                le_snps_arr_vec,
+                pheno_arr,
+                num_random_vecs,
+                saved_traces,
+            ),
             None => {
                 match &load_trace {
-                    None => estimate_g_and_multi_gxg_heritability(&mut geno_bed,
-                                                                  le_snps_arr_vec,
-                                                                  pheno_arr,
-                                                                  num_random_vecs),
-
+                    None => estimate_g_and_multi_gxg_heritability(
+                        &mut geno_bed,
+                        le_snps_arr_vec,
+                        pheno_arr,
+                        num_random_vecs,
+                    ),
                     Some(load_path) => {
                         let trace_estimates = load_trace_estimates(load_path)
                             .unwrap_or_exit(Some(format!("failed to load the trace estimates from {}", load_path)));
@@ -142,11 +157,13 @@ fn main() {
                         assert_eq!(trace_estimates.dim(), expected_dim,
                                    "the loaded trace has dim: {:?} which does not match the expected dimension of {:?}",
                                    trace_estimates.dim(), expected_dim);
-                        estimate_g_and_multi_gxg_heritability_from_saved_traces(&mut geno_bed,
-                                                                                le_snps_arr_vec,
-                                                                                pheno_arr,
-                                                                                num_random_vecs,
-                                                                                trace_estimates)
+                        estimate_g_and_multi_gxg_heritability_from_saved_traces(
+                            &mut geno_bed,
+                            le_snps_arr_vec,
+                            pheno_arr,
+                            num_random_vecs,
+                            trace_estimates,
+                        )
                     }
                 }
             }

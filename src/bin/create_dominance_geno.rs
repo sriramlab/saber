@@ -40,11 +40,11 @@ fn main() {
         fam_path,
         out_path
     );
-    let bed = PlinkBed::new(&bed_path, &bim_path, &fam_path)
+    let bed = PlinkBed::new(&vec![(bed_path.clone(), bim_path, fam_path)])
         .unwrap_or_exit(None::<String>);
 
     println!("\n=> writing the dominance genotype matrix to {}", out_path);
-    bed.create_dominance_geno_bed(&out_path)
+    bed.create_dominance_geno_bed(0, &out_path)
        .unwrap_or_exit(
            Some(format!(
                "failed to create the dominance genotype matrix for {}",
