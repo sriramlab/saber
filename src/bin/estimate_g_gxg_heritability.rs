@@ -142,24 +142,24 @@ fn main() {
     let geno_bed = PlinkBed::new(&vec![(bed_path, bim_path.clone(), fam_path)])
         .unwrap_or_exit(None::<String>);
     let geno_bim = match &g_partition_filepath {
-        Some(p) => PlinkBim::new_with_partition_file(&bim_path, p)
+        Some(p) => PlinkBim::new_with_partition_file(vec![bim_path.clone()], p)
             .unwrap_or_exit(Some(format!(
                 "failed to create PlinkBim from bim file: {} and partition file: {}",
                 &bim_path, p
             ))),
-        None => PlinkBim::new(&bim_path)
+        None => PlinkBim::new(vec![bim_path.clone()])
             .unwrap_or_exit(Some(format!("failed to create PlinkBim from {}", &bim_path))),
     };
 
     let le_snps_bed = PlinkBed::new(&vec![(le_snps_bed_path, le_snps_bim_path.clone(), le_snps_fam_path)])
         .unwrap_or_exit(None::<String>);
     let le_snps_bim = match &gxg_partition_filepath {
-        Some(p) => PlinkBim::new_with_partition_file(&le_snps_bim_path, p)
+        Some(p) => PlinkBim::new_with_partition_file(vec![le_snps_bim_path.clone()], p)
             .unwrap_or_exit(Some(format!(
                 "failed to create PlinkBim from bim file: {} and partition file: {}",
                 &le_snps_bim_path, p
             ))),
-        None => PlinkBim::new(&le_snps_bim_path)
+        None => PlinkBim::new(vec![le_snps_bim_path.clone()])
             .unwrap_or_exit(Some(format!(
                 "failed to create PlinkBim for {}", le_snps_bim_path
             ))),

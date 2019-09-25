@@ -107,7 +107,7 @@ fn main() {
 
     let le_snps_bed = PlinkBed::new(&vec![(le_snps_bed_path, le_snps_bim_path.clone(), le_snps_fam_path)])
         .unwrap_or_exit(None::<String>);
-    let mut le_snps_bim = PlinkBim::new(&le_snps_bim_path)
+    let mut le_snps_bim = PlinkBim::new(vec![le_snps_bim_path.clone()])
         .unwrap_or_exit(Some(format!("failed to create PlinkBim for {}", le_snps_bim_path)));
     let le_snps_partition = le_snps_bim.get_chrom_to_fileline_positions()
                                        .unwrap_or_exit(Some(format!("failed to get chrom partitions from {}", le_snps_bim_path)));

@@ -4,14 +4,12 @@ use analytic::traits::Collecting;
 use biofile::plink_bed::PlinkBed;
 use biofile::plink_bim::{FilelinePartitions, PlinkBim};
 use clap::{Arg, clap_app};
-use program_flow::argparse::{
-    extract_numeric_arg, extract_optional_numeric_arg, extract_optional_str_arg, extract_str_arg,
-};
+use program_flow::argparse::{extract_numeric_arg, extract_optional_numeric_arg, extract_optional_str_arg, extract_str_arg, extract_str_vec_arg};
+use program_flow::OrExit;
 
 use saber::heritability_estimator::DEFAULT_PARTITION_NAME;
 use saber::heritability_estimator::estimate_heritability;
-use program_flow::OrExit;
-use saber::util::get_pheno_arr;
+use saber::util::{get_bed_bim_fam_path, get_pheno_arr};
 
 fn main() {
     let mut app = clap_app!(estimate_heritability =>
@@ -78,7 +76,8 @@ fn main() {
         );
     let matches = app.get_matches();
 
-    let plink_filename_prefix = extract_str_arg(&matches, "plink_filename_prefix");
+    let plink_filename_prefixes = extract_str_vec_arg(&matches, "plink_filename_prefix")
+        .unwrap_or_exit(Some("failed to parse the bfile list".to_string()));
     let pheno_path = extract_str_arg(&matches, "pheno_path");
     let partition_filepath = extract_optional_str_arg(&matches, "partition_file");
 
@@ -94,18 +93,20 @@ fn main() {
         .parse::<usize>()
         .unwrap_or_exit(Some("failed to parse num_random_vecs"));
 
-    let plink_bed_path = format!("{}.bed", plink_filename_prefix);
-    let plink_bim_path = format!("{}.bim", plink_filename_prefix);
-    let plink_fam_path = format!("{}.fam", plink_filename_prefix);
+    let bed_bim_fam_list: Vec<(String, String, String)> = plink_filename_prefixes
+        .iter()
+        .map(|prefix| {
+            let [bed, bim, fam] = get_bed_bim_fam_path(prefix);
+            (bed, bim, fam)
+        })
+        .collect();
 
-    println!(
-        "PLINK bed path: {}\n\
-        PLINK bim path: {}\n\
-        PLINK fam path: {}",
-        plink_bed_path,
-        plink_bim_path,
-        plink_fam_path
-    );
+    println!("{:?}", bed_bim_fam_list);
+    let bim_path_list: Vec<String> = bed_bim_fam_list
+        .iter()
+        .map(|t| t.1.to_string())
+        .collect();
+
     println!(
         "pheno_filepath: {}\n\
         num_random_vecs: {}",
@@ -122,7 +123,7 @@ fn main() {
     let pheno_arr = get_pheno_arr(&pheno_path)
         .unwrap_or_exit(None::<String>);
 
-    let bed = PlinkBed::new(&vec![(plink_bed_path, plink_bim_path.clone(), plink_fam_path)])
+    let bed = PlinkBed::new(&bed_bim_fam_list)
         .unwrap_or_exit(None::<String>);
 
     let maf = bed.get_minor_allele_frequencies(None);
@@ -151,16 +152,16 @@ fn main() {
 
     let mut bim = match &partition_filepath {
         Some(partition_filepath) => PlinkBim::new_with_partition_file(
-            &plink_bim_path,
+            bim_path_list,
             partition_filepath,
         ).unwrap_or_exit(
             Some(format!(
-                "failed to create PlinkBim from bim file: {} and partition file: {}",
-                &plink_bim_path, partition_filepath
+                "failed to create PlinkBim from the bim files and partition file: {}",
+                partition_filepath
             ))
         ),
-        None => PlinkBim::new(&plink_bim_path)
-            .unwrap_or_exit(Some(format!("failed to create PlinkBim from {}", &plink_bim_path))),
+        None => PlinkBim::new(bim_path_list)
+            .unwrap_or_exit(Some(format!("failed to create PlinkBim from the bim files"))),
     };
     let mut filtered_partitions = bim
         .get_fileline_partitions_or(
