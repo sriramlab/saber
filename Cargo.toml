@@ -1,6 +1,6 @@
 [package]
 name = "saber"
-version = "0.2.1"
+version = "0.2.2"
 authors = ["Aaron"]
 edition = "2018"
 license = "Apache-2.0"
@@ -11,9 +11,9 @@ repository = "https://github.com/Rustinante/saber.git"
 members = ["."]
 
 [dependencies]
-analytic = "0.3.1"
+analytic = "0.4.0"
 bincode = "1.1.4"
-biofile = "0.5.0"
+biofile = "0.9.1"
 blas-src = { version = "0.3", features = ["openblas"] }
 clap = "2.32.0"
 colored = "1.7.0"

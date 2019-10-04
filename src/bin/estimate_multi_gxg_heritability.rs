@@ -1,11 +1,11 @@
-use biofile::plink_bed::PlinkBed;
+use biofile::plink_bed::{PlinkBed, PlinkSnpType};
 use biofile::plink_bim::PlinkBim;
 use clap::{Arg, clap_app};
 use program_flow::argparse::{extract_optional_str_arg, extract_str_arg, extract_str_vec_arg};
+use program_flow::OrExit;
 
 use saber::heritability_estimator::{estimate_g_and_multi_gxg_heritability,
                                     estimate_g_and_multi_gxg_heritability_from_saved_traces};
-use program_flow::OrExit;
 use saber::util::{
     get_bed_bim_fam_path, get_pheno_arr, load_trace_estimates, write_trace_estimates,
 };
@@ -109,8 +109,9 @@ fn main() {
         .unwrap_or_exit(None::<String>);
     let mut le_snps_bim = PlinkBim::new(vec![le_snps_bim_path.clone()])
         .unwrap_or_exit(Some(format!("failed to create PlinkBim for {}", le_snps_bim_path)));
-    let le_snps_partition = le_snps_bim.get_chrom_to_fileline_positions()
-                                       .unwrap_or_exit(Some(format!("failed to get chrom partitions from {}", le_snps_bim_path)));
+    let le_snps_partition = le_snps_bim
+        .get_chrom_to_fileline_positions()
+        .unwrap_or_exit(Some(format!("failed to get chrom partitions from {}", le_snps_bim_path)));
     let le_snps_partition_keys = {
         let mut keys: Vec<String> = le_snps_partition.keys().map(|s| s.to_string()).collect();
         keys.sort();
@@ -119,7 +120,9 @@ fn main() {
     let mut le_snps_arr_vec = Vec::new();
     for key in le_snps_partition_keys.iter() {
         let range = &le_snps_partition[key];
-        le_snps_arr_vec.push(le_snps_bed.get_genotype_matrix(Some(range.clone())).unwrap());
+        le_snps_arr_vec.push(
+            le_snps_bed.get_genotype_matrix(Some(range.clone()), PlinkSnpType::Additive).unwrap()
+        );
     }
     let num_gxg_components = le_snps_arr_vec.len();
 

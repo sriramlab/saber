@@ -1,14 +1,17 @@
+use std::collections::HashMap;
+
 use analytic::partition::integer_partitions::Partition;
 use analytic::set::ordered_integer_set::OrderedIntegerSet;
-use analytic::set::traits::{Finite, Set};
+use analytic::set::traits::{Finite, Intersect};
 use analytic::stats::{
     n_choose_2, sum_of_squares, sum_of_squares_f32,
 };
-use biofile::plink_bed::PlinkBed;
+use biofile::plink_bed::{PlinkBed, PlinkSnpType};
 use biofile::plink_bim::PlinkBim;
 use ndarray::{Array, array, Ix1, Ix2};
 use ndarray_linalg::Solve;
 use ndarray_parallel::prelude::*;
+use program_flow::OrExit;
 use rayon::prelude::*;
 
 use crate::error::Error;
@@ -25,13 +28,11 @@ use crate::trace_estimator::{
     estimate_tr_gxg_ki_gxg_kj, estimate_tr_k_gxg_k, estimate_tr_kk,
     get_gxg_dot_y_norm_sq_from_basis_bed,
 };
+use crate::util::get_pheno_arr;
 use crate::util::matrix_util::{
     generate_plus_minus_one_bernoulli_matrix, normalize_matrix_columns_inplace,
     normalize_vector_inplace,
 };
-use std::collections::HashMap;
-use crate::util::get_pheno_arr;
-use program_flow::OrExit;
 
 pub const DEFAULT_PARTITION_NAME: &str = "default_partition";
 
@@ -854,7 +855,7 @@ fn get_rhs_vec_for_heritability_point_estimate(
                     ) as f64;
 
                     let mut rhs_matrix = gxg_basis_bed
-                        .get_genotype_matrix(Some(range_j.clone()))
+                        .get_genotype_matrix(Some(range_j.clone()), PlinkSnpType::Additive)
                         .unwrap();
                     normalize_matrix_columns_inplace(&mut rhs_matrix, 0);
                     sum_of_squares_f32(
@@ -1406,7 +1407,7 @@ fn get_yky_gxg_yky_and_yy(geno_arr: &mut PlinkBed, normalized_pheno_arr: &Array<
     let mut b = Array::<f64, Ix1>::zeros(num_gxg_components + 2);
 
     let yky = geno_arr
-        .col_chunk_iter(1000, None)
+        .col_chunk_iter(1000, None, PlinkSnpType::Additive)
         .into_par_iter()
         .fold(|| 0f32, |mut acc, mut snp_chunk| {
             normalize_matrix_columns_inplace(&mut snp_chunk, 0);
@@ -1487,7 +1488,7 @@ pub fn estimate_g_and_single_gxg_heritability(
     mut pheno_arr: Array<f32, Ix1>,
     num_random_vecs: usize,
 ) -> Result<(f64, f64, f64), Error> {
-    let mut geno_arr: Array<f32, Ix2> = geno_arr_bed.get_genotype_matrix(None)?;
+    let mut geno_arr: Array<f32, Ix2> = geno_arr_bed.get_genotype_matrix(None, PlinkSnpType::Additive)?;
     let (num_people, num_snps) = geno_arr.dim();
     let num_independent_snps = le_snps_arr.dim().1;
     println!("\n\

@@ -1,8 +1,8 @@
 use analytic::histogram::Histogram;
 use analytic::stats::mean;
-use biofile::plink_bed::PlinkBed;
+use biofile::plink_bed::{PlinkBed, PlinkSnpType};
 use clap::{Arg, clap_app};
-use program_flow::argparse::{extract_str_arg, extract_numeric_arg};
+use program_flow::argparse::{extract_numeric_arg, extract_str_arg};
 use program_flow::OrExit;
 use rayon::prelude::*;
 
@@ -47,7 +47,7 @@ fn main() {
         .unwrap_or_exit(None::<String>);
 
     let frequencies: Vec<f64> = bed
-        .col_chunk_iter(chunk_size, None)
+        .col_chunk_iter(chunk_size, None, PlinkSnpType::Additive)
         .into_par_iter()
         .flat_map(|snp_chunk| {
             snp_chunk.gencolumns()

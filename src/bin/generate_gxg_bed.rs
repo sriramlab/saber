@@ -2,11 +2,11 @@ use std::fs::OpenOptions;
 use std::io::{BufWriter, Write};
 
 use analytic::set::ordered_integer_set::OrderedIntegerSet;
-use biofile::plink_bed::PlinkBed;
+use biofile::plink_bed::{geno_to_lowest_two_bits, PlinkBed, PlinkSnpType};
 use clap::clap_app;
 use program_flow::argparse::extract_str_arg;
-
 use program_flow::OrExit;
+
 use saber::util::get_bed_bim_fam_path;
 
 fn main() {
@@ -44,7 +44,7 @@ fn main() {
 
     let chunk_size = 100;
     let total_chunks = num_g_snps / chunk_size + (num_g_snps % chunk_size > 0) as usize;
-    bed.col_chunk_iter(chunk_size, None)
+    bed.col_chunk_iter(chunk_size, None, PlinkSnpType::Additive)
        .enumerate()
        .for_each(|(chunk_index_i, chunk_i)| {
            println!("processing chunk [{}/{}]", chunk_index_i + 1, total_chunks);
@@ -55,6 +55,7 @@ fn main() {
                    Some(OrderedIntegerSet::from_slice(
                        &[[chunk_index_i * chunk_size, num_g_snps - 1]])
                    ),
+                   PlinkSnpType::Additive,
                )
                .enumerate()
                .for_each(|(chunk_index_j, chunk_j)| {
@@ -68,10 +69,10 @@ fn main() {
                            let mut k = 0;
                            for _ in 0..num_people / 4 {
                                buf_writer.write(&[
-                                   PlinkBed::geno_to_lowest_two_bits(col_i[k] * col_j[k])
-                                       | (PlinkBed::geno_to_lowest_two_bits(col_i[k + 1] * col_j[k + 1]) << 2)
-                                       | (PlinkBed::geno_to_lowest_two_bits(col_i[k + 2] * col_j[k + 2]) << 4)
-                                       | (PlinkBed::geno_to_lowest_two_bits(col_i[k + 3] * col_j[k + 3]) << 6)
+                                   geno_to_lowest_two_bits(col_i[k] * col_j[k])
+                                       | (geno_to_lowest_two_bits(col_i[k + 1] * col_j[k + 1]) << 2)
+                                       | (geno_to_lowest_two_bits(col_i[k + 2] * col_j[k + 2]) << 4)
+                                       | (geno_to_lowest_two_bits(col_i[k + 3] * col_j[k + 3]) << 6)
                                ]).unwrap_or_exit(None::<String>);
                                k += 4;
                            }
@@ -79,7 +80,7 @@ fn main() {
                            if remainder > 0 {
                                let mut byte = 0u8;
                                for j in 0..remainder {
-                                   byte |= PlinkBed::geno_to_lowest_two_bits(col_i[k + j] * col_j[k + j]) << (j * 2);
+                                   byte |= geno_to_lowest_two_bits(col_i[k + j] * col_j[k + j]) << (j * 2);
                                }
                                buf_writer.write(&[byte]).unwrap_or_exit(None::<String>);
                            }

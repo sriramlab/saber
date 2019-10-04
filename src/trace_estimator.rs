@@ -1,7 +1,7 @@
 use analytic::set::ordered_integer_set::OrderedIntegerSet;
 use analytic::set::traits::Finite;
 use analytic::stats::{n_choose_2, sum_f32, sum_of_squares, sum_of_squares_f32};
-use biofile::plink_bed::PlinkBed;
+use biofile::plink_bed::{PlinkBed, PlinkSnpType};
 use ndarray::{Array, Axis, Ix1, Ix2};
 use ndarray_parallel::prelude::*;
 use rayon::prelude::*;
@@ -29,7 +29,7 @@ pub fn estimate_tr_kk(
     };
     let rand_mat = generate_plus_minus_one_bernoulli_matrix(num_people, num_random_vecs);
     let xxz_arr: Vec<f32> = geno_bed
-        .col_chunk_iter(chunk_size, snp_range)
+        .col_chunk_iter(chunk_size, snp_range, PlinkSnpType::Additive)
         .into_par_iter()
         .fold(|| vec![0f32; num_people * num_random_vecs], |mut acc, mut snp_chunk| {
             normalize_matrix_columns_inplace(&mut snp_chunk, 0);
@@ -81,7 +81,7 @@ pub fn estimate_tr_ki_kj(
         Array::from_shape_vec(num_random_vecs, col_sums).unwrap()
     };
     let ssq = geno_bed
-        .col_chunk_iter(chunk_size, snp_range_i)
+        .col_chunk_iter(chunk_size, snp_range_i, PlinkSnpType::Additive)
         .into_par_iter()
         .enumerate()
         .fold_with(0f32, |mut acc, (chunk_index, snp_chunk)| {
@@ -116,7 +116,7 @@ pub fn estimate_tr_k(
     };
     let rand_mat = generate_plus_minus_one_bernoulli_matrix(num_people, num_random_vecs);
     let sum_of_squares: f64 = geno_bed
-        .col_chunk_iter(chunk_size, snp_range)
+        .col_chunk_iter(chunk_size, snp_range, PlinkSnpType::Additive)
         .into_par_iter()
         .fold_with(0f64, |mut acc, mut snp_chunk| {
             normalize_matrix_columns_inplace(&mut snp_chunk, 0);
@@ -145,7 +145,7 @@ pub fn estimate_tr_k_gxg_k(
 
     let chunk_size = num_snps_per_chunk.unwrap_or(DEFAULT_NUM_SNPS_PER_CHUNK);
     let ssq = geno_arr
-        .col_chunk_iter(chunk_size, None)
+        .col_chunk_iter(chunk_size, None, PlinkSnpType::Additive)
         .into_par_iter()
         .fold_with(0f32, |mut acc, mut snp_chunk| {
             normalize_matrix_columns_inplace(&mut snp_chunk, 0);
@@ -308,7 +308,7 @@ pub fn estimate_gxg_dot_y_norm_sq_from_basis_bed(
         None => gxg_basis_bed.total_num_snps(),
     };
     let ssq_of_hi_hi = gxg_basis_bed
-        .col_chunk_iter(DEFAULT_NUM_SNPS_PER_CHUNK, snp_range.clone())
+        .col_chunk_iter(DEFAULT_NUM_SNPS_PER_CHUNK, snp_range.clone(), PlinkSnpType::Additive)
         .into_par_iter()
         .fold(|| 0f32, |acc, mut snp_chunk| {
             normalize_matrix_columns_inplace(&mut snp_chunk, 0);
@@ -347,7 +347,7 @@ pub fn get_gxg_dot_y_norm_sq_from_basis_bed(
     y: &Array<f32, Ix1>,
 ) -> f64 {
     let ssq_of_hi_hi = gxg_basis_bed
-        .col_chunk_iter(DEFAULT_NUM_SNPS_PER_CHUNK, snp_range.clone())
+        .col_chunk_iter(DEFAULT_NUM_SNPS_PER_CHUNK, snp_range.clone(), PlinkSnpType::Additive)
         .into_par_iter()
         .fold(|| 0f32, |acc, mut snp_chunk| {
             normalize_matrix_columns_inplace(&mut snp_chunk, 0);
@@ -357,7 +357,7 @@ pub fn get_gxg_dot_y_norm_sq_from_basis_bed(
         .sum::<f32>();
 
     let mut rhs_matrix = gxg_basis_bed
-        .get_genotype_matrix(snp_range.clone())
+        .get_genotype_matrix(snp_range.clone(), PlinkSnpType::Additive)
         .unwrap();
     normalize_matrix_columns_inplace(&mut rhs_matrix, 0);
     let hh = normalized_g_transpose_dot_matrix(

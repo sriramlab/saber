@@ -2,13 +2,13 @@ use std::fs::OpenOptions;
 use std::io::{BufWriter, Write};
 
 use analytic::stats::n_choose_2;
-use biofile::plink_bed::PlinkBed;
+use biofile::plink_bed::{PlinkBed, PlinkSnpType};
 use clap::clap_app;
 use ndarray::{Axis, s};
 use ndarray_parallel::prelude::*;
 use program_flow::argparse::extract_str_arg;
-
 use program_flow::OrExit;
+
 use saber::util::get_bed_bim_fam_path;
 use saber::util::matrix_util::get_correlation;
 
@@ -42,7 +42,7 @@ fn main() {
     let bed = PlinkBed::new(&vec![(bed_path, bim_path, fam_path)])
         .unwrap_or_exit(None::<String>);
 
-    let geno_arr = bed.get_genotype_matrix(None)
+    let geno_arr = bed.get_genotype_matrix(None, PlinkSnpType::Additive)
                       .unwrap_or_exit(Some("failed to get the genotype matrix"));
     let (_num_people, num_snps) = geno_arr.dim();
 

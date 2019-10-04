@@ -1,12 +1,12 @@
 use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 
-use biofile::plink_bed::PlinkBed;
+use biofile::plink_bed::{PlinkBed, PlinkSnpType};
 use clap::clap_app;
 use ndarray::{Array, Ix1, s};
-
 use program_flow::argparse::{extract_optional_numeric_arg, extract_optional_str_arg, extract_str_arg};
 use program_flow::OrExit;
+
 use saber::simulation::sim_pheno::{
     generate_g_contribution, generate_gxg_contribution_from_gxg_basis,
 };
@@ -77,7 +77,7 @@ fn main() {
             println!("\nPLINK bed path: {}\nPLINK bim path: {}\nPLINK fam path: {}", bed_path, bim_path, fam_path);
             let bed = PlinkBed::new(&vec![(bed_path, bim_path, fam_path)])
                 .unwrap_or_exit(None::<String>);
-            let geno_arr = bed.get_genotype_matrix(None)
+            let geno_arr = bed.get_genotype_matrix(None, PlinkSnpType::Additive)
                               .unwrap_or_exit(Some("failed to get the genotype matrix"));
 
             let out_path = get_gxg_output_filepath(&out_path_prefix, EffectMechanism::G);
@@ -97,7 +97,7 @@ fn main() {
         println!("gxg_component_count_filename: {}", gxg_component_count_filename);
         let le_snps_bed = PlinkBed::new(&vec![(le_snps_bed_path, le_snps_bim_path, le_snps_fam_path)])
             .unwrap_or_exit(None::<String>);
-        let le_snps_arr = le_snps_bed.get_genotype_matrix(None)
+        let le_snps_arr = le_snps_bed.get_genotype_matrix(None, PlinkSnpType::Additive)
                                      .unwrap_or_exit(Some("failed to get the le_snps genotype matrix"));
 
         let counts_and_effect_sizes = get_le_snp_counts_and_effect_sizes(&gxg_component_count_filename)

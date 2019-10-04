@@ -5,7 +5,7 @@ use analytic::set::traits::Finite;
 use analytic::stats::{
     mean, standard_deviation, sum_f32, sum_of_fourth_power_f32, sum_of_squares_f32,
 };
-use biofile::plink_bed::PlinkBed;
+use biofile::plink_bed::{PlinkBed, PlinkSnpType};
 use ndarray::{Array, Axis, Ix1, Ix2, s};
 use ndarray::Dim;
 use ndarray::iter;
@@ -49,7 +49,7 @@ pub fn column_normalized_row_wise_sigma<F>(
     let chunk_size = num_snps_per_chunk.unwrap_or(DEFAULT_NUM_SNPS_PER_CHUNK);
     let num_people = bed.num_people;
     let sigma_vec = bed
-        .col_chunk_iter(chunk_size, snp_range)
+        .col_chunk_iter(chunk_size, snp_range, PlinkSnpType::Additive)
         .into_par_iter()
         .fold(|| vec![0f32; num_people], |mut acc, mut snp_chunk| {
             normalize_matrix_columns_inplace(&mut snp_chunk, 0);
@@ -75,7 +75,7 @@ pub fn get_column_mean_and_std(
     let mut snp_means = Vec::new();
     let mut snp_stds = Vec::new();
     geno_bed
-        .col_chunk_iter(snp_chunk_size, Some(snp_range.clone()))
+        .col_chunk_iter(snp_chunk_size, Some(snp_range.clone()), PlinkSnpType::Additive)
         .into_par_iter()
         .flat_map(|snp_chunk| {
             let mut m_and_s = Vec::new();
@@ -163,7 +163,7 @@ pub fn normalized_g_transpose_dot_matrix(
               .collect_into_vec(&mut z_col_sum);
 
     let product_vec = geno_bed
-        .col_chunk_iter(chunk_size, snp_range)
+        .col_chunk_iter(chunk_size, snp_range, PlinkSnpType::Additive)
         .into_par_iter()
         .enumerate()
         .fold(|| vec![0f32; num_snps * num_random_vecs], |mut acc, (chunk_index, snp_chunk)| {
@@ -203,7 +203,7 @@ pub fn normalized_g_dot_matrix(
     let rhs_matrix = rhs_matrix / &snp_std.to_owned().into_shape((snp_std.dim(), 1)).unwrap();
 
     let mut product_vec = geno_bed
-        .col_chunk_iter(chunk_size, snp_range)
+        .col_chunk_iter(chunk_size, snp_range, PlinkSnpType::Additive)
         .into_par_iter()
         .enumerate()
         .fold(|| vec![0f32; num_people * num_cols], |mut acc, (chunk_index, snp_chunk)| {
@@ -236,7 +236,7 @@ pub fn pheno_dot_geno(
     geno_bed: &PlinkBed, snp_range: &OrderedIntegerSet<usize>,
     chunk_size: usize,
 ) -> Vec<f32> {
-    geno_bed.col_chunk_iter(chunk_size, Some(snp_range.clone()))
+    geno_bed.col_chunk_iter(chunk_size, Some(snp_range.clone()), PlinkSnpType::Additive)
             .into_par_iter()
             .flat_map(|mut snp_chunk| {
                 normalize_matrix_columns_inplace(&mut snp_chunk, 0);
@@ -254,7 +254,7 @@ pub fn pheno_k_pheno(
     chunk_size: usize,
 ) -> f64 {
     let pheno_sum = sum_f32(pheno_arr.iter());
-    let yggy = geno_bed.col_chunk_iter(chunk_size, Some(snp_range.clone()))
+    let yggy = geno_bed.col_chunk_iter(chunk_size, Some(snp_range.clone()), PlinkSnpType::Additive)
                        .into_par_iter()
                        .enumerate()
                        .fold(|| 0f32, |acc, (chunk_index, snp_chunk)| {

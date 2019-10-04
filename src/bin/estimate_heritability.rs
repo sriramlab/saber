@@ -4,11 +4,13 @@ use analytic::traits::Collecting;
 use biofile::plink_bed::PlinkBed;
 use biofile::plink_bim::{FilelinePartitions, PlinkBim};
 use clap::{Arg, clap_app};
-use program_flow::argparse::{extract_numeric_arg, extract_optional_numeric_arg, extract_optional_str_arg, extract_str_arg, extract_str_vec_arg};
+use program_flow::argparse::{
+    extract_numeric_arg, extract_optional_numeric_arg, extract_optional_str_arg, extract_str_arg,
+    extract_str_vec_arg,
+};
 use program_flow::OrExit;
 
-use saber::heritability_estimator::DEFAULT_PARTITION_NAME;
-use saber::heritability_estimator::estimate_heritability;
+use saber::heritability_estimator::{estimate_heritability, DEFAULT_PARTITION_NAME};
 use saber::util::{get_bed_bim_fam_path, get_pheno_arr};
 
 fn main() {
