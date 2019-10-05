@@ -32,7 +32,7 @@ fn main() {
     let bfile = extract_str_arg(&matches, "plink_filename_prefix");
     let chunk_size = extract_numeric_arg::<usize>(&matches, "chunk_size")
         .unwrap_or_exit(None::<String>);
-    let [bed_path, bim_path, fam_path] = get_bed_bim_fam_path(&bfile);
+    let (bed_path, bim_path, fam_path) = get_bed_bim_fam_path(&bfile);
     println!(
         "PLINK bed path: {}\n\
         PLINK bim path: {}\n\
@@ -43,11 +43,11 @@ fn main() {
         fam_path,
         chunk_size,
     );
-    let bed = PlinkBed::new(&vec![(bed_path, bim_path, fam_path)])
+    let bed = PlinkBed::new(&vec![(bed_path, bim_path, fam_path, PlinkSnpType::Additive)])
         .unwrap_or_exit(None::<String>);
 
     let frequencies: Vec<f64> = bed
-        .col_chunk_iter(chunk_size, None, PlinkSnpType::Additive)
+        .col_chunk_iter(chunk_size, None)
         .into_par_iter()
         .flat_map(|snp_chunk| {
             snp_chunk.gencolumns()

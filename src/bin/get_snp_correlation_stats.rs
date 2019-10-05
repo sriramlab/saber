@@ -23,7 +23,7 @@ fn main() {
 
     let out_path = extract_str_arg(&matches, "out_path");
     let bfile = extract_str_arg(&matches, "bfile");
-    let [bed_path, bim_path, fam_path] = get_bed_bim_fam_path(&bfile);
+    let (bed_path, bim_path, fam_path) = get_bed_bim_fam_path(&bfile);
 
     let threshold = match matches.is_present("threshold") {
         false => None,
@@ -39,10 +39,10 @@ fn main() {
     println!("PLINK bed path: {}\nPLINK bim path: {}\nPLINK fam path: {}\nout_path: {}",
              bed_path, bim_path, fam_path, out_path);
 
-    let bed = PlinkBed::new(&vec![(bed_path, bim_path, fam_path)])
+    let bed = PlinkBed::new(&vec![(bed_path, bim_path, fam_path, PlinkSnpType::Additive)])
         .unwrap_or_exit(None::<String>);
 
-    let geno_arr = bed.get_genotype_matrix(None, PlinkSnpType::Additive)
+    let geno_arr = bed.get_genotype_matrix(None)
                       .unwrap_or_exit(Some("failed to get the genotype matrix"));
     let (_num_people, num_snps) = geno_arr.dim();
 

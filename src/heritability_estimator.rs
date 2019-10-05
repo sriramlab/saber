@@ -6,7 +6,7 @@ use analytic::set::traits::{Finite, Intersect};
 use analytic::stats::{
     n_choose_2, sum_of_squares, sum_of_squares_f32,
 };
-use biofile::plink_bed::{PlinkBed, PlinkSnpType};
+use biofile::plink_bed::PlinkBed;
 use biofile::plink_bim::PlinkBim;
 use ndarray::{Array, array, Ix1, Ix2};
 use ndarray_linalg::Solve;
@@ -59,7 +59,8 @@ pub fn estimate_heritability(
     let jackknife_partitions = JackknifePartitions::from_integer_set(
         partition_array.clone(),
         num_jackknife_partitions,
-        true);
+        true,
+    );
 
     let num_partitions = partition_array.len();
     let num_people = geno_bed.num_people;
@@ -855,7 +856,7 @@ fn get_rhs_vec_for_heritability_point_estimate(
                     ) as f64;
 
                     let mut rhs_matrix = gxg_basis_bed
-                        .get_genotype_matrix(Some(range_j.clone()), PlinkSnpType::Additive)
+                        .get_genotype_matrix(Some(range_j.clone()))
                         .unwrap();
                     normalize_matrix_columns_inplace(&mut rhs_matrix, 0);
                     sum_of_squares_f32(
@@ -1407,7 +1408,7 @@ fn get_yky_gxg_yky_and_yy(geno_arr: &mut PlinkBed, normalized_pheno_arr: &Array<
     let mut b = Array::<f64, Ix1>::zeros(num_gxg_components + 2);
 
     let yky = geno_arr
-        .col_chunk_iter(1000, None, PlinkSnpType::Additive)
+        .col_chunk_iter(1000, None)
         .into_par_iter()
         .fold(|| 0f32, |mut acc, mut snp_chunk| {
             normalize_matrix_columns_inplace(&mut snp_chunk, 0);
@@ -1488,7 +1489,7 @@ pub fn estimate_g_and_single_gxg_heritability(
     mut pheno_arr: Array<f32, Ix1>,
     num_random_vecs: usize,
 ) -> Result<(f64, f64, f64), Error> {
-    let mut geno_arr: Array<f32, Ix2> = geno_arr_bed.get_genotype_matrix(None, PlinkSnpType::Additive)?;
+    let mut geno_arr: Array<f32, Ix2> = geno_arr_bed.get_genotype_matrix(None)?;
     let (num_people, num_snps) = geno_arr.dim();
     let num_independent_snps = le_snps_arr.dim().1;
     println!("\n\

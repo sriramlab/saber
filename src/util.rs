@@ -15,8 +15,8 @@ pub fn get_line_count(filepath: &str) -> Result<usize, String> {
     Ok(buf.lines().count())
 }
 
-pub fn get_bed_bim_fam_path(bfile: &str) -> [String; 3] {
-    [format!("{}.bed", bfile), format!("{}.bim", bfile), format!("{}.fam", bfile)]
+pub fn get_bed_bim_fam_path(bfile: &str) -> (String, String, String) {
+    (format!("{}.bed", bfile), format!("{}.bim", bfile), format!("{}.fam", bfile))
 }
 
 pub fn load_trace_estimates(load_path: &str) -> Result<Array<f64, Ix2>, String> {

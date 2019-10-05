@@ -1,4 +1,4 @@
-use biofile::plink_bed::PlinkBed;
+use biofile::plink_bed::{PlinkBed, PlinkSnpType};
 use clap::{Arg, clap_app};
 use program_flow::argparse::extract_str_arg;
 use program_flow::OrExit;
@@ -29,7 +29,7 @@ fn main() {
 
     let out_path = extract_str_arg(&matches, "out_path");
     let bfile = extract_str_arg(&matches, "plink_filename_prefix");
-    let [bed_path, bim_path, fam_path] = get_bed_bim_fam_path(&bfile);
+    let (bed_path, bim_path, fam_path) = get_bed_bim_fam_path(&bfile);
     println!(
         "PLINK bed path: {}\n\
         PLINK bim path: {}\n\
@@ -40,7 +40,7 @@ fn main() {
         fam_path,
         out_path
     );
-    let bed = PlinkBed::new(&vec![(bed_path.clone(), bim_path, fam_path)])
+    let bed = PlinkBed::new(&vec![(bed_path.clone(), bim_path, fam_path, PlinkSnpType::Additive)])
         .unwrap_or_exit(None::<String>);
 
     println!("\n=> writing the dominance genotype matrix to {}", out_path);

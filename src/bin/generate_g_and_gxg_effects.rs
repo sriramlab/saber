@@ -73,11 +73,11 @@ fn main() {
             println!("\n=> generating G effects");
             let bfile = extract_optional_str_arg(&matches, "bfile")
                 .unwrap_or_exit(Some(format!("must provide --bfile as g_var: {} > 0.", g_var)));
-            let [bed_path, bim_path, fam_path] = get_bed_bim_fam_path(&bfile);
+            let (bed_path, bim_path, fam_path) = get_bed_bim_fam_path(&bfile);
             println!("\nPLINK bed path: {}\nPLINK bim path: {}\nPLINK fam path: {}", bed_path, bim_path, fam_path);
-            let bed = PlinkBed::new(&vec![(bed_path, bim_path, fam_path)])
+            let bed = PlinkBed::new(&vec![(bed_path, bim_path, fam_path, PlinkSnpType::Additive)])
                 .unwrap_or_exit(None::<String>);
-            let geno_arr = bed.get_genotype_matrix(None, PlinkSnpType::Additive)
+            let geno_arr = bed.get_genotype_matrix(None)
                               .unwrap_or_exit(Some("failed to get the genotype matrix"));
 
             let out_path = get_gxg_output_filepath(&out_path_prefix, EffectMechanism::G);
@@ -90,14 +90,14 @@ fn main() {
 
     if let Some(le_snps_bfile) = extract_optional_str_arg(&matches, "le_snps_bfile") {
         println!("\n=> generating GxG effects");
-        let [le_snps_bed_path, le_snps_bim_path, le_snps_fam_path] = get_bed_bim_fam_path(&le_snps_bfile);
+        let (le_snps_bed_path, le_snps_bim_path, le_snps_fam_path) = get_bed_bim_fam_path(&le_snps_bfile);
         let gxg_component_count_filename = extract_optional_str_arg(&matches, "gxg_component_count_filename")
             .unwrap_or_exit(Some("must provide --counts as le_snps_bfile is specified"));
         println!("\nLE SNPs bed path: {}\nLE SNPs bim path: {}\nLE SNPs fam path: {}", le_snps_bed_path, le_snps_bim_path, le_snps_fam_path);
         println!("gxg_component_count_filename: {}", gxg_component_count_filename);
-        let le_snps_bed = PlinkBed::new(&vec![(le_snps_bed_path, le_snps_bim_path, le_snps_fam_path)])
+        let le_snps_bed = PlinkBed::new(&vec![(le_snps_bed_path, le_snps_bim_path, le_snps_fam_path, PlinkSnpType::Additive)])
             .unwrap_or_exit(None::<String>);
-        let le_snps_arr = le_snps_bed.get_genotype_matrix(None, PlinkSnpType::Additive)
+        let le_snps_arr = le_snps_bed.get_genotype_matrix(None)
                                      .unwrap_or_exit(Some("failed to get the le_snps genotype matrix"));
 
         let counts_and_effect_sizes = get_le_snp_counts_and_effect_sizes(&gxg_component_count_filename)

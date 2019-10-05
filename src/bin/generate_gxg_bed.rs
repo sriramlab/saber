@@ -20,14 +20,14 @@ fn main() {
 
     let out_path = extract_str_arg(&matches, "out_path");
     let bfile = extract_str_arg(&matches, "bfile");
-    let [bed_path, bim_path, fam_path] = get_bed_bim_fam_path(&bfile);
+    let (bed_path, bim_path, fam_path) = get_bed_bim_fam_path(&bfile);
     println!(
         "PLINK bed path: {}\n\
         PLINK bim path: {}\n\
         PLINK fam path: {}\n\
         out_path: {}",
         bed_path, bim_path, fam_path, out_path);
-    let bed = PlinkBed::new(&vec![(bed_path, bim_path, fam_path)])
+    let bed = PlinkBed::new(&vec![(bed_path, bim_path, fam_path, PlinkSnpType::Additive)])
         .unwrap_or_exit(None::<String>);
 
     println!("\n=> writing gxg bed to {}", out_path);
@@ -44,7 +44,7 @@ fn main() {
 
     let chunk_size = 100;
     let total_chunks = num_g_snps / chunk_size + (num_g_snps % chunk_size > 0) as usize;
-    bed.col_chunk_iter(chunk_size, None, PlinkSnpType::Additive)
+    bed.col_chunk_iter(chunk_size, None)
        .enumerate()
        .for_each(|(chunk_index_i, chunk_i)| {
            println!("processing chunk [{}/{}]", chunk_index_i + 1, total_chunks);
@@ -55,7 +55,6 @@ fn main() {
                    Some(OrderedIntegerSet::from_slice(
                        &[[chunk_index_i * chunk_size, num_g_snps - 1]])
                    ),
-                   PlinkSnpType::Additive,
                )
                .enumerate()
                .for_each(|(chunk_index_j, chunk_j)| {

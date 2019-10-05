@@ -78,8 +78,8 @@ fn main() {
     let pheno_path_vec = extract_str_vec_arg(&matches, "pheno_path")
         .unwrap_or_exit(None::<String>);
 
-    let [bed_path, bim_path, fam_path] = get_bed_bim_fam_path(&plink_filename_prefix);
-    let [le_snps_bed_path, le_snps_bim_path, le_snps_fam_path] = get_bed_bim_fam_path(&le_snps_filename_prefix);
+    let (bed_path, bim_path, fam_path) = get_bed_bim_fam_path(&plink_filename_prefix);
+    let (le_snps_bed_path, le_snps_bim_path, le_snps_fam_path) = get_bed_bim_fam_path(&le_snps_filename_prefix);
 
     let num_random_vecs = extract_str_arg(&matches, "num_random_vecs")
         .parse::<usize>()
@@ -102,11 +102,12 @@ fn main() {
 
     println!("\n=> generating the phenotype array and the genotype matrix");
 
-    let mut geno_bed = PlinkBed::new(&vec![(bed_path, bim_path, fam_path)])
+    let mut geno_bed = PlinkBed::new(&vec![(bed_path, bim_path, fam_path, PlinkSnpType::Additive)])
         .unwrap_or_exit(None::<String>);
 
-    let le_snps_bed = PlinkBed::new(&vec![(le_snps_bed_path, le_snps_bim_path.clone(), le_snps_fam_path)])
-        .unwrap_or_exit(None::<String>);
+    let le_snps_bed = PlinkBed::new(
+        &vec![(le_snps_bed_path, le_snps_bim_path.clone(), le_snps_fam_path, PlinkSnpType::Additive)]
+    ).unwrap_or_exit(None::<String>);
     let mut le_snps_bim = PlinkBim::new(vec![le_snps_bim_path.clone()])
         .unwrap_or_exit(Some(format!("failed to create PlinkBim for {}", le_snps_bim_path)));
     let le_snps_partition = le_snps_bim
@@ -121,7 +122,7 @@ fn main() {
     for key in le_snps_partition_keys.iter() {
         let range = &le_snps_partition[key];
         le_snps_arr_vec.push(
-            le_snps_bed.get_genotype_matrix(Some(range.clone()), PlinkSnpType::Additive).unwrap()
+            le_snps_bed.get_genotype_matrix(Some(range.clone())).unwrap()
         );
     }
     let num_gxg_components = le_snps_arr_vec.len();
