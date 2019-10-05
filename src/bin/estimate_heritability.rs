@@ -35,7 +35,7 @@ fn main() {
         )
         .arg(
             Arg::with_name("pheno_path")
-                .long("pheno").short("p").takes_value(true).required(true)
+                .long("pheno").short("e").takes_value(true).required(true)
                 .help(
                     "The header line should be\n\
                     FID IID PHENOTYPE_NAME\n\
@@ -46,7 +46,7 @@ fn main() {
         )
         .arg(
             Arg::with_name("num_random_vecs")
-                .long("nrv").takes_value(true).required(true)
+                .long("nrv").short("n").takes_value(true).required(true)
                 .help(
                     "The number of random vectors used to estimate traces\n\
                     Recommends at least 100 for small datasets, and 10 for huge datasets"
@@ -63,7 +63,7 @@ fn main() {
         )
         .arg(
             Arg::with_name("partition_file")
-                .long("partition").takes_value(true)
+                .long("partition").short("p").takes_value(true)
                 .help(
                     "A file to partition the SNPs into multiple components.\n\
                     Each line consists of two values of the form:\n\

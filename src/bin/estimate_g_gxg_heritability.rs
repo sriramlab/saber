@@ -51,7 +51,7 @@ fn main() {
         )
         .arg(
             Arg::with_name("pheno_path")
-                .long("pheno").short("p").takes_value(true).required(true)
+                .long("pheno").short("e").takes_value(true).required(true)
                 .multiple(true).number_of_values(1)
                 .help(
                     "The header line should be\n\
@@ -62,15 +62,16 @@ fn main() {
                 )
         )
         .arg(
-            Arg::with_name("partition_file").long("partition").takes_value(true)
-                                            .help(
-                                                "A file to partition the G SNPs into multiple components.\n\
+            Arg::with_name("partition_file")
+                .long("partition").short("p").takes_value(true)
+                .help(
+                    "A file to partition the G SNPs into multiple components.\n\
                     Each line consists of two values of the form:\n\
                     SNP_ID PARTITION\n\
                     For example,\n\
                     rs3115860 1\n\
                     will assign SNP with ID rs3115860 in the BIM file to a partition named 1"
-                                            )
+                )
         )
         .arg(
             Arg::with_name("gxg_partition_file").long("gxg-partition").takes_value(true)
