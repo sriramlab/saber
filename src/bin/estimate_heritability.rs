@@ -106,15 +106,13 @@ fn main() {
 
     println!(
         "pheno_filepath: {}\n\
-        num_random_vecs: {}",
-        pheno_path,
-        num_random_vecs
-    );
-    println!(
-        "partition_filepath: {}\n\
+        num_random_vecs: {}\n\
+        partition_filepath: {}\n\
         num_jackknife_partitions: {}",
+        pheno_path,
+        num_random_vecs,
         partition_filepath.as_ref().unwrap_or(&"".to_string()),
-        num_jackknife_partitions
+        num_jackknife_partitions,
     );
 
     let prefix_snptype_list = {
@@ -123,11 +121,12 @@ fn main() {
             .map(|p| (p.to_string(), PlinkSnpType::Additive))
             .collect::<Vec<(String, PlinkSnpType)>>();
         if let Some(dominance_prefixes) = plink_dominance_prefixes {
-            list.append(&mut dominance_prefixes
-                .iter()
-                .map(|p| (p.to_string(), PlinkSnpType::Dominance))
-                .collect::<Vec<(String, PlinkSnpType)>>()
-            )
+            list.append(
+                &mut dominance_prefixes
+                    .iter()
+                    .map(|p| (p.to_string(), PlinkSnpType::Dominance))
+                    .collect::<Vec<(String, PlinkSnpType)>>()
+            );
         }
         list
     };

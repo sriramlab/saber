@@ -78,7 +78,7 @@ pub fn estimate_heritability(
     println!("\n=> normalizing the phenotype vector");
     normalize_vector_inplace(&mut pheno_arr, 0);
 
-    let yy = sum_of_squares(pheno_arr.iter());
+    let yy = num_people as f64;
     println!("\n=> yy: {}", yy);
 
     println!("=> generating ggz_jackknife");
