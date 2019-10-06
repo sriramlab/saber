@@ -4,10 +4,13 @@ use analytic::traits::Collecting;
 use biofile::plink_bed::{PlinkBed, PlinkSnpType};
 use biofile::plink_bim::{FilelinePartitions, PlinkBim};
 use clap::{Arg, clap_app};
-use program_flow::argparse::{extract_numeric_arg, extract_optional_numeric_arg, extract_optional_str_arg, extract_str_arg, extract_str_vec_arg, extract_optional_str_vec_arg};
+use program_flow::argparse::{
+    extract_numeric_arg, extract_optional_numeric_arg, extract_optional_str_arg,
+    extract_optional_str_vec_arg, extract_str_arg, extract_str_vec_arg,
+};
 use program_flow::OrExit;
 
-use saber::heritability_estimator::{estimate_heritability, DEFAULT_PARTITION_NAME};
+use saber::heritability_estimator::{DEFAULT_PARTITION_NAME, estimate_heritability};
 use saber::util::{get_bed_bim_fam_path, get_pheno_arr};
 
 fn main() {
@@ -134,40 +137,31 @@ fn main() {
         &partition_filepath,
     );
 
-    let pheno_arr = get_pheno_arr(&pheno_path)
-        .unwrap_or_exit(None::<String>);
-
-    let maf = bed.get_minor_allele_frequencies(None);
-    let mut low_maf = OrderedIntegerSet::new();
-    match lowest_allowed_maf {
-        None => {
-            maf.into_iter().enumerate().for_each(|(i, f)| {
-                if f == 0. {
-                    low_maf.collect(i);
-                }
-            })
-        }
-        Some(l) => {
-            maf.into_iter().enumerate().for_each(|(i, f)| {
-                if f < l {
-                    low_maf.collect(i);
-                }
-            })
-        }
-    };
-    println!(
-        "removing {} alleles with frequency < {}",
-        low_maf.size(),
-        lowest_allowed_maf.unwrap_or(0.)
-    );
-
     let mut filtered_partitions = bim
         .get_fileline_partitions_or(
             DEFAULT_PARTITION_NAME,
             OrderedIntegerSet::from_slice(&[[0, bed.total_num_snps() - 1]]),
         )
         .into_hash_map();
-    filtered_partitions.values_mut().for_each(|v| *v -= &low_maf);
+
+    let pheno_arr = get_pheno_arr(&pheno_path)
+        .unwrap_or_exit(None::<String>);
+
+    if let Some(l) = lowest_allowed_maf {
+        println!("=> computing minor allele frequencies");
+        let mut low_maf = OrderedIntegerSet::new();
+        bed.get_minor_allele_frequencies(None)
+           .into_iter()
+           .enumerate()
+           .for_each(|(i, f)| {
+               if f < l {
+                   low_maf.collect(i);
+               }
+           });
+        println!("removing {} alleles with frequency < {}", low_maf.size(), l);
+        filtered_partitions.values_mut().for_each(|v| *v -= &low_maf);
+    };
+
     bim.set_fileline_partitions(Some(FilelinePartitions::new(filtered_partitions)));
 
     let est = estimate_heritability(
