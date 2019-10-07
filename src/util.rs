@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, BufWriter, Write};
 
@@ -92,6 +92,15 @@ pub fn get_pheno_arr(pheno_path: &str) -> Result<Array<f32, Ix1>, String> {
     ).collect();
 
     Ok(Array::from_vec(pheno_vec))
+}
+
+pub fn get_pheno_path_to_arr(
+    pheno_path_vec: &Vec<String>
+) -> Result<HashMap<String, Array<f32, Ix1>>, String> {
+    pheno_path_vec
+        .iter()
+        .map(|p| Ok((p.to_string(), get_pheno_arr(p)?)))
+        .collect::<Result<HashMap<String, Array<f32, Ix1>>, String>>()
 }
 
 /// The first line of the file is FID IID pheno

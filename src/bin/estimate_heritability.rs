@@ -11,7 +11,7 @@ use program_flow::argparse::{
 use program_flow::OrExit;
 
 use saber::heritability_estimator::{DEFAULT_PARTITION_NAME, estimate_heritability};
-use saber::util::{get_bed_bim_fam_path, get_pheno_arr};
+use saber::util::get_bed_bim_fam_path;
 
 fn main() {
     let mut app = clap_app!(estimate_heritability =>
@@ -39,6 +39,7 @@ fn main() {
         .arg(
             Arg::with_name("pheno_path")
                 .long("pheno").short("e").takes_value(true).required(true)
+                .multiple(true).number_of_values(1)
                 .help(
                     "The header line should be\n\
                     FID IID PHENOTYPE_NAME\n\
@@ -89,7 +90,8 @@ fn main() {
     let plink_filename_prefixes = extract_str_vec_arg(&matches, "plink_filename_prefix")
         .unwrap_or_exit(Some("failed to parse the bfile list".to_string()));
     let plink_dominance_prefixes = extract_optional_str_vec_arg(&matches, "plink_dominance_prefix");
-    let pheno_path = extract_str_arg(&matches, "pheno_path");
+    let pheno_path_list = extract_str_vec_arg(&matches, "pheno_path")
+        .unwrap_or_exit(Some("failed to parse pheno_path".to_string()));
     let partition_filepath = extract_optional_str_arg(&matches, "partition_file");
 
     let num_jackknife_partitions = extract_numeric_arg::<usize>(
@@ -105,15 +107,15 @@ fn main() {
         .unwrap_or_exit(Some("failed to parse num_random_vecs"));
 
     println!(
-        "pheno_filepath: {}\n\
-        num_random_vecs: {}\n\
+        "num_random_vecs: {}\n\
         partition_filepath: {}\n\
         num_jackknife_partitions: {}",
-        pheno_path,
         num_random_vecs,
         partition_filepath.as_ref().unwrap_or(&"".to_string()),
         num_jackknife_partitions,
     );
+    let num_phenos = pheno_path_list.len();
+    pheno_path_list.iter().enumerate().for_each(|(i, path)| println!("[{}/{}] {}", i + 1, num_phenos, path));
 
     let prefix_snptype_list = {
         let mut list = plink_filename_prefixes
@@ -143,9 +145,6 @@ fn main() {
         )
         .into_hash_map();
 
-    let pheno_arr = get_pheno_arr(&pheno_path)
-        .unwrap_or_exit(None::<String>);
-
     if let Some(l) = lowest_allowed_maf {
         println!("=> computing minor allele frequencies");
         let mut low_maf = OrderedIntegerSet::new();
@@ -163,14 +162,16 @@ fn main() {
 
     bim.set_fileline_partitions(Some(FilelinePartitions::new(filtered_partitions)));
 
-    let est = estimate_heritability(
+    let pheno_path_to_est = estimate_heritability(
         bed,
         bim,
-        pheno_arr,
+        pheno_path_list,
         num_random_vecs,
         num_jackknife_partitions,
     ).unwrap_or_exit(None::<String>);
-    println!("\nheritability estimates:\n{}", est);
+    for (pheno_path, est) in pheno_path_to_est.iter() {
+        println!("heritability estimates for {}:\n{}", pheno_path, est);
+    }
 }
 
 fn get_bed_bim_from_bed_bim_fam_list(

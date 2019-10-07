@@ -28,7 +28,7 @@ use crate::trace_estimator::{
     estimate_tr_gxg_ki_gxg_kj, estimate_tr_k_gxg_k, estimate_tr_kk,
     get_gxg_dot_y_norm_sq_from_basis_bed,
 };
-use crate::util::get_pheno_arr;
+use crate::util::{get_pheno_arr, get_pheno_path_to_arr};
 use crate::util::matrix_util::{
     generate_plus_minus_one_bernoulli_matrix, normalize_matrix_columns_inplace,
     normalize_vector_inplace,
@@ -39,10 +39,10 @@ pub const DEFAULT_PARTITION_NAME: &str = "default_partition";
 pub fn estimate_heritability(
     geno_bed: PlinkBed,
     geno_bim: PlinkBim,
-    mut pheno_arr: Array<f32, Ix1>,
+    pheno_path_vec: Vec<String>,
     num_random_vecs: usize,
     num_jackknife_partitions: usize,
-) -> Result<PartitionedJackknifeEstimates, String> {
+) -> Result<HashMap<String, PartitionedJackknifeEstimates>, String> {
     let partitions = geno_bim.get_fileline_partitions_or(
         DEFAULT_PARTITION_NAME,
         OrderedIntegerSet::from_slice(&[[0, geno_bed.total_num_snps() - 1]]),
@@ -75,8 +75,11 @@ pub fn estimate_heritability(
         println!("partition named {} has {} SNPs", k, partition_sizes[i]);
     });
 
-    println!("\n=> normalizing the phenotype vector");
-    normalize_vector_inplace(&mut pheno_arr, 0);
+    let mut pheno_path_to_arr = get_pheno_path_to_arr(&pheno_path_vec)?;
+    pheno_path_to_arr
+        .iter_mut()
+        .for_each(|(_path, mut pheno_arr)| normalize_vector_inplace(&mut pheno_arr, 0));
+    println!("\n=> normalized the phenotype vectors");
 
     let yy = num_people as f64;
     println!("\n=> yy: {}", yy);
@@ -90,31 +93,38 @@ pub fn estimate_heritability(
         &random_vecs,
     );
 
-    println!("=> generating ygy_jackknife");
-    let ygy_jackknife = get_partitioned_ygy_jackknife(
-        &geno_bed,
-        &partition_array,
-        &jackknife_partitions,
-        &pheno_arr,
-    );
+    println!("=> generating ygy_jackknives");
+    let ygy_jackknives: HashMap<String, Vec<AdditiveJackknife<f64>>> = pheno_path_to_arr
+        .iter()
+        .map(|(path, pheno_arr)| {
+            (
+                path.clone(),
+                get_partitioned_ygy_jackknife(
+                    &geno_bed,
+                    &partition_array,
+                    &jackknife_partitions,
+                    pheno_arr,
+                )
+            )
+        })
+        .collect();
 
-    let get_heritability_point_estimate = |k: Option<usize>,
-                                           jackknife_partition: Option<&Partition>| {
-        let (mut a, mut b) = get_normal_eqn_matrices(num_partitions, num_people, yy);
+    let get_heritability_point_estimate = |pheno_path: &str,
+                                           k: Option<usize>,
+                                           jackknife_partition: Option<&Partition>| -> Vec<f64> {
+        let mut a = get_normal_eqn_lhs_matrix(num_partitions, num_people);
+        let mut b = Array::zeros(num_partitions + 1);
+        b[num_partitions] = yy;
         for i in 0..num_partitions {
-            let num_snps_i = match jackknife_partition {
-                Some(jackknife_partition) => (
-                    partition_sizes[i] - jackknife_partition.intersect(&partition_array[i]).size()
-                ) as f64,
-                None => partition_sizes[i] as f64,
-            };
+            let num_snps_i = partition_minus_knife(&partition_array[i], jackknife_partition).size() as f64;
             let ggz_i = ggz_jackknife[i].sum_minus_component_or_sum(k).unwrap();
+            b[i] = ygy_jackknives[pheno_path][i].sum_minus_component_or_sum(k).unwrap() / num_snps_i;
+            println!("yk{}y: {}", i, b[i]);
             a[[i, i]] = sum_of_squares_f32(ggz_i.iter()) as f64
                 / num_snps_i
                 / num_snps_i
                 / num_random_vecs as f64;
             println!("tr(k_{}_k_{})_est: {} num_snps_i: {}", i, i, a[[i, i]], num_snps_i);
-            b[i] = ygy_jackknife[i].sum_minus_component_or_sum(k).unwrap() / num_snps_i;
             for j in i + 1..num_partitions {
                 let num_snps_j = match jackknife_partition {
                     Some(jackknife_partition) => (
@@ -137,20 +147,31 @@ pub fn estimate_heritability(
         sig_sq.truncate(num_partitions);
         sig_sq
     };
-    let mut heritability_estimates = Vec::new();
-    for (k, jackknife_partition) in jackknife_partitions.iter().enumerate() {
-        println!("\n=> leaving out jackknife partition with index {}", k);
-        let sig_sq = get_heritability_point_estimate(Some(k), Some(&jackknife_partition));
-        println!("\nsig_sq: {:?}", sig_sq);
-        heritability_estimates.push(sig_sq.to_vec());
-    }
-    let est_without_jackknife = get_heritability_point_estimate(None, None);
-    println!("\nest_without_knife: {:?}", est_without_jackknife);
-    PartitionedJackknifeEstimates::from_jackknife_estimates(
-        &est_without_jackknife,
-        &heritability_estimates,
-        Some(partitions.ordered_partition_keys().clone()),
-        None)
+
+    let path_to_est: HashMap<String, PartitionedJackknifeEstimates> = pheno_path_vec
+        .iter()
+        .map(|path| {
+            println!("\n=> {}", path);
+            let mut heritability_estimates = Vec::new();
+            for (k, jackknife_partition) in jackknife_partitions.iter().enumerate() {
+                println!("\n=> leaving out jackknife partition with index {}", k);
+                let sig_sq = get_heritability_point_estimate(path, Some(k), Some(&jackknife_partition));
+                println!("\nsig_sq: {:?}", sig_sq);
+                heritability_estimates.push(sig_sq.to_vec());
+            }
+            let est_without_jackknife = get_heritability_point_estimate(path, None, None);
+            println!("\nest_without_knife: {:?}", est_without_jackknife);
+            Ok((
+                path.to_string(),
+                PartitionedJackknifeEstimates::from_jackknife_estimates(
+                    &est_without_jackknife,
+                    &heritability_estimates,
+                    Some(partitions.ordered_partition_keys().clone()),
+                    None)?
+            ))
+        })
+        .collect::<Result<HashMap<String, PartitionedJackknifeEstimates>, String>>()?;
+    Ok(path_to_est)
 }
 
 pub fn estimate_g_gxg_heritability(
@@ -1090,21 +1111,18 @@ fn get_rhs_normal_eqn_vec(
     b
 }
 
-fn get_normal_eqn_matrices(
+fn get_normal_eqn_lhs_matrix(
     num_partitions: usize,
     num_people: usize,
-    yy: f64,
-) -> (Array<f64, Ix2>, Array<f64, Ix1>) {
+) -> Array<f64, Ix2> {
     let num_people = num_people as f64;
     let mut a = Array::zeros((num_partitions + 1, num_partitions + 1));
-    let mut b = Array::zeros(num_partitions + 1);
     a[[num_partitions, num_partitions]] = num_people;
     for i in 0..num_partitions {
         a[[i, num_partitions]] = num_people as f64;
         a[[num_partitions, i]] = num_people as f64;
     }
-    b[num_partitions] = yy;
-    (a, b)
+    a
 }
 
 fn partition_minus_knife(
