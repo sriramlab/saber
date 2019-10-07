@@ -28,7 +28,7 @@ use crate::trace_estimator::{
     estimate_tr_gxg_ki_gxg_kj, estimate_tr_k_gxg_k, estimate_tr_kk,
     get_gxg_dot_y_norm_sq_from_basis_bed,
 };
-use crate::util::{get_pheno_arr, get_pheno_path_to_arr};
+use crate::util::get_pheno_path_to_arr;
 use crate::util::matrix_util::{
     generate_plus_minus_one_bernoulli_matrix, normalize_matrix_columns_inplace,
     normalize_vector_inplace,
@@ -184,15 +184,6 @@ pub fn estimate_g_gxg_heritability(
     num_rand_vecs_gxg: usize,
     num_jackknife_partitions: usize,
 ) -> Result<HashMap<String, PartitionedJackknifeEstimates>, Error> {
-    let mut pheno_path_to_arr: HashMap<String, Array<f32, Ix1>> = pheno_path_vec
-        .iter()
-        .map(|p| (
-            p.to_string(),
-            get_pheno_arr(p)
-                .unwrap_or_exit(Some(format!("failed to create phenotype array for {}", p))))
-        )
-        .collect();
-
     let g_partitions = g_bim.get_fileline_partitions_or(
         DEFAULT_PARTITION_NAME,
         OrderedIntegerSet::from_slice(&[[0, g_bed.total_num_snps() - 1]]),
@@ -247,6 +238,7 @@ pub fn estimate_g_gxg_heritability(
         gxg_partitions.ordered_partition_keys(),
     )?;
 
+    let mut pheno_path_to_arr = get_pheno_path_to_arr(&pheno_path_vec)?;
     pheno_path_to_arr
         .iter_mut()
         .for_each(|(_path, mut pheno_arr)| normalize_vector_inplace(&mut pheno_arr, 0));
