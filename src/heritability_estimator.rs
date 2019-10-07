@@ -192,10 +192,6 @@ pub fn estimate_g_gxg_heritability(
         .iter()
         .map(|(_, p)| p.clone())
         .collect();
-    let g_partition_sizes: Vec<usize> = g_partition_array
-        .iter()
-        .map(|p| p.size())
-        .collect();
 
     let gxg_partitions = gxg_basis_bim.get_fileline_partitions_or(
         DEFAULT_PARTITION_NAME,
@@ -204,10 +200,6 @@ pub fn estimate_g_gxg_heritability(
     let gxg_partition_array: Vec<Partition> = gxg_partitions
         .iter()
         .map(|(_, p)| p.clone())
-        .collect();
-    let gxg_partition_sizes: Vec<usize> = gxg_partition_array
-        .iter()
-        .map(|p| p.size())
         .collect();
 
     let g_jackknife_partitions = JackknifePartitions::from_integer_set(
@@ -231,8 +223,8 @@ pub fn estimate_g_gxg_heritability(
     check_and_print_g_and_gxg_partition_info(
         &g_bed,
         &gxg_basis_bed,
-        &g_partition_sizes,
-        &gxg_partition_sizes,
+        &g_partition_array,
+        &gxg_partition_array,
         num_inter_gxg_partitions,
         g_partitions.ordered_partition_keys(),
         gxg_partitions.ordered_partition_keys(),
@@ -1047,8 +1039,8 @@ fn leave_out_jackknife(
 fn check_and_print_g_and_gxg_partition_info(
     g_bed: &PlinkBed,
     gxg_basis_bed: &PlinkBed,
-    g_partition_sizes: &Vec<usize>,
-    gxg_partition_sizes: &Vec<usize>,
+    g_partition_array: &Vec<Partition>,
+    gxg_partition_array: &Vec<Partition>,
     num_inter_gxg_partitions: usize,
     g_partition_names: &Vec<String>,
     gxg_partition_names: &Vec<String>,
@@ -1061,6 +1053,14 @@ fn check_and_print_g_and_gxg_partition_info(
             )
         );
     }
+    let g_partition_sizes: Vec<usize> = g_partition_array
+        .iter()
+        .map(|p| p.size())
+        .collect();
+    let gxg_partition_sizes: Vec<usize> = gxg_partition_array
+        .iter()
+        .map(|p| p.size())
+        .collect();
     println!(
         "num_people: {}\n\
         total_num_g_snps: {}\n\
