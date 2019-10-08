@@ -165,13 +165,15 @@ fn main() {
     let pheno_path_to_est = estimate_heritability(
         bed,
         bim,
-        pheno_path_list,
+        pheno_path_list.clone(),
         num_random_vecs,
         num_jackknife_partitions,
     ).unwrap_or_exit(None::<String>);
-    for (pheno_path, est) in pheno_path_to_est.iter() {
-        println!("heritability estimates for {}:\n{}", pheno_path, est);
-    }
+    pheno_path_list
+        .iter()
+        .for_each(|path| {
+            println!("heritability estimates for {}:\n{}", path, pheno_path_to_est[path]);
+        })
 }
 
 fn get_bed_bim_from_bed_bim_fam_list(
