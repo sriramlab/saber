@@ -2,9 +2,7 @@ use std::marker::Sync;
 
 use analytic::set::ordered_integer_set::OrderedIntegerSet;
 use analytic::set::traits::Finite;
-use analytic::stats::{
-    mean, standard_deviation, sum_f32, sum_of_fourth_power_f32, sum_of_squares_f32,
-};
+use analytic::stats::{mean, standard_deviation, sum_f32, sum_of_fourth_power_f32, sum_of_squares_f32, sum_of_squares};
 use biofile::plink_bed::PlinkBed;
 use ndarray::{Array, Axis, Ix1, Ix2, s};
 use ndarray::Dim;
@@ -267,6 +265,29 @@ pub fn pheno_k_pheno(
                        })
                        .sum::<f32>();
     yggy as f64 / snp_range.size() as f64
+}
+
+pub fn pheno_g_pheno_from_pheno_matrix(
+    pheno_matrix: &Array<f32, Ix2>,
+    snp_range: &OrderedIntegerSet<usize>,
+    geno_bed: &PlinkBed,
+    snp_means: &Array<f32, Ix1>,
+    snp_stds: &Array<f32, Ix1>,
+    chunk_size: Option<usize>,
+) -> Vec<f64> {
+    let gy = normalized_g_transpose_dot_matrix(
+        geno_bed,
+        Some(snp_range.clone()),
+        snp_means,
+        snp_stds,
+        pheno_matrix,
+        None,
+        chunk_size,
+    );
+    gy.gencolumns()
+      .into_iter()
+      .map(|col| sum_of_squares(col.iter()))
+      .collect()
 }
 
 pub fn sum_of_column_wise_inner_product(arr1: &Array<f32, Ix2>, arr2: &Array<f32, Ix2>) -> f32 {
