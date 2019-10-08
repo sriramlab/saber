@@ -3,6 +3,7 @@ use std::fmt;
 
 use analytic::set::ordered_integer_set::OrderedIntegerSet;
 use analytic::traits::ToIterator;
+use analytic::stats::standard_deviation;
 
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct Estimate<T> {
@@ -41,26 +42,14 @@ fn get_jackknife_mean_and_std(
     estimates: &Vec<f64>,
 ) -> Estimate<f64> {
     let n = estimates.len() as f64;
-    let n_minus_one = n - 1.;
 
-    let s: f64 = estimates.iter().sum();
-    let x_avg = s / n;
-    let x_i: Vec<f64> = estimates.iter().map(|&e| (s - e) / n_minus_one).collect();
-    let standard_error = (
-        x_i.into_iter()
-           .map(|x| {
-               let delta = x - x_avg;
-               delta * delta
-           })
-           .sum::<f64>()
-            * n_minus_one
-            / n
-    ).sqrt();
+    let jackknife_mean = estimates.iter().sum::<f64>() / n;
+    let standard_error = standard_deviation(estimates.iter(), 1);
+    let bias_corrected_estimate = n * point_estimate_without_jackknife - (n - 1.) * jackknife_mean;
 
-    let bias_corrected_estimate = n * point_estimate_without_jackknife - (n - 1.) * x_avg;
     Estimate {
         bias_corrected_estimate,
-        jackknife_mean: x_avg,
+        jackknife_mean,
         point_estimate_without_jackknife,
         standard_error,
     }
