@@ -44,7 +44,7 @@ fn get_jackknife_mean_and_std(
     let n = estimates.len() as f64;
 
     let jackknife_mean = estimates.iter().sum::<f64>() / n;
-    let standard_error = standard_deviation(estimates.iter(), 1);
+    let standard_error = standard_deviation(estimates.iter(), 0) * (n - 1.).sqrt();
     let bias_corrected_estimate = n * point_estimate_without_jackknife - (n - 1.) * jackknife_mean;
 
     Estimate {
