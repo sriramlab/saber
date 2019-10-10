@@ -103,6 +103,23 @@ pub fn get_pheno_path_to_arr(
         .collect::<Result<HashMap<String, Array<f32, Ix1>>, String>>()
 }
 
+pub fn get_pheno_matrix(
+    pheno_path_vec: &Vec<String>
+) -> Result<Array<f32, Ix2>, String> {
+    let v: Vec<f32> = pheno_path_vec
+        .iter()
+        .map(|p| Ok(get_pheno_arr(p)?.to_vec()))
+        .collect::<Result<Vec<Vec<f32>>, String>>()?
+        .into_iter()
+        .flat_map(|v| v)
+        .collect();
+    let num_pheno_types = pheno_path_vec.len();
+    let num_rows = v.len() / num_pheno_types;
+    Ok(
+        Array::from_shape_vec((num_rows, num_pheno_types).strides((1, num_rows)), v).unwrap()
+    )
+}
+
 /// The first line of the file is FID IID pheno
 /// Each of the remaining lines have the three corresponding fields
 ///
