@@ -47,14 +47,8 @@ pub fn estimate_heritability(
         DEFAULT_PARTITION_NAME,
         OrderedIntegerSet::from_slice(&[[0, geno_bed.total_num_snps() - 1]]),
     );
-    let partition_array: Vec<Partition> = partitions
-        .iter()
-        .map(|(_, p)| p.clone())
-        .collect();
-    let partition_sizes: Vec<usize> = partition_array
-        .iter()
-        .map(|p| p.size())
-        .collect();
+    let partition_array: Vec<Partition> = partitions.ordered_partition_array();
+    let partition_sizes: Vec<usize> = partition_array.iter().map(|p| p.size()).collect();
 
     let jackknife_partitions = JackknifePartitions::from_integer_set(
         partition_array.clone(),
@@ -205,19 +199,13 @@ pub fn estimate_g_gxg_heritability(
         DEFAULT_PARTITION_NAME,
         OrderedIntegerSet::from_slice(&[[0, g_bed.total_num_snps() - 1]]),
     );
-    let g_partition_array: Vec<Partition> = g_partitions
-        .iter()
-        .map(|(_, p)| p.clone())
-        .collect();
+    let g_partition_array: Vec<Partition> = g_partitions.ordered_partition_array();
 
     let gxg_partitions = gxg_basis_bim.get_fileline_partitions_or(
         DEFAULT_PARTITION_NAME,
         OrderedIntegerSet::from_slice(&[[0, gxg_basis_bed.total_num_snps() - 1]]),
     );
-    let gxg_partition_array: Vec<Partition> = gxg_partitions
-        .iter()
-        .map(|(_, p)| p.clone())
-        .collect();
+    let gxg_partition_array: Vec<Partition> = gxg_partitions.ordered_partition_array();
 
     let g_jackknife_partitions = JackknifePartitions::from_integer_set(
         g_partition_array.clone(),

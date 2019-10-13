@@ -2,6 +2,8 @@ use std::collections::{HashMap, HashSet};
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, BufWriter, Write};
 
+use biofile::plink_bed::{PlinkBed, PlinkSnpType};
+use biofile::plink_bim::PlinkBim;
 use ndarray::{Array, Ix1, Ix2, ShapeBuilder};
 
 pub mod matrix_util;
@@ -17,6 +19,61 @@ pub fn get_line_count(filepath: &str) -> Result<usize, String> {
 
 pub fn get_bed_bim_fam_path(bfile: &str) -> (String, String, String) {
     (format!("{}.bed", bfile), format!("{}.bim", bfile), format!("{}.fam", bfile))
+}
+
+pub fn get_bed_bim_from_prefix_and_partition(
+    plink_filename_prefixes: &Vec<String>,
+    plink_dominance_prefixes: &Option<Vec<String>>,
+    partition_filepath: &Option<String>,
+) -> Result<(PlinkBed, PlinkBim), biofile::error::Error> {
+    let prefix_snptype_list = {
+        let mut list = plink_filename_prefixes
+            .iter()
+            .map(|p| (p.to_string(), PlinkSnpType::Additive))
+            .collect::<Vec<(String, PlinkSnpType)>>();
+        if let Some(dominance_prefixes) = plink_dominance_prefixes {
+            list.append(
+                &mut dominance_prefixes
+                    .iter()
+                    .map(|p| (p.to_string(), PlinkSnpType::Dominance))
+                    .collect::<Vec<(String, PlinkSnpType)>>()
+            );
+        }
+        list
+    };
+    get_bed_bim_from_bed_bim_fam_list(
+        &prefix_snptype_list,
+        partition_filepath,
+    )
+}
+
+fn get_bed_bim_from_bed_bim_fam_list(
+    bfile_prefix_snptype_list: &Vec<(String, PlinkSnpType)>,
+    partition_filepath: &Option<String>,
+) -> Result<(PlinkBed, PlinkBim), biofile::error::Error> {
+    let bed_bim_fam_snptype_list: Vec<(String, String, String, PlinkSnpType)> =
+        bfile_prefix_snptype_list
+            .iter()
+            .map(|(prefix, snp_type)| {
+                let (bed, bim, fam) = get_bed_bim_fam_path(prefix);
+                (bed, bim, fam, *snp_type)
+            })
+            .collect();
+    let bed = PlinkBed::new(&bed_bim_fam_snptype_list)?;
+
+    let bim_path_list: Vec<String> = bed_bim_fam_snptype_list
+        .iter()
+        .map(|t| t.1.to_string())
+        .collect();
+
+    let bim = match partition_filepath {
+        Some(partition_filepath) => PlinkBim::new_with_partition_file(
+            bim_path_list,
+            partition_filepath,
+        )?,
+        None => PlinkBim::new(bim_path_list)?
+    };
+    Ok((bed, bim))
 }
 
 pub fn load_trace_estimates(load_path: &str) -> Result<Array<f64, Ix2>, String> {

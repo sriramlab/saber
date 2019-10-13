@@ -1,15 +1,30 @@
+use std::collections::HashMap;
+use std::fs::OpenOptions;
+use std::io::{BufWriter, Write};
+
+use analytic::set::ordered_integer_set::OrderedIntegerSet;
+use analytic::set::traits::Finite;
 use analytic::stats::{mean, n_choose_2, variance};
+use biofile::plink_bed::PlinkBed;
+use biofile::plink_bim::PlinkBim;
 use ndarray::{Array, Axis, Ix1, Ix2, s};
 use ndarray_parallel::prelude::*;
 use ndarray_rand::RandomExt;
 use rand::distributions::Normal;
+use rayon::prelude::*;
 
+use crate::heritability_estimator::DEFAULT_PARTITION_NAME;
 use crate::util::matrix_util::normalize_matrix_columns_inplace;
 
 /// * `geno_arr` is the 2D genotype array, of shape (num_individuals, num_snps)
-/// * `effect_variance` is the variance of the total effect sizes, i.e. each coefficient will have a variance of effect_variance / num_individuals
+/// * `effect_variance` is the variance of the total effect sizes,
+/// i.e. each coefficient will have a variance of effect_variance / num_individuals
 /// * `noise_variance` is the variance of the noise
-pub fn generate_pheno_arr(geno_arr: &Array<f32, Ix2>, effect_variance: f64, noise_variance: f64) -> Array<f32, Ix1> {
+pub fn generate_pheno_arr(
+    geno_arr: &Array<f32, Ix2>,
+    effect_variance: f64,
+    noise_variance: f64,
+) -> Array<f32, Ix1> {
     let (num_individuals, num_snps) = geno_arr.dim();
     let effect_size_matrix = Array::random(
         num_snps, Normal::new(0f64, (effect_variance / num_snps as f64).sqrt()))
@@ -28,7 +43,10 @@ pub fn generate_pheno_arr(geno_arr: &Array<f32, Ix2>, effect_variance: f64, nois
     geno_arr.dot(&effect_size_matrix) + &noise
 }
 
-pub fn generate_g_contribution(mut geno_arr: Array<f32, Ix2>, g_var: f64) -> Array<f32, Ix1> {
+pub fn generate_g_contribution(
+    mut geno_arr: Array<f32, Ix2>,
+    g_var: f64,
+) -> Array<f32, Ix1> {
     let (num_people, num_snps) = geno_arr.dim();
     println!("\n=> generate_g_contribution\nnum_people: {}\nnum_snps: {}\ng_var: {}",
              num_people, num_snps, g_var);
@@ -43,30 +61,51 @@ pub fn generate_g_contribution(mut geno_arr: Array<f32, Ix2>, g_var: f64) -> Arr
     geno_arr.dot(&effect_size_matrix)
 }
 
-/// all the genotype matrix has shape num_people x num_snps
-pub fn generate_gxg_pheno_arr(geno_arr: &Array<f32, Ix2>, gxg_arr: &Array<f32, Ix2>,
-    g_variance: f64, gxg_variance: f64, noise_variance: f64) -> Array<f32, Ix1> {
-    println!("g_variance: {}\ngxg_variance: {}\nnoise_variance: {}", g_variance, gxg_variance, noise_variance);
-    let (num_individuals, num_snps) = geno_arr.dim();
-    let num_gxg_pairs = gxg_arr.dim().1;
-
-    let g_effect_sizes = Array::random(
-        num_snps, Normal::new(0f64, (g_variance / num_snps as f64).sqrt()))
-        .mapv(|e| e as f32);
-
-    let gxg_effect_sizes = Array::random(
-        num_gxg_pairs, Normal::new(0f64, (gxg_variance / num_gxg_pairs as f64).sqrt()))
-        .mapv(|e| e as f32);
-
-    let mut noise = Array::random(
-        num_individuals, Normal::new(0f64, noise_variance.sqrt()))
-        .mapv(|e| e as f32);
-    noise -= mean(noise.iter()) as f32;
-
-    geno_arr.dot(&g_effect_sizes) + gxg_arr.dot(&gxg_effect_sizes) + noise
+pub fn generate_g_contribution_from_bed_bim(
+    bed: &PlinkBed,
+    bim: &PlinkBim,
+    partition_to_variance: &HashMap<String, f64>,
+    chunk_size: usize,
+) -> Array<f32, Ix1> {
+    let partitions = bim.get_fileline_partitions_or(
+        DEFAULT_PARTITION_NAME,
+        OrderedIntegerSet::from_slice(&[[0, bed.total_num_snps() - 1]]),
+    );
+    let num_people = bed.num_people;
+    partitions
+        .to_hash_map()
+        .into_par_iter()
+        .fold_with(Array::zeros(num_people), |acc, (name, partition)| {
+            let num_partition_snps = partition.size();
+            let single_snp_std = (partition_to_variance[&name] / num_partition_snps as f64).sqrt();
+            bed.col_chunk_iter(chunk_size, Some(partition))
+               .into_par_iter()
+               .fold_with(Array::zeros(num_people), |acc, snp_chunk| {
+                   let num_chunk_snps = snp_chunk.dim().1;
+                   let effect_size_matrix = Array::random(
+                       num_chunk_snps, Normal::new(0f64, single_snp_std),
+                   ).mapv(|e| e as f32);
+                   acc + snp_chunk.dot(&effect_size_matrix)
+               })
+               .reduce(
+                   || Array::zeros(num_people),
+                   |acc, b| {
+                       acc + b
+                   },
+               ) + acc
+        })
+        .reduce(
+            || Array::zeros(num_people),
+            |acc, b| {
+                acc + b
+            },
+        )
 }
 
-pub fn generate_gxg_contribution_from_gxg_basis(mut gxg_basis: Array<f32, Ix2>, gxg_variance: f64) -> Array<f32, Ix1> {
+pub fn generate_gxg_contribution_from_gxg_basis(
+    mut gxg_basis: Array<f32, Ix2>,
+    gxg_variance: f64,
+) -> Array<f32, Ix1> {
     let (num_people, num_basis) = gxg_basis.dim();
     let num_gxg_pairs = n_choose_2(num_basis);
     println!("\n=> generate_gxg_contribution_from_gxg_basis\nnum_people: {}\nnum_basis: {}\nequivalent # gxg pairs: {}\ngxg_variance: {}",
@@ -93,38 +132,27 @@ pub fn generate_gxg_contribution_from_gxg_basis(mut gxg_basis: Array<f32, Ix2>, 
     gxg_effects
 }
 
-pub fn generate_gxg_pheno_arr_from_gxg_basis(geno_arr: &Array<f32, Ix2>, gxg_basis: &Array<f32, Ix2>,
-    g_variance: f64, gxg_variance: f64, noise_variance: f64) -> Array<f32, Ix1> {
-    println!("g_variance: {}\ngxg_variance: {}\nnoise_variance: {}", g_variance, gxg_variance, noise_variance);
-    let (num_people, num_snps) = geno_arr.dim();
-
-    let num_basis = gxg_basis.dim().1;
-    let num_gxg_pairs = num_basis * (num_basis - 1) / 2;
-
-    let g_effect_sizes = Array::random(
-        num_snps, Normal::new(0f64, (g_variance / num_snps as f64).sqrt()))
-        .mapv(|e| e as f32);
-
-    let gxg_single_std_dev = (gxg_variance / num_gxg_pairs as f64).sqrt();
-    let mut gxg_effects = Array::zeros(num_people);
-    for i in 0..num_basis - 1 {
-        let snp_i = gxg_basis.slice(s![.., i]);
-        let mut gxg = gxg_basis.slice(s![.., i+1..]).to_owned();
-        gxg.axis_iter_mut(Axis(1))
-           .into_par_iter()
-           .for_each(|mut col| {
-               col *= &snp_i;
-           });
-        let gxg_effect_sizes = Array::random(gxg.dim().1, Normal::new(0f64, gxg_single_std_dev))
-            .mapv(|e| e as f32);
-        gxg_effects += &gxg.dot(&gxg_effect_sizes);
+pub fn get_sim_output_path(prefix: &str, effect_mechanism: SimEffectMechanism) -> String {
+    match effect_mechanism {
+        SimEffectMechanism::G => format!("{}.g.effects", prefix),
+        SimEffectMechanism::GxG(component_index) => format!("{}.gxg{}.effects", prefix, component_index)
     }
+}
 
-    let noise = Array::random(
-        num_people, Normal::new(0f64, noise_variance.sqrt()))
-        .mapv(|e| e as f32);
+pub fn write_effects_to_file(effects: &Array<f32, Ix1>, out_path: &str) -> Result<(), std::io::Error> {
+    let mut buf = BufWriter::new(
+        OpenOptions::new().create(true).truncate(true).write(true).open(out_path)?
+    );
+    for val in effects.iter() {
+        buf.write_fmt(format_args!("{}\n", val))?;
+    }
+    Ok(())
+}
 
-    geno_arr.dot(&g_effect_sizes) + gxg_effects + noise
+pub enum SimEffectMechanism {
+    G,
+    // GxG component index
+    GxG(usize),
 }
 
 #[cfg(test)]
