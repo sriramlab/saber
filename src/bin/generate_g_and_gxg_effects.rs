@@ -11,7 +11,7 @@ use saber::simulation::sim_pheno::{
     generate_g_contribution, generate_gxg_contribution_from_gxg_basis, get_sim_output_path,
     SimEffectMechanism, write_effects_to_file,
 };
-use saber::util::get_bed_bim_fam_path;
+use saber::util::{get_bed_bim_fam_path, get_fid_iid_list};
 
 fn get_le_snp_counts_and_effect_sizes(count_filename: &String) -> Result<Vec<(usize, f64)>, String> {
     let buf = match OpenOptions::new().read(true).open(count_filename.as_str()) {
@@ -54,6 +54,7 @@ fn main() {
             let bfile = extract_optional_str_arg(&matches, "bfile")
                 .unwrap_or_exit(Some(format!("must provide --bfile as g_var: {} > 0.", g_var)));
             let (bed_path, bim_path, fam_path) = get_bed_bim_fam_path(&bfile);
+            let fid_iid_list = get_fid_iid_list(&fam_path).unwrap_or_exit(None::<String>);
             println!("\nPLINK bed path: {}\nPLINK bim path: {}\nPLINK fam path: {}", bed_path, bim_path, fam_path);
             let bed = PlinkBed::new(&vec![(bed_path, bim_path, fam_path, PlinkSnpType::Additive)])
                 .unwrap_or_exit(None::<String>);
@@ -63,7 +64,7 @@ fn main() {
             let out_path = get_sim_output_path(&out_path_prefix, SimEffectMechanism::G);
             let effects = generate_g_contribution(geno_arr, g_var);
             println!("\n=> writing the effects due to G to {}", out_path);
-            write_effects_to_file(&effects, &out_path)
+            write_effects_to_file(&effects, &fid_iid_list, &out_path)
                 .unwrap_or_exit(Some(format!("failed to write the simulated effects to file: {}", out_path)));
         }
     }
@@ -75,6 +76,7 @@ fn main() {
             .unwrap_or_exit(Some("must provide --counts as le_snps_bfile is specified"));
         println!("\nLE SNPs bed path: {}\nLE SNPs bim path: {}\nLE SNPs fam path: {}", le_snps_bed_path, le_snps_bim_path, le_snps_fam_path);
         println!("gxg_component_count_filename: {}", gxg_component_count_filename);
+        let fid_iid_list = get_fid_iid_list(&le_snps_fam_path).unwrap_or_exit(None::<String>);
         let le_snps_bed = PlinkBed::new(&vec![(le_snps_bed_path, le_snps_bim_path, le_snps_fam_path, PlinkSnpType::Additive)])
             .unwrap_or_exit(None::<String>);
         let le_snps_arr = le_snps_bed.get_genotype_matrix(None)
@@ -91,7 +93,7 @@ fn main() {
             let gxg_basis = le_snps_arr.slice(s![..,acc..acc+c]).to_owned();
             let effects = generate_gxg_contribution_from_gxg_basis(gxg_basis, effect_size);
             println!("\n=> writing the effects due to GxG component {} to {}", i + 1, out_path);
-            write_effects_to_file(&effects, &out_path)
+            write_effects_to_file(&effects, &fid_iid_list, &out_path)
                 .unwrap_or_exit(Some(format!("failed to write the simulated effects to file: {}", out_path)));
             acc += c;
         }

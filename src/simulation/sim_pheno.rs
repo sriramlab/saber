@@ -65,14 +65,15 @@ pub fn generate_g_contribution_from_bed_bim(
     bed: &PlinkBed,
     bim: &PlinkBim,
     partition_to_variance: &HashMap<String, f64>,
+    fill_noise: bool,
     chunk_size: usize,
-) -> Array<f32, Ix1> {
+) -> Result<Array<f32, Ix1>, String> {
     let partitions = bim.get_fileline_partitions_or(
         DEFAULT_PARTITION_NAME,
         OrderedIntegerSet::from_slice(&[[0, bed.total_num_snps() - 1]]),
     );
     let num_people = bed.num_people;
-    partitions
+    let mut effects: Array<f32, Ix1> = partitions
         .to_hash_map()
         .into_par_iter()
         .fold_with(Array::zeros(num_people), |acc, (name, partition)| {
@@ -80,7 +81,8 @@ pub fn generate_g_contribution_from_bed_bim(
             let single_snp_std = (partition_to_variance[&name] / num_partition_snps as f64).sqrt();
             bed.col_chunk_iter(chunk_size, Some(partition))
                .into_par_iter()
-               .fold_with(Array::zeros(num_people), |acc, snp_chunk| {
+               .fold_with(Array::zeros(num_people), |acc, mut snp_chunk| {
+                   normalize_matrix_columns_inplace(&mut snp_chunk, 0);
                    let num_chunk_snps = snp_chunk.dim().1;
                    let effect_size_matrix = Array::random(
                        num_chunk_snps, Normal::new(0f64, single_snp_std),
@@ -99,7 +101,23 @@ pub fn generate_g_contribution_from_bed_bim(
             |acc, b| {
                 acc + b
             },
-        )
+        );
+    if fill_noise {
+        let variance_sum = partitions
+            .to_hash_map()
+            .keys()
+            .fold(0., |acc, partition_name| acc + partition_to_variance[partition_name]);
+        if variance_sum > 1. {
+            return Err(format!(
+                "cannot fill the simulated phenotype with noise when the total variance ({}) is larger than 1.",
+                variance_sum
+            ));
+        }
+        let noise_std = (1. - variance_sum).sqrt();
+        let noise = Array::random(num_people, Normal::new(0f64, noise_std)).mapv(|e| e as f32);
+        effects += &noise;
+    }
+    Ok(effects)
 }
 
 pub fn generate_gxg_contribution_from_gxg_basis(
@@ -139,12 +157,24 @@ pub fn get_sim_output_path(prefix: &str, effect_mechanism: SimEffectMechanism) -
     }
 }
 
-pub fn write_effects_to_file(effects: &Array<f32, Ix1>, out_path: &str) -> Result<(), std::io::Error> {
+pub fn write_effects_to_file(
+    effects: &Array<f32, Ix1>,
+    fid_iid_list: &Vec<(String, String)>,
+    out_path: &str,
+) -> Result<(), std::io::Error> {
+    assert_eq!(
+        effects.dim(),
+        fid_iid_list.len(),
+        "length of the phenotype array {} not equal to the length of the fid_iid_list {}",
+        effects.dim(),
+        fid_iid_list.len()
+    );
     let mut buf = BufWriter::new(
         OpenOptions::new().create(true).truncate(true).write(true).open(out_path)?
     );
-    for val in effects.iter() {
-        buf.write_fmt(format_args!("{}\n", val))?;
+    buf.write_fmt(format_args!("FID IID pheno\n"))?;
+    for (val, (fid, iid)) in effects.iter().zip(fid_iid_list.iter()) {
+        buf.write_fmt(format_args!("{} {} {}\n", fid, iid, val))?;
     }
     Ok(())
 }

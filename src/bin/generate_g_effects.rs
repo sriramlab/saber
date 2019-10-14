@@ -3,17 +3,14 @@ use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader};
 
 use clap::{Arg, clap_app};
-use program_flow::argparse::{
-    extract_numeric_arg, extract_optional_str_arg, extract_optional_str_vec_arg, extract_str_arg,
-    extract_str_vec_arg,
-};
+use program_flow::argparse::{extract_numeric_arg, extract_optional_str_arg, extract_optional_str_vec_arg, extract_str_arg, extract_str_vec_arg, extract_boolean_flag};
 use program_flow::OrExit;
 
 use saber::simulation::sim_pheno::{
     generate_g_contribution_from_bed_bim, get_sim_output_path, SimEffectMechanism,
     write_effects_to_file,
 };
-use saber::util::get_bed_bim_from_prefix_and_partition;
+use saber::util::{get_bed_bim_from_prefix_and_partition, get_fid_iid_list};
 
 fn main() {
     let mut app = clap_app!(generate_g_effects =>
@@ -53,11 +50,16 @@ fn main() {
         )
         .arg(
             Arg::with_name("partition_variance_file")
-                .long("--partition-var").takes_value(true).required(true)
+                .long("--partition-var").short("v").takes_value(true).required(true)
                 .help(
                     "Each line in the file has two tokens:\n\
                     partition_name total_partition_variance"
                 )
+        )
+        .arg(
+            Arg::with_name("fill_noise")
+                .long("fill-noise").short("z")
+                .help("This will generate noise so that the total phenotypic variance is 1.")
         )
         .arg(
             Arg::with_name("out_path_prefix")
@@ -77,15 +79,18 @@ fn main() {
     let partition_filepath = extract_optional_str_arg(&matches, "partition_filepath");
     let partition_variance_filepath = extract_str_arg(&matches, "partition_variance_file");
     let out_path_prefix = extract_str_arg(&matches, "out_path_prefix");
+    let fill_noise = extract_boolean_flag(&matches, "fill_noise");
     let chunk_size = extract_numeric_arg::<usize>(&matches, "chunk_size")
         .unwrap_or_exit(Some(format!("failed to extract chunk_size")));
 
     println!(
         "partition_filepath: {}\n\
         partition_variance_filepath: {}\n\
+        fill_noise: {}\n\
         out_path_prefix: {}",
         partition_filepath.as_ref().unwrap_or(&"".to_string()),
         partition_variance_filepath,
+        fill_noise,
         out_path_prefix
     );
 
@@ -100,10 +105,18 @@ fn main() {
 
     println!("\n=> generating G effects");
     let out_path = get_sim_output_path(&out_path_prefix, SimEffectMechanism::G);
-    let effects = generate_g_contribution_from_bed_bim(&bed, &bim, &partition_to_variance, chunk_size);
+    let effects = generate_g_contribution_from_bed_bim(
+        &bed,
+        &bim,
+        &partition_to_variance,
+        fill_noise,
+        chunk_size
+    ).unwrap_or_exit(None::<String>);
+    let fid_iid_list = get_fid_iid_list(&format!("{}.fam", plink_filename_prefixes[0]))
+        .unwrap_or_exit(None::<String>);
 
     println!("\n=> writing the effects due to G to {}", out_path);
-    write_effects_to_file(&effects, &out_path)
+    write_effects_to_file(&effects, &fid_iid_list, &out_path)
         .unwrap_or_exit(Some(format!("failed to write the simulated effects to file: {}", out_path)));
 }
 

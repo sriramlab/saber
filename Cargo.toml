@@ -1,6 +1,6 @@
 [package]
 name = "saber"
-version = "0.2.4"
+version = "0.2.5"
 authors = ["Aaron"]
 edition = "2018"
 license = "Apache-2.0"
@@ -22,7 +22,7 @@ ndarray-linalg = "0.10.0"
 ndarray-parallel = "0.9.0"
 ndarray-rand = "0.9.0"
 num-traits = "0.2.6"
-program-flow = "0.1.0"
+program-flow = "0.1.1"
 rand = "0.6.5"
 rayon = "1.1.0"
 serde = "1.0.99"
