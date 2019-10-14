@@ -2,7 +2,10 @@ use std::collections::{HashMap, HashSet};
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, BufWriter, Write};
 
+use biofile::plink_bed::{PlinkBed, PlinkSnpType};
+use biofile::plink_bim::PlinkBim;
 use ndarray::{Array, Ix1, Ix2, ShapeBuilder};
+use biofile::util::get_buf;
 
 pub mod matrix_util;
 pub mod timer;
@@ -17,6 +20,68 @@ pub fn get_line_count(filepath: &str) -> Result<usize, String> {
 
 pub fn get_bed_bim_fam_path(bfile: &str) -> (String, String, String) {
     (format!("{}.bed", bfile), format!("{}.bim", bfile), format!("{}.fam", bfile))
+}
+
+pub fn get_bed_bim_from_prefix_and_partition(
+    plink_filename_prefixes: &Vec<String>,
+    plink_dominance_prefixes: &Option<Vec<String>>,
+    partition_filepath: &Option<String>,
+) -> Result<(PlinkBed, PlinkBim), biofile::error::Error> {
+    let bfile_prefix_snptype_list = {
+        let mut list = plink_filename_prefixes
+            .iter()
+            .map(|p| (p.to_string(), PlinkSnpType::Additive))
+            .collect::<Vec<(String, PlinkSnpType)>>();
+        if let Some(dominance_prefixes) = plink_dominance_prefixes {
+            list.append(
+                &mut dominance_prefixes
+                    .iter()
+                    .map(|p| (p.to_string(), PlinkSnpType::Dominance))
+                    .collect::<Vec<(String, PlinkSnpType)>>()
+            );
+        }
+        list
+    };
+    let bed_bim_fam_snptype_list: Vec<(String, String, String, PlinkSnpType)> =
+        bfile_prefix_snptype_list
+            .iter()
+            .map(|(prefix, snp_type)| {
+                let (bed, bim, fam) = get_bed_bim_fam_path(prefix);
+                (bed, bim, fam, *snp_type)
+            })
+            .collect();
+    let bed = PlinkBed::new(&bed_bim_fam_snptype_list)?;
+
+    let bim_path_list: Vec<String> = bed_bim_fam_snptype_list
+        .iter()
+        .map(|t| t.1.to_string())
+        .collect();
+
+    let bim = match partition_filepath {
+        Some(partition_filepath) => PlinkBim::new_with_partition_file(
+            bim_path_list,
+            partition_filepath,
+        )?,
+        None => PlinkBim::new(bim_path_list)?
+    };
+    Ok((bed, bim))
+}
+
+pub fn get_fid_iid_list(
+    fam_file_path: &str
+) -> Result<Vec<(String, String)>, biofile::error::Error> {
+    Ok(get_buf(fam_file_path)?
+        .lines()
+        .map(|l| {
+            let toks: Vec<String> =
+                l.unwrap()
+                 .split_whitespace()
+                 .map(|t| t.to_string())
+                 .collect();
+            (toks[0].to_owned(), toks[1].to_owned())
+        })
+        .collect()
+    )
 }
 
 pub fn load_trace_estimates(load_path: &str) -> Result<Array<f64, Ix2>, String> {
@@ -227,12 +292,13 @@ pub fn get_plink_covariate_arr(covariate_path: &str) -> Result<Array<f32, Ix2>, 
 
 #[cfg(test)]
 mod tests {
-    use std::io::Write;
+    use std::io::{Write, BufWriter};
 
     use ndarray::Array;
     use tempfile::NamedTempFile;
 
-    use crate::util::{load_trace_estimates, validate_header, write_trace_estimates};
+    use crate::util::{load_trace_estimates, validate_header, write_trace_estimates, get_fid_iid_list};
+    use std::fs::OpenOptions;
 
     #[test]
     fn test_validate_header() {
@@ -273,6 +339,29 @@ mod tests {
         let loaded_estimates = load_trace_estimates(&path).unwrap();
 
         assert_eq!(loaded_estimates, estimates);
+    }
+
+    #[test]
+    fn test_get_fid_iid_list() {
+        let fam_path = NamedTempFile::new().unwrap().into_temp_path();
+        {
+            let mut writer = BufWriter::new(
+                OpenOptions::new().create(true).truncate(true).write(true).open(
+                    fam_path.to_str().unwrap()
+                ).unwrap()
+            );
+            writer.write_fmt(
+                format_args!(
+                    "1532 1532\n\
+                0924 0924\n\
+                1254 1323\n\
+                123 123\n"
+                )
+            ).unwrap();
+        }
+        let fid_iid_list = get_fid_iid_list(fam_path.to_str().unwrap()).unwrap();
+        let mut iter = fid_iid_list.into_iter();
+        assert_eq!(iter.next(), Some(("1532".to_string(), "1532".to_string())));
     }
 }
 

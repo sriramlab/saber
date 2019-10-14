@@ -62,7 +62,7 @@ dependencies = [
 
 [[package]]
 name = "biofile"
-version = "0.10.0"
+version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "analytic 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -442,7 +442,7 @@ dependencies = [
 
 [[package]]
 name = "program-flow"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "clap 2.33.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -676,12 +676,12 @@ dependencies = [
 
 [[package]]
 name = "saber"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "analytic 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "bencher 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "bincode 1.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "biofile 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "biofile 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "blas-src 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "clap 2.33.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "colored 1.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -690,7 +690,7 @@ dependencies = [
  "ndarray-parallel 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "ndarray-rand 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "num-traits 0.2.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "program-flow 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "program-flow 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "rayon 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.99 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -831,7 +831,7 @@ dependencies = [
 "checksum autocfg 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)" = "22130e92352b948e7e82a49cdb0aa94f2211761117f29e052dd397c1ac33542b"
 "checksum bencher 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)" = "7dfdb4953a096c551ce9ace855a604d702e6e62d77fac690575ae347571717f5"
 "checksum bincode 1.1.4 (registry+https://github.com/rust-lang/crates.io-index)" = "9f04a5e50dc80b3d5d35320889053637d15011aed5e66b66b37ae798c65da6f7"
-"checksum biofile 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)" = "07c3dcddbaca4a2ca7acbeee665305fc102ddcf2ad9e1dd3d08cc6fcf0d11285"
+"checksum biofile 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)" = "decd53bd1b9c7639d3d3de79342ec713db00d2b186bcc81b7e55328d8c95923a"
 "checksum bitflags 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "3d155346769a6855b86399e9bc3814ab343cd3d62c7e985113d46a0ec3c281fd"
 "checksum blas-src 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "a7b894d1cc14af76750a80f64387f7986fe93a9d3786a9a8926a340ae50b2c51"
 "checksum blas-src 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "46fff4479d0099bbf7d7a093d095aea3cce49986642f3c9cb27375fed6b1b433"
@@ -876,7 +876,7 @@ dependencies = [
 "checksum ppv-lite86 0.2.5 (registry+https://github.com/rust-lang/crates.io-index)" = "e3cbf9f658cdb5000fcf6f362b8ea2ba154b9f146a61c7a20d647034c6b6561b"
 "checksum proc-macro2 0.4.30 (registry+https://github.com/rust-lang/crates.io-index)" = "cf3d2011ab5c909338f7887f4fc896d35932e29146c12c8d01da6b22a80ba759"
 "checksum procedurals 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "0d3e66fa24d01fa50ee8f7931b73d1c18b17d00bf9dc64190f1b592abd0a4323"
-"checksum program-flow 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "74096ed288fc892115e60dafdd2e7a192a3e9514a3f38af11dc0d30ee2fc5adf"
+"checksum program-flow 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "a02d60ee4f938f72f86b0e18e85f7c3fc9ff781010357727a9e30a43e791004e"
 "checksum quote 0.6.13 (registry+https://github.com/rust-lang/crates.io-index)" = "6ce23b6b870e8f94f81fb0a363d65d86675884b34a09043c81e5562f11c1f8e1"
 "checksum rand 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)" = "552840b97013b1a26992c11eac34bdd778e464601a4c2054b5f0bff7c6761293"
 "checksum rand 0.5.6 (registry+https://github.com/rust-lang/crates.io-index)" = "c618c47cd3ebd209790115ab837de41425723956ad3ce2e6a7f09890947cacb9"

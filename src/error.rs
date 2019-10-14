@@ -1,5 +1,5 @@
 use std::{fmt, io};
-use biofile::error::Error as PlinkBedError;
+use biofile::error::Error as BiofileError;
 
 #[derive(Debug)]
 pub enum Error {
@@ -16,12 +16,12 @@ impl fmt::Display for Error {
     }
 }
 
-impl From<PlinkBedError> for Error {
-    fn from(err: PlinkBedError) -> Error {
+impl From<BiofileError> for Error {
+    fn from(err: BiofileError) -> Error {
         match err {
-            PlinkBedError::BadFormat(why) => Error::Generic(why),
-            PlinkBedError::Generic(why) => Error::Generic(why),
-            PlinkBedError::IO { why, io_error } => Error::IO { why, io_error },
+            BiofileError::BadFormat(why) => Error::Generic(why),
+            BiofileError::Generic(why) => Error::Generic(why),
+            BiofileError::IO { why, io_error } => Error::IO { why, io_error },
         }
     }
 }
