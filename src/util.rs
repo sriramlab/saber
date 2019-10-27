@@ -97,7 +97,7 @@ pub fn get_file_line_tokens(
                 let toks: Vec<String> = l.unwrap().split_whitespace().map(|t| t.to_string()).collect();
                 if toks.len() != n_tokens {
                     Err(Error::Generic(format!(
-                        "expected {} tokens but found {}", n_tokens, toks.len()
+                        "expected {} tokens per line but found {}", n_tokens, toks.len()
                     )))
                 } else {
                     Ok(toks)

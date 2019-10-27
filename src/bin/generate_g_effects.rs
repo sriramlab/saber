@@ -162,7 +162,7 @@ fn main() {
             };
             (0..*reps)
                 .into_iter()
-                .map(|i| format!("{}_rep{}.g.effects", out_prefix, i + 1))
+                .map(|i| format!("{}_rep{}.effects", out_prefix, i + 1))
                 .collect::<Vec<String>>()
         })
         .collect::<Vec<String>>();
@@ -214,6 +214,7 @@ fn main() {
     let fid_iid_list = get_fid_iid_list(&format!("{}.fam", plink_filename_prefixes[0]))
         .unwrap_or_exit(None::<String>);
 
+    assert_eq!(effects.dim().1, num_out_paths);
     for (i, y) in effects.gencolumns().into_iter().enumerate() {
         let path = &out_paths[i];
         println!("\n=> writing the effects due to {}", path);
