@@ -4,8 +4,10 @@ use std::io::{BufRead, BufReader, BufWriter, Write};
 
 use biofile::plink_bed::{PlinkBed, PlinkSnpType};
 use biofile::plink_bim::PlinkBim;
-use ndarray::{Array, Ix1, Ix2, ShapeBuilder};
 use biofile::util::get_buf;
+use ndarray::{Array, Ix1, Ix2, ShapeBuilder};
+
+use crate::error::Error;
 
 pub mod matrix_util;
 pub mod timer;
@@ -84,15 +86,24 @@ pub fn get_fid_iid_list(
     )
 }
 
-pub fn get_file_lines(filepath: &str) -> Result<Vec<String>, std::io::Error> {
+pub fn get_file_line_tokens(
+    filepath: &str,
+    n_tokens: usize,
+) -> Result<Vec<Vec<String>>, Error> {
     Ok(
         BufReader::new(OpenOptions::new().read(true).open(filepath)?)
             .lines()
-            .map(|l| l
-                .unwrap()
-                .to_string()
-            )
-            .collect()
+            .map(|l| {
+                let toks: Vec<String> = l.unwrap().split_whitespace().map(|t| t.to_string()).collect();
+                if toks.len() != n_tokens {
+                    Err(Error::Generic(format!(
+                        "expected {} tokens but found {}", n_tokens, toks.len()
+                    )))
+                } else {
+                    Ok(toks)
+                }
+            })
+            .collect::<Result<Vec<Vec<String>>, Error>>()?
     )
 }
 
@@ -304,13 +315,13 @@ pub fn get_plink_covariate_arr(covariate_path: &str) -> Result<Array<f32, Ix2>, 
 
 #[cfg(test)]
 mod tests {
-    use std::io::{Write, BufWriter};
+    use std::fs::OpenOptions;
+    use std::io::{BufWriter, Write};
 
     use ndarray::Array;
     use tempfile::NamedTempFile;
 
-    use crate::util::{load_trace_estimates, validate_header, write_trace_estimates, get_fid_iid_list};
-    use std::fs::OpenOptions;
+    use crate::util::{get_fid_iid_list, load_trace_estimates, validate_header, write_trace_estimates};
 
     #[test]
     fn test_validate_header() {

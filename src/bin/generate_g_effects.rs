@@ -13,7 +13,7 @@ use program_flow::OrExit;
 use saber::simulation::sim_pheno::{
     generate_g_contribution_from_bed_bim, write_effects_to_file,
 };
-use saber::util::{get_bed_bim_from_prefix_and_partition, get_fid_iid_list, get_file_lines};
+use saber::util::{get_bed_bim_from_prefix_and_partition, get_fid_iid_list, get_file_line_tokens};
 use std::path::Path;
 
 fn main() {
@@ -65,7 +65,9 @@ fn main() {
             Arg::with_name("partition_variance_paths_file")
                 .long("--variance-pathfile").short("f").takes_value(true)
                 .help(
-                    "Each line in the file is a path to a partition variance file"
+                    "Each line in the file has two tokens:\n\
+                    partition_variance_file num_reps\n\
+                    where num_reps is the number of replicates to generate for that file"
                 )
         )
         .arg(
@@ -89,8 +91,12 @@ fn main() {
 
     let plink_dominance_prefixes = extract_optional_str_vec_arg(&matches, "plink_dominance_prefix");
     let partition_filepath = extract_optional_str_arg(&matches, "partition_filepath");
-    let partition_variance_filepaths = extract_optional_str_vec_arg(&matches, "partition_variance_file")
-        .unwrap_or(Vec::<String>::new());
+    let partition_variance_filepaths: Vec<(String, usize)> =
+        extract_optional_str_vec_arg(&matches, "partition_variance_file")
+            .unwrap_or(Vec::<String>::new())
+            .into_iter()
+            .map(|p| (p, 1usize))
+            .collect();
     let partition_variance_paths_file = extract_optional_str_arg(&matches, "partition_variance_paths_file");
     let out_dir = extract_str_arg(&matches, "out_dir");
     let fill_noise = extract_boolean_flag(&matches, "fill_noise");
@@ -107,43 +113,65 @@ fn main() {
         fill_noise,
         out_dir
     );
-    let partition_variance_filepaths = match partition_variance_paths_file {
+    let partition_variance_filepaths_and_reps = match partition_variance_paths_file {
         None => partition_variance_filepaths,
         Some(partition_variance_paths_file) => {
-            let mut paths = get_file_lines(&partition_variance_paths_file)
+            let mut paths: Vec<(String, usize)> = get_file_line_tokens(&partition_variance_paths_file, 2)
                 .unwrap_or_exit(Some(format!(
                     "failed to read the lines from {}", partition_variance_paths_file
-                )));
+                )))
+                .into_iter()
+                .map(|toks| {
+                    let reps = toks[1]
+                        .parse::<usize>()
+                        .unwrap_or_exit(Some(format!("failed to parse {} as usize", toks[1])));
+                    (toks[0].clone(), reps)
+                })
+                .collect();
             paths.extend(partition_variance_filepaths.into_iter());
             paths
         }
     };
-    let num_paths = partition_variance_filepaths.len();
+    let num_paths = partition_variance_filepaths_and_reps.len();
     if num_paths == 0 {
         eprintln!("No partition_variance_file provided. Please provide them through -f or -v");
         std::process::exit(1);
     }
-    partition_variance_filepaths.iter().enumerate().for_each(|(i, p)| {
-        println!("[{}/{}] {}", i + 1, num_paths, p);
+    partition_variance_filepaths_and_reps.iter().enumerate().for_each(|(i, (p, reps))| {
+        println!("[{}/{}, reps: {}] {}", i + 1, num_paths, reps, p);
     });
 
-    let out_paths = partition_variance_filepaths
+    let out_paths = partition_variance_filepaths_and_reps
         .iter()
-        .map(|p| {
-            let basename = match Path::new(p).file_name() {
-                None => return Err(format!("Invalid variance filename: {}", p)),
+        .flat_map(|(path, reps)| {
+            let basename = match Path::new(path).file_name() {
+                None => {
+                    eprintln!("Invalid variance filename: {}", path);
+                    std::process::exit(1);
+                }
                 Some(path) => path,
             };
-            match Path::new(&out_dir).join(basename).to_str() {
-                Some(s) => Ok(format!("{}.effects", s)),
-                None => Err(format!(
-                    "failed to create output filepath for outdir: {} and filename: {}", out_dir, p
-                )),
-            }
+            let out_prefix = match Path::new(&out_dir).join(basename).to_str() {
+                Some(s) => s.to_string(),
+                None => {
+                    eprintln!(
+                        "failed to create output filepath for outdir: {} and filename: {}", out_dir, path
+                    );
+                    std::process::exit(1);
+                }
+            };
+            (0..*reps)
+                .into_iter()
+                .map(|i| format!("{}_rep{}.g.effects", out_prefix, i + 1))
+                .collect::<Vec<String>>()
         })
-        .collect::<Result<Vec<String>, String>>()
-        .unwrap_or_exit(None::<String>);
+        .collect::<Vec<String>>();
 
+    let num_out_paths = out_paths.len();
+    println!("\nout_paths:");
+    out_paths.iter().enumerate().for_each(|(i, p)| {
+        println!("[{}/{}] {}", i + 1, num_out_paths, p);
+    });
     if out_paths.has_duplicate() {
         eprintln!(
             "{}",
@@ -161,20 +189,16 @@ fn main() {
 
     type PartitionKey = String;
     type VarianceValue = f64;
-    let filepath_to_partition_to_variance: HashMap<String, HashMap<PartitionKey, VarianceValue>> =
-        partition_variance_filepaths
-            .iter()
-            .map(|path| Ok((path.to_string(), get_partition_to_variance(path)?)))
-            .collect::<Result<HashMap<String, HashMap<PartitionKey, VarianceValue>>, String>>()
-            .unwrap_or_exit(Some(format!("failed to get the filepath_to_partition_to_variance map")));
-
-    let partition_to_variances = partition_variance_filepaths
+    let partition_to_variances = partition_variance_filepaths_and_reps
         .iter()
         .fold(
             HashMap::<PartitionKey, Vec<VarianceValue>>::new(),
-            |mut acc_map, filepath| {
-                for (partition_name, variance) in filepath_to_partition_to_variance[filepath].iter() {
-                    acc_map.entry(partition_name.to_string()).or_insert(Vec::new()).push(*variance);
+            |mut acc_map, (path, reps)| {
+                let partition_to_variances = get_partition_to_variance(path)
+                    .unwrap_or_exit(Some(format!("failed to get partition_to_variance_map")));
+                for (partition_name, variance) in partition_to_variances.iter() {
+                    let mut vars = vec![*variance; *reps];
+                    acc_map.entry(partition_name.to_string()).or_insert(Vec::new()).append(&mut vars);
                 }
                 acc_map
             },
