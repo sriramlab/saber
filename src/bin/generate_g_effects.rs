@@ -125,7 +125,7 @@ fn main() {
                     let reps = toks[1]
                         .parse::<usize>()
                         .unwrap_or_exit(Some(format!("failed to parse {} as usize", toks[1])));
-                    (toks[0].clone(), reps)
+                    (toks.into_iter().nth(0).unwrap(), reps)
                 })
                 .collect();
             paths.extend(partition_variance_filepaths.into_iter());
@@ -217,7 +217,7 @@ fn main() {
     assert_eq!(effects.dim().1, num_out_paths);
     for (i, y) in effects.gencolumns().into_iter().enumerate() {
         let path = &out_paths[i];
-        println!("\n=> writing the effects due to {}", path);
+        println!("=> writing the effects due to {}", path);
         write_effects_to_file(&y.to_owned(), &fid_iid_list, path)
             .unwrap_or_exit(Some(format!(
                 "failed to write the simulated effects to file: {}", path
