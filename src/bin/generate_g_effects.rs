@@ -7,10 +7,10 @@ use program_flow::argparse::{extract_numeric_arg, extract_optional_str_arg, extr
 use program_flow::OrExit;
 
 use saber::simulation::sim_pheno::{
-    generate_g_contribution_from_bed_bim, get_sim_output_path, SimEffectMechanism,
-    write_effects_to_file,
+    generate_g_contribution_from_bed_bim, write_effects_to_file,
 };
 use saber::util::{get_bed_bim_from_prefix_and_partition, get_fid_iid_list};
+use std::path::Path;
 
 fn main() {
     let mut app = clap_app!(generate_g_effects =>
@@ -51,6 +51,7 @@ fn main() {
         .arg(
             Arg::with_name("partition_variance_file")
                 .long("--partition-var").short("v").takes_value(true).required(true)
+                .multiple(true).number_of_values(1)
                 .help(
                     "Each line in the file has two tokens:\n\
                     partition_name total_partition_variance"
@@ -62,9 +63,9 @@ fn main() {
                 .help("This will generate noise so that the total phenotypic variance is 1.")
         )
         .arg(
-            Arg::with_name("out_path_prefix")
-                .long("out-prefix").short("o").takes_value(true)
-                .help("output file path prefix")
+            Arg::with_name("out_dir")
+                .long("out-dir").short("o").takes_value(true)
+                .help("output file directory")
         )
         .arg(
             Arg::with_name("chunk_size")
@@ -77,22 +78,38 @@ fn main() {
 
     let plink_dominance_prefixes = extract_optional_str_vec_arg(&matches, "plink_dominance_prefix");
     let partition_filepath = extract_optional_str_arg(&matches, "partition_filepath");
-    let partition_variance_filepath = extract_str_arg(&matches, "partition_variance_file");
-    let out_path_prefix = extract_str_arg(&matches, "out_path_prefix");
+    let partition_variance_filepath = extract_str_vec_arg(&matches, "partition_variance_file")
+        .unwrap_or_exit(Some(format!("failed to parse partition_variance_file")));
+    let out_dir = extract_str_arg(&matches, "out_dir");
     let fill_noise = extract_boolean_flag(&matches, "fill_noise");
     let chunk_size = extract_numeric_arg::<usize>(&matches, "chunk_size")
         .unwrap_or_exit(Some(format!("failed to extract chunk_size")));
 
     println!(
         "partition_filepath: {}\n\
-        partition_variance_filepath: {}\n\
+        partition_variance_filepath: {:?}\n\
         fill_noise: {}\n\
-        out_path_prefix: {}",
+        out_dir: {}",
         partition_filepath.as_ref().unwrap_or(&"".to_string()),
         partition_variance_filepath,
         fill_noise,
-        out_path_prefix
+        out_dir
     );
+
+    let out_paths = partition_variance_filepath
+        .iter()
+        .map(|p| {
+            let basename = match Path::new(p).file_name() {
+                None => return Err(format!("Invalid variance filename: {}", p)),
+                Some(path) => path,
+            };
+            match Path::new(&out_dir).join(basename).to_str() {
+                Some(s) => Ok(format!("{}.effects", s)),
+                None => Err(format!("failed to create output filepath for outdir: {} and filename: {}", out_dir, p)),
+            }
+        })
+        .collect::<Result<Vec<String>, String>>()
+        .unwrap_or_exit(None::<String>);
 
     let (bed, bim) = get_bed_bim_from_prefix_and_partition(
         &plink_filename_prefixes,
@@ -100,24 +117,45 @@ fn main() {
         &partition_filepath,
     ).unwrap_or_exit(None::<String>);
 
-    let partition_to_variance = get_partition_to_variance(&partition_variance_filepath)
-        .unwrap_or_exit(Some(format!("failed to get the partition_to_variance map")));
+    type PartitionKey = String;
+    type VarianceValue = f64;
+    let filepath_to_partition_to_variance: HashMap<String, HashMap<PartitionKey, VarianceValue>> =
+        partition_variance_filepath
+            .iter()
+            .map(|path| Ok((path.to_string(), get_partition_to_variance(path)?)))
+            .collect::<Result<HashMap<String, HashMap<PartitionKey, VarianceValue>>, String>>()
+            .unwrap_or_exit(Some(format!("failed to get the filepath_to_partition_to_variance map")));
 
+    let partition_to_variances = partition_variance_filepath
+        .iter()
+        .fold(
+            HashMap::<PartitionKey, Vec<VarianceValue>>::new(),
+            |mut acc_map, filepath| {
+                for (partition_name, variance) in filepath_to_partition_to_variance[filepath].iter() {
+                    acc_map.entry(partition_name.to_string()).or_insert(Vec::new()).push(*variance);
+                }
+                acc_map
+            },
+        );
     println!("\n=> generating G effects");
-    let out_path = get_sim_output_path(&out_path_prefix, SimEffectMechanism::G);
     let effects = generate_g_contribution_from_bed_bim(
         &bed,
         &bim,
-        &partition_to_variance,
+        &partition_to_variances,
         fill_noise,
-        chunk_size
+        chunk_size,
     ).unwrap_or_exit(None::<String>);
     let fid_iid_list = get_fid_iid_list(&format!("{}.fam", plink_filename_prefixes[0]))
         .unwrap_or_exit(None::<String>);
 
-    println!("\n=> writing the effects due to G to {}", out_path);
-    write_effects_to_file(&effects, &fid_iid_list, &out_path)
-        .unwrap_or_exit(Some(format!("failed to write the simulated effects to file: {}", out_path)));
+    for (i, y) in effects.gencolumns().into_iter().enumerate() {
+        let path = &out_paths[i];
+        println!("\n=> writing the effects due to {}", path);
+        write_effects_to_file(&y.to_owned(), &fid_iid_list, path)
+            .unwrap_or_exit(Some(format!(
+                "failed to write the simulated effects to file: {}", path
+            )));
+    }
 }
 
 fn get_partition_to_variance(partition_variance_filepath: &str) -> Result<HashMap<String, f64>, String> {

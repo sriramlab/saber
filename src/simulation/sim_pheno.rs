@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::OpenOptions;
 use std::io::{BufWriter, Write};
 
@@ -7,7 +7,7 @@ use analytic::set::traits::Finite;
 use analytic::stats::{mean, n_choose_2, variance};
 use biofile::plink_bed::PlinkBed;
 use biofile::plink_bim::PlinkBim;
-use ndarray::{Array, Axis, Ix1, Ix2, s};
+use ndarray::{Array, Axis, Ix1, Ix2, s, ShapeBuilder};
 use ndarray_parallel::prelude::*;
 use ndarray_rand::RandomExt;
 use rand::distributions::Normal;
@@ -64,57 +64,111 @@ pub fn generate_g_contribution(
 pub fn generate_g_contribution_from_bed_bim(
     bed: &PlinkBed,
     bim: &PlinkBim,
-    partition_to_variance: &HashMap<String, f64>,
+    partition_to_variances: &HashMap<String, Vec<f64>>,
     fill_noise: bool,
     chunk_size: usize,
-) -> Result<Array<f32, Ix1>, String> {
+) -> Result<Array<f32, Ix2>, String> {
     let partitions = bim.get_fileline_partitions_or(
         DEFAULT_PARTITION_NAME,
         OrderedIntegerSet::from_slice(&[[0, bed.total_num_snps() - 1]]),
     );
     let num_people = bed.num_people;
-    let mut effects: Array<f32, Ix1> = partitions
+    let num_phenotypes: usize = {
+        let s: HashSet<usize> = partition_to_variances
+            .values()
+            .map(|variances| variances.len())
+            .collect();
+        if s.len() != 1 {
+            return Err(format!(
+                "inconsistent number of phenotypes in partition_to_variances: \
+                {} different number of variances found", s.len()
+            ));
+        }
+        *s.iter().next().unwrap()
+    };
+    let mut effects: Array<f32, Ix2> = partitions
         .to_hash_map()
         .into_par_iter()
-        .fold_with(Array::zeros(num_people), |acc, (name, partition)| {
-            let num_partition_snps = partition.size();
-            let single_snp_std = (partition_to_variance[&name] / num_partition_snps as f64).sqrt();
-            bed.col_chunk_iter(chunk_size, Some(partition))
-               .into_par_iter()
-               .fold_with(Array::zeros(num_people), |acc, mut snp_chunk| {
-                   normalize_matrix_columns_inplace(&mut snp_chunk, 0);
-                   let num_chunk_snps = snp_chunk.dim().1;
-                   let effect_size_matrix = Array::random(
-                       num_chunk_snps, Normal::new(0f64, single_snp_std),
-                   ).mapv(|e| e as f32);
-                   acc + snp_chunk.dot(&effect_size_matrix)
-               })
-               .reduce(
-                   || Array::zeros(num_people),
-                   |acc, b| {
-                       acc + b
-                   },
-               ) + acc
-        })
+        .fold_with(
+            Array::zeros((num_people, num_phenotypes)),
+            |acc, (name, partition)| {
+                let num_partition_snps = partition.size();
+                let single_snp_stds: Vec<f64> = partition_to_variances[&name]
+                    .iter()
+                    .map(|v| (*v / num_partition_snps as f64).sqrt())
+                    .collect();
+
+                bed.col_chunk_iter(chunk_size, Some(partition))
+                   .into_par_iter()
+                   .fold_with(
+                       Array::zeros((num_people, num_phenotypes)),
+                       |acc, mut snp_chunk| {
+                           normalize_matrix_columns_inplace(&mut snp_chunk, 0);
+                           let num_chunk_snps = snp_chunk.dim().1;
+                           let effect_size_matrix = Array::from_shape_vec(
+                               (num_chunk_snps, num_phenotypes).strides((1, num_chunk_snps)),
+                               single_snp_stds
+                                   .iter()
+                                   .flat_map(|s|
+                                       Array::random(num_chunk_snps, Normal::new(0f64, *s))
+                                           .as_slice()
+                                           .unwrap()
+                                           .to_vec()
+                                   )
+                                   .collect::<Vec<f64>>(),
+                           ).unwrap().mapv(|e| e as f32);
+                           acc + snp_chunk.dot(&effect_size_matrix)
+                       })
+                   .reduce(
+                       || Array::zeros((num_people, num_phenotypes)),
+                       |chunk_acc, chunk_effects| {
+                           chunk_acc + chunk_effects
+                       },
+                   ) + acc
+            })
         .reduce(
-            || Array::zeros(num_people),
-            |acc, b| {
-                acc + b
+            || Array::zeros((num_people, num_phenotypes)),
+            |acc, partition_effects| {
+                acc + partition_effects
             },
         );
     if fill_noise {
-        let variance_sum = partitions
-            .to_hash_map()
-            .keys()
-            .fold(0., |acc, partition_name| acc + partition_to_variance[partition_name]);
-        if variance_sum > 1. {
-            return Err(format!(
-                "cannot fill the simulated phenotype with noise when the total variance ({}) is larger than 1.",
-                variance_sum
-            ));
-        }
-        let noise_std = (1. - variance_sum).sqrt();
-        let noise = Array::random(num_people, Normal::new(0f64, noise_std)).mapv(|e| e as f32);
+        let variance_sums: Vec<f64> = partition_to_variances
+            .values()
+            .fold(
+                vec![0f64; num_phenotypes],
+                |mut acc, variances| {
+                    for (i, v) in variances.iter().enumerate() {
+                        acc[i] += *v;
+                    }
+                    acc
+                },
+            );
+        let noise = Array::from_shape_vec(
+            (num_people, num_phenotypes).strides((1, num_people)),
+            variance_sums
+                .iter()
+                .map(|s| {
+                    let noise_var = 1. - *s;
+                    if noise_var < 0. {
+                        Err(format!(
+                            "cannot fill the simulated phenotype with noise when the total variance is larger than 1."
+                        ))
+                    } else {
+                        let noise_std = noise_var.sqrt();
+                        Ok(Array::random(num_people, Normal::new(0f64, noise_std))
+                            .mapv(|e| e as f32)
+                            .as_slice()
+                            .unwrap()
+                            .to_vec()
+                        )
+                    }
+                })
+                .collect::<Result<Vec<Vec<f32>>, String>>()?
+                .into_iter()
+                .flat_map(|v| v)
+                .collect::<Vec<f32>>(),
+        ).unwrap();
         effects += &noise;
     }
     Ok(effects)
