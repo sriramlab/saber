@@ -84,6 +84,18 @@ pub fn get_fid_iid_list(
     )
 }
 
+pub fn get_file_lines(filepath: &str) -> Result<Vec<String>, std::io::Error> {
+    Ok(
+        BufReader::new(OpenOptions::new().read(true).open(filepath)?)
+            .lines()
+            .map(|l| l
+                .unwrap()
+                .to_string()
+            )
+            .collect()
+    )
+}
+
 pub fn load_trace_estimates(load_path: &str) -> Result<Array<f64, Ix2>, String> {
     let num_rows = get_line_count(load_path)?;
     let buf = match OpenOptions::new().read(true).open(load_path) {
