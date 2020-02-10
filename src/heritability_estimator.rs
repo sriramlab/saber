@@ -162,7 +162,7 @@ pub fn estimate_heritability(
             get_heritability_point_estimate(Some(k), Some(&p))
                 .into_iter()
                 .enumerate()
-                .for_each(|(p, estimates)| pheno_knife_estimates[p].push(estimates));
+                .for_each(|(i, estimates)| pheno_knife_estimates[i].push(estimates));
         });
 
     let est_without_jackknife = get_heritability_point_estimate(None, None);
