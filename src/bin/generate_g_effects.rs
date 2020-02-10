@@ -3,7 +3,7 @@ use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader};
 
 use clap::{Arg, clap_app};
-use program_flow::argparse::{extract_numeric_arg, extract_optional_str_arg, extract_optional_str_vec_arg, extract_str_arg, extract_str_vec_arg, extract_boolean_flag};
+use program_flow::argparse::{extract_numeric_arg, extract_optional_str_arg, extract_optional_str_vec_arg, extract_str_arg, extract_str_vec_arg, extract_boolean_flag, extract_optional_numeric_arg};
 use program_flow::OrExit;
 
 use saber::simulation::sim_pheno::{
@@ -57,6 +57,11 @@ fn main() {
                 )
         )
         .arg(
+            Arg::with_name("binary_ratio")
+                .long("--binary").takes_value(true).value_name("BINARY_RATIO")
+                .help("generates binary output with BINARY_RATIO ones in expectation.")
+        )
+        .arg(
             Arg::with_name("fill_noise")
                 .long("fill-noise").short("z")
                 .help("This will generate noise so that the total phenotypic variance is 1.")
@@ -79,6 +84,8 @@ fn main() {
     let partition_filepath = extract_optional_str_arg(&matches, "partition_filepath");
     let partition_variance_filepath = extract_str_arg(&matches, "partition_variance_file");
     let out_path_prefix = extract_str_arg(&matches, "out_path_prefix");
+    let binary_ratio = extract_optional_numeric_arg(&matches, "binary_ratio")
+        .unwrap_or_exit(None::<String>);
     let fill_noise = extract_boolean_flag(&matches, "fill_noise");
     let chunk_size = extract_numeric_arg::<usize>(&matches, "chunk_size")
         .unwrap_or_exit(Some(format!("failed to extract chunk_size")));
@@ -110,13 +117,19 @@ fn main() {
         &bim,
         &partition_to_variance,
         fill_noise,
-        chunk_size
+        chunk_size,
     ).unwrap_or_exit(None::<String>);
+
+    let pheno_output = match binary_ratio {
+        None => effects,
+        Some(r) => effects.mapv(|e| if e > r { 1. } else { 0. })
+    };
+
     let fid_iid_list = get_fid_iid_list(&format!("{}.fam", plink_filename_prefixes[0]))
         .unwrap_or_exit(None::<String>);
 
     println!("\n=> writing the effects due to G to {}", out_path);
-    write_effects_to_file(&effects, &fid_iid_list, &out_path)
+    write_effects_to_file(&pheno_output, &fid_iid_list, &out_path)
         .unwrap_or_exit(Some(format!("failed to write the simulated effects to file: {}", out_path)));
 }
 
