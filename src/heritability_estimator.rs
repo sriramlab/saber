@@ -53,7 +53,7 @@ pub fn estimate_heritability(
     let jackknife_partitions = JackknifePartitions::from_integer_set(
         partition_array.clone(),
         num_jackknife_partitions,
-        true,
+        false,
     );
 
     let num_partitions = partition_array.len();
@@ -118,14 +118,14 @@ pub fn estimate_heritability(
                 .enumerate()
                 .for_each(|(p, ygy)| {
                     b_list[p][i] = ygy / num_snps_i;
-                    println!("pheno {} yk{}y: {}", pheno_path_vec[p], i, b_list[p][i]);
+//                    println!("pheno {} yk{}y: {}", pheno_path_vec[p], i, b_list[p][i]);
                 });
 
             a[[i, i]] = sum_of_squares_f32(ggz_i.iter()) as f64
                 / num_snps_i
                 / num_snps_i
                 / num_random_vecs as f64;
-            println!("tr(k_{}_k_{})_est: {} num_snps_i: {}", i, i, a[[i, i]], num_snps_i);
+//            println!("tr(k_{}_k_{})_est: {} num_snps_i: {}", i, i, a[[i, i]], num_snps_i);
             for j in i + 1..num_partitions {
                 let num_snps_j = match jackknife_partition {
                     Some(jackknife_partition) => (
@@ -138,7 +138,7 @@ pub fn estimate_heritability(
                     / num_snps_i
                     / num_snps_j
                     / num_random_vecs as f64;
-                println!("tr(k_{}_k_{})_est: {}", i, j, tr_ki_kj_est);
+//                println!("tr(k_{}_k_{})_est: {}", i, j, tr_ki_kj_est);
                 a[[i, j]] = tr_ki_kj_est;
                 a[[j, i]] = tr_ki_kj_est;
             }
@@ -146,7 +146,7 @@ pub fn estimate_heritability(
         b_list
             .into_iter()
             .map(|b| {
-                println!("solving ax=b\na = {:?}\nb = {:?}", a, b);
+//                println!("solving ax=b\na = {:?}\nb = {:?}", a, b);
                 let mut sig_sq = a.solve_into(b).unwrap().as_slice().unwrap().to_owned();
                 sig_sq.truncate(num_partitions);
                 sig_sq
@@ -171,7 +171,7 @@ pub fn estimate_heritability(
         .iter()
         .enumerate()
         .map(|(i, path)| {
-            println!("\n=> {}", path);
+//            println!("\n=> {}", path);
             Ok((
                 path.to_string(),
                 PartitionedJackknifeEstimates::from_jackknife_estimates(
