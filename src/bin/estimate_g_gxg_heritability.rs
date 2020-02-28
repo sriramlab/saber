@@ -10,7 +10,7 @@ use saber::heritability_estimator::estimate_g_gxg_heritability;
 use saber::util::get_bed_bim_fam_path;
 
 fn main() {
-    let mut app = clap_app!(estimate_multi_gxg_heritability =>
+    let mut app = clap_app!(estimate_g_gxg_heritability =>
         (version: "0.1")
     );
     app = app

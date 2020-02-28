@@ -210,13 +210,13 @@ pub fn estimate_g_gxg_heritability(
     let g_jackknife_partitions = JackknifePartitions::from_integer_set(
         g_partition_array.clone(),
         num_jackknife_partitions,
-        true,
+        false,
     );
 
     let gxg_basis_jackknife_partitions = JackknifePartitions::from_integer_set(
         gxg_partition_array.clone(),
         num_jackknife_partitions,
-        true,
+        false,
     );
 
     let num_g_partitions = g_partition_array.len();
