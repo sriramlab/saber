@@ -102,7 +102,7 @@ impl PartitionedJackknifeEstimates {
 
         let total_variance_estimates: Vec<f64> = jackknife_iteration_estimates
             .iter()
-            .map(|point_estimate| point_estimate.iter().sum())
+            .map(|partition_est| partition_est.iter().sum())
             .collect();
 
         let sum_estimate = {
