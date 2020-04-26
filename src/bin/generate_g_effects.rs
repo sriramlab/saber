@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader};
+use std::path::Path;
 
+use analytic::stats::percentile_by;
+use analytic::traits::HasDuplicate;
 use clap::{clap_app, Arg};
 use program_flow::argparse::{
     extract_boolean_flag, extract_numeric_arg, extract_optional_numeric_arg,
@@ -9,12 +12,8 @@ use program_flow::argparse::{
 };
 use program_flow::OrExit;
 
-use analytic::stats::percentile_by;
-use saber::simulation::sim_pheno::{
-    generate_g_contribution_from_bed_bim, get_sim_output_path, write_effects_to_file,
-    SimEffectMechanism
-};
-use saber::util::{get_bed_bim_from_prefix_and_partition, get_fid_iid_list};
+use saber::simulation::sim_pheno::{generate_g_contribution_from_bed_bim, write_effects_to_file};
+use saber::util::{get_bed_bim_from_prefix_and_partition, get_fid_iid_list, get_file_line_tokens};
 
 fn main() {
     let mut app = clap_app!(generate_g_effects =>
@@ -66,11 +65,29 @@ fn main() {
                 .long("--partition-var")
                 .short("v")
                 .takes_value(true)
-                .required(true)
+                .multiple(true)
+                .number_of_values(1)
                 .help(
                     "Each line in the file has two tokens:\n\
                      partition_name total_partition_variance"
                 )
+        )
+        .arg(
+            Arg::with_name("partition_variance_paths_file")
+                .long("--variance-pathfile")
+                .short("f")
+                .takes_value(true)
+                .help(
+                    "Each line in the file has two tokens:\n\
+                     partition_variance_file num_reps\n\
+                     where num_reps is the number of replicates to generate for that file"
+                )
+        )
+        .arg(
+            Arg::with_name("fill_noise")
+                .long("fill-noise")
+                .short("z")
+                .help("This will generate noise so that the total phenotypic variance is 1.")
         )
         .arg(
             Arg::with_name("binary_ratio")
@@ -80,23 +97,17 @@ fn main() {
                 .help("generates binary output with BINARY_RATIO ones in expectation.")
         )
         .arg(
-            Arg::with_name("fill_noise")
-                .long("fill-noise")
-                .short("z")
-                .help("This will generate noise so that the total phenotypic variance is 1.")
-        )
-        .arg(
-            Arg::with_name("out_path_prefix")
-                .long("out-prefix")
+            Arg::with_name("out_dir")
+                .long("out-dir")
                 .short("o")
                 .takes_value(true)
-                .help("output file path prefix")
+                .help("output file directory")
         )
         .arg(
             Arg::with_name("chunk_size")
                 .long("chunk-size")
                 .takes_value(true)
-                .default_value("1000")
+                .default_value("100")
         );
     let matches = app.get_matches();
 
@@ -105,26 +116,111 @@ fn main() {
 
     let plink_dominance_prefixes = extract_optional_str_vec_arg(&matches, "plink_dominance_prefix");
     let partition_filepath = extract_optional_str_arg(&matches, "partition_filepath");
-    let partition_variance_filepath = extract_str_arg(&matches, "partition_variance_file");
-    let out_path_prefix = extract_str_arg(&matches, "out_path_prefix");
+    let partition_variance_filepaths: Vec<(String, usize)> =
+        extract_optional_str_vec_arg(&matches, "partition_variance_file")
+            .unwrap_or(Vec::<String>::new())
+            .into_iter()
+            .map(|p| (p, 1usize))
+            .collect();
+
+    let partition_variance_paths_file =
+        extract_optional_str_arg(&matches, "partition_variance_paths_file");
+
+    let fill_noise = extract_boolean_flag(&matches, "fill_noise");
     let binary_ratio = extract_optional_numeric_arg::<f64>(&matches, "binary_ratio")
         .unwrap_or_exit(None::<String>);
-    let fill_noise = extract_boolean_flag(&matches, "fill_noise");
+
+    let out_dir = extract_str_arg(&matches, "out_dir");
     let chunk_size = extract_numeric_arg::<usize>(&matches, "chunk_size")
         .unwrap_or_exit(Some(format!("failed to extract chunk_size")));
 
     println!(
         "partition_filepath: {}\n\
-         partition_variance_filepath: {}\n\
+         partition_variance_paths_file: {}\n\
          fill_noise: {}\n\
-         binary_ratio: {:?}\n\
-         out_path_prefix: {}",
+         out_dir: {}\n\
+         binary_ratio: {:?}",
         partition_filepath.as_ref().unwrap_or(&"".to_string()),
-        partition_variance_filepath,
+        partition_variance_paths_file
+            .as_ref()
+            .unwrap_or(&"".to_string()),
         fill_noise,
-        binary_ratio,
-        out_path_prefix
+        out_dir,
+        binary_ratio
     );
+    let partition_variance_filepaths_and_reps = match partition_variance_paths_file {
+        None => partition_variance_filepaths,
+        Some(partition_variance_paths_file) => {
+            let mut paths: Vec<(String, usize)> =
+                get_file_line_tokens(&partition_variance_paths_file, 2)
+                    .unwrap_or_exit(Some(format!(
+                        "failed to read the lines from {}",
+                        partition_variance_paths_file
+                    )))
+                    .into_iter()
+                    .map(|toks| {
+                        let reps = toks[1]
+                            .parse::<usize>()
+                            .unwrap_or_exit(Some(format!("failed to parse {} as usize", toks[1])));
+                        (toks.into_iter().nth(0).unwrap(), reps)
+                    })
+                    .collect();
+            paths.extend(partition_variance_filepaths.into_iter());
+            paths
+        }
+    };
+    let num_paths = partition_variance_filepaths_and_reps.len();
+    if num_paths == 0 {
+        eprintln!("No partition_variance_file provided. Please provide them through -f or -v");
+        std::process::exit(1);
+    }
+    partition_variance_filepaths_and_reps
+        .iter()
+        .enumerate()
+        .for_each(|(i, (p, reps))| {
+            println!("[{}/{}, reps: {}] {}", i + 1, num_paths, reps, p);
+        });
+
+    let out_paths = partition_variance_filepaths_and_reps
+        .iter()
+        .flat_map(|(path, reps)| {
+            let basename = match Path::new(path).file_name() {
+                None => {
+                    eprintln!("Invalid variance filename: {}", path);
+                    std::process::exit(1);
+                }
+                Some(path) => path
+            };
+            let out_prefix = match Path::new(&out_dir).join(basename).to_str() {
+                Some(s) => s.to_string(),
+                None => {
+                    eprintln!(
+                        "failed to create output filepath for outdir: {} and filename: {}",
+                        out_dir, path
+                    );
+                    std::process::exit(1);
+                }
+            };
+            (0..*reps)
+                .into_iter()
+                .map(|i| format!("{}_rep{}.effects", out_prefix, i + 1))
+                .collect::<Vec<String>>()
+        })
+        .collect::<Vec<String>>();
+
+    let num_out_paths = out_paths.len();
+    println!("\nout_paths:");
+    out_paths.iter().enumerate().for_each(|(i, p)| {
+        println!("[{}/{}] {}", i + 1, num_out_paths, p);
+    });
+    if out_paths.has_duplicate() {
+        eprintln!(
+            "{}",
+            "The default-created output paths for the simulated effects have duplicates. \
+             Please make sure the basenames of all the variance files are distinct."
+        );
+        std::process::exit(1);
+    }
 
     if let Some(r) = binary_ratio {
         if r < 0. || r > 1. {
@@ -143,51 +239,63 @@ fn main() {
     )
     .unwrap_or_exit(None::<String>);
 
-    let partition_to_variance = get_partition_to_variance(&partition_variance_filepath)
-        .unwrap_or_exit(Some(format!("failed to get the partition_to_variance map")));
-
-    for (partition_name, variance) in partition_to_variance.iter() {
-        println!("partition: {} variance: {}", partition_name, variance);
-    }
+    type PartitionKey = String;
+    type VarianceValue = f64;
+    let partition_to_variances = partition_variance_filepaths_and_reps.iter().fold(
+        HashMap::<PartitionKey, Vec<VarianceValue>>::new(),
+        |mut acc_map, (path, reps)| {
+            let partition_to_variances = get_partition_to_variance(path)
+                .unwrap_or_exit(Some(format!("failed to get partition_to_variance_map")));
+            for (partition_name, variance) in partition_to_variances.iter() {
+                let mut vars = vec![*variance; *reps];
+                acc_map
+                    .entry(partition_name.to_string())
+                    .or_insert(Vec::new())
+                    .append(&mut vars);
+            }
+            acc_map
+        }
+    );
 
     println!("\n=> generating G effects");
-    let out_path = get_sim_output_path(&out_path_prefix, SimEffectMechanism::G);
     let effects = generate_g_contribution_from_bed_bim(
         &bed,
         &bim,
-        &partition_to_variance,
+        &partition_to_variances,
         fill_noise,
         chunk_size
     )
     .unwrap_or_exit(None::<String>);
-
-    let pheno_output = match binary_ratio {
-        None => effects,
-        Some(r) => {
-            let lowest_positive_score =
-                percentile_by(effects.to_vec(), 1. - r, |a, b| a.partial_cmp(b).unwrap())
-                    .unwrap_or_exit(Some(format!(
-                        "failed to get percentile {} for the generated effects of legnth {}",
-                        1. - r,
-                        effects.len()
-                    )));
-            println!(
-                "lowest positive score: {} to achieve a ratio of {} \
-                 for the number of positive labels",
-                lowest_positive_score, r
-            );
-            effects.mapv(|e| if e >= lowest_positive_score { 1. } else { 0. })
-        }
-    };
-
     let fid_iid_list = get_fid_iid_list(&format!("{}.fam", plink_filename_prefixes[0]))
         .unwrap_or_exit(None::<String>);
 
-    println!("\n=> writing the effects due to G to {}", out_path);
-    write_effects_to_file(&pheno_output, &fid_iid_list, &out_path).unwrap_or_exit(Some(format!(
-        "failed to write the simulated effects to file: {}",
-        out_path
-    )));
+    assert_eq!(effects.dim().1, num_out_paths);
+    for (i, y) in effects.gencolumns().into_iter().enumerate() {
+        let pheno_output = match binary_ratio {
+            None => y.to_owned(),
+            Some(r) => {
+                let lowest_positive_score =
+                    percentile_by(y.to_vec(), 1. - r, |a, b| a.partial_cmp(b).unwrap())
+                        .unwrap_or_exit(Some(format!(
+                            "failed to get percentile {} for the generated effects of length {}",
+                            1. - r,
+                            y.len()
+                        )));
+                println!(
+                    "lowest positive score: {} to achieve a ratio of {} \
+                     for the number of positive labels",
+                    lowest_positive_score, r
+                );
+                y.mapv(|e| if e >= lowest_positive_score { 1. } else { 0. })
+            }
+        };
+        let path = &out_paths[i];
+        println!("=> writing the effects due to {}", path);
+        write_effects_to_file(&pheno_output, &fid_iid_list, path).unwrap_or_exit(Some(format!(
+            "failed to write the simulated effects to file: {}",
+            path
+        )));
+    }
 }
 
 fn get_partition_to_variance(

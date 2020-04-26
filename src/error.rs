@@ -10,7 +10,7 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Error::IO { why, .. } => write!(f, "IO error: {}", why),
+            Error::IO { why, io_error } => write!(f, "IO error {}: {}", why, io_error),
             Error::Generic(why) => write!(f, "Generic Error: {}", why)
         }
     }
@@ -28,7 +28,7 @@ impl From<BiofileError> for Error {
 
 impl From<io::Error> for Error {
     fn from(err: io::Error) -> Error {
-        Error::IO { why: "IO Error: ".to_string(), io_error: err }
+        Error::IO { why: "".to_string(), io_error: err }
     }
 }
 

@@ -10,7 +10,7 @@ use program_flow::argparse::{
 use program_flow::OrExit;
 
 use saber::heritability_estimator::{DEFAULT_PARTITION_NAME, estimate_heritability};
-use saber::util::get_bed_bim_from_prefix_and_partition;
+use saber::util::{get_bed_bim_from_prefix_and_partition, get_file_line_tokens};
 
 fn main() {
     let mut app = clap_app!(estimate_heritability =>
@@ -37,7 +37,7 @@ fn main() {
         )
         .arg(
             Arg::with_name("pheno_path")
-                .long("pheno").short("e").takes_value(true).required(true)
+                .long("pheno").short("e").takes_value(true)
                 .multiple(true).number_of_values(1)
                 .help(
                     "The header line should be\n\
@@ -45,6 +45,13 @@ fn main() {
                     where PHENOTYPE_NAME can be any string without white spaces.\n\
                     The rest of the lines are of the form:\n\
                     1000011 1000011 -12.11363"
+                )
+        )
+        .arg(
+            Arg::with_name("pheno_paths_file")
+                .long("pheno-paths-file").short("f").takes_value(true)
+                .help(
+                    "Each line in the files is a path to a pheno file"
                 )
         )
         .arg(
@@ -89,8 +96,9 @@ fn main() {
     let plink_filename_prefixes = extract_str_vec_arg(&matches, "plink_filename_prefix")
         .unwrap_or_exit(Some("failed to parse the bfile list".to_string()));
     let plink_dominance_prefixes = extract_optional_str_vec_arg(&matches, "plink_dominance_prefix");
-    let pheno_path_list = extract_str_vec_arg(&matches, "pheno_path")
-        .unwrap_or_exit(Some("failed to parse pheno_path".to_string()));
+    let pheno_path_list = extract_optional_str_vec_arg(&matches, "pheno_path")
+        .unwrap_or(Vec::<String>::new());
+    let pheno_paths_file = extract_optional_str_arg(&matches, "pheno_paths_file");
     let partition_filepath = extract_optional_str_arg(&matches, "partition_file");
 
     let num_jackknife_partitions = extract_numeric_arg::<usize>(
@@ -108,12 +116,30 @@ fn main() {
     println!(
         "num_random_vecs: {}\n\
         partition_filepath: {}\n\
-        num_jackknife_partitions: {}",
+        num_jackknife_partitions: {}\n\
+        pheno_paths_file: {}",
         num_random_vecs,
         partition_filepath.as_ref().unwrap_or(&"".to_string()),
         num_jackknife_partitions,
+        pheno_paths_file.as_ref().unwrap_or(&"".to_string()),
     );
+    let pheno_path_list = match &pheno_paths_file {
+        None => pheno_path_list,
+        Some(f) => {
+            let mut paths: Vec<String> = get_file_line_tokens(f, 1)
+                .unwrap_or_exit(Some(format!("failed to get pheno paths from {}", f)))
+                .drain(..)
+                .map(|t| t.into_iter().nth(0).unwrap())
+                .collect();
+            paths.extend(pheno_path_list.into_iter());
+            paths
+        }
+    };
     let num_phenos = pheno_path_list.len();
+    if num_phenos == 0 {
+        eprintln!("No pheno paths provided. Please provide them through -e or -f");
+        std::process::exit(1);
+    }
     pheno_path_list.iter().enumerate().for_each(|(i, path)| println!("[{}/{}] {}", i + 1, num_phenos, path));
 
     let (bed, mut bim) = get_bed_bim_from_prefix_and_partition(
