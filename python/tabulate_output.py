@@ -9,9 +9,11 @@ def tabulate(file_path):
         for line in file:
             match = re.match(r'heritability estimates for (.+):', line)
             if match:
-                started = True
                 trait = match.groups()[0]
-                print(f'\n{os.path.basename(trait)},', end='')
+                if started:
+                    print()
+                print(f'{os.path.basename(trait)},', end='')
+                started = True
             if started and re.match(r'partition named|total estimate', line):
                 tabulate_trait_estimates(file)
     print()
