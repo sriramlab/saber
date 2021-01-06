@@ -1,16 +1,22 @@
-use analytic::set::ordered_integer_set::OrderedIntegerSet;
-use analytic::set::traits::Finite;
-use analytic::traits::Collecting;
 use biofile::plink_bim::FilelinePartitions;
-use clap::{Arg, clap_app};
-use program_flow::argparse::{
-    extract_numeric_arg, extract_optional_numeric_arg, extract_optional_str_arg,
-    extract_optional_str_vec_arg, extract_str_arg, extract_str_vec_arg,
+use clap::{clap_app, Arg};
+use math::{
+    set::{ordered_integer_set::OrderedIntegerSet, traits::Finite},
+    traits::Collecting,
 };
-use program_flow::OrExit;
+use program_flow::{
+    argparse::{
+        extract_numeric_arg, extract_optional_numeric_arg,
+        extract_optional_str_arg, extract_optional_str_vec_arg,
+        extract_str_arg, extract_str_vec_arg,
+    },
+    OrExit,
+};
 
-use saber::heritability_estimator::{DEFAULT_PARTITION_NAME, estimate_heritability};
-use saber::util::{get_bed_bim_from_prefix_and_partition, get_file_line_tokens};
+use saber::{
+    heritability_estimator::{estimate_heritability, DEFAULT_PARTITION_NAME},
+    util::{get_bed_bim_from_prefix_and_partition, get_file_line_tokens},
+};
 
 fn main() {
     let mut app = clap_app!(estimate_heritability =>
@@ -93,21 +99,25 @@ fn main() {
         );
     let matches = app.get_matches();
 
-    let plink_filename_prefixes = extract_str_vec_arg(&matches, "plink_filename_prefix")
-        .unwrap_or_exit(Some("failed to parse the bfile list".to_string()));
-    let plink_dominance_prefixes = extract_optional_str_vec_arg(&matches, "plink_dominance_prefix");
+    let plink_filename_prefixes =
+        extract_str_vec_arg(&matches, "plink_filename_prefix")
+            .unwrap_or_exit(Some("failed to parse the bfile list".to_string()));
+    let plink_dominance_prefixes =
+        extract_optional_str_vec_arg(&matches, "plink_dominance_prefix");
     let pheno_path_list = extract_optional_str_vec_arg(&matches, "pheno_path")
         .unwrap_or(Vec::<String>::new());
-    let pheno_paths_file = extract_optional_str_arg(&matches, "pheno_paths_file");
-    let partition_filepath = extract_optional_str_arg(&matches, "partition_file");
+    let pheno_paths_file =
+        extract_optional_str_arg(&matches, "pheno_paths_file");
+    let partition_filepath =
+        extract_optional_str_arg(&matches, "partition_file");
 
-    let num_jackknife_partitions = extract_numeric_arg::<usize>(
-        &matches, "num_jackknife_partitions",
-    ).unwrap_or_exit(Some("failed to extract num_jackknife_partitions"));
+    let num_jackknife_partitions =
+        extract_numeric_arg::<usize>(&matches, "num_jackknife_partitions")
+            .unwrap_or_exit(Some("failed to extract num_jackknife_partitions"));
 
-    let lowest_allowed_maf = extract_optional_numeric_arg::<f32>(
-        &matches, "lowest_allowed_maf",
-    ).unwrap_or_exit(Some("failed to extract lowest_allowed_maf"));
+    let lowest_allowed_maf =
+        extract_optional_numeric_arg::<f32>(&matches, "lowest_allowed_maf")
+            .unwrap_or_exit(Some("failed to extract lowest_allowed_maf"));
 
     let num_random_vecs = extract_str_arg(&matches, "num_random_vecs")
         .parse::<usize>()
@@ -127,7 +137,10 @@ fn main() {
         None => pheno_path_list,
         Some(f) => {
             let mut paths: Vec<String> = get_file_line_tokens(f, 1)
-                .unwrap_or_exit(Some(format!("failed to get pheno paths from {}", f)))
+                .unwrap_or_exit(Some(format!(
+                    "failed to get pheno paths from {}",
+                    f
+                )))
                 .drain(..)
                 .map(|t| t.into_iter().nth(0).unwrap())
                 .collect();
@@ -137,16 +150,22 @@ fn main() {
     };
     let num_phenos = pheno_path_list.len();
     if num_phenos == 0 {
-        eprintln!("No pheno paths provided. Please provide them through -e or -f");
+        eprintln!(
+            "No pheno paths provided. Please provide them through -e or -f"
+        );
         std::process::exit(1);
     }
-    pheno_path_list.iter().enumerate().for_each(|(i, path)| println!("[{}/{}] {}", i + 1, num_phenos, path));
+    pheno_path_list
+        .iter()
+        .enumerate()
+        .for_each(|(i, path)| println!("[{}/{}] {}", i + 1, num_phenos, path));
 
     let (bed, mut bim) = get_bed_bim_from_prefix_and_partition(
         &plink_filename_prefixes,
         &plink_dominance_prefixes,
         &partition_filepath,
-    ).unwrap_or_exit(None::<String>);
+    )
+    .unwrap_or_exit(None::<String>);
 
     let mut filtered_partitions = bim
         .get_fileline_partitions_or(
@@ -159,18 +178,22 @@ fn main() {
         println!("=> computing minor allele frequencies");
         let mut low_maf = OrderedIntegerSet::new();
         bed.get_minor_allele_frequencies(None)
-           .into_iter()
-           .enumerate()
-           .for_each(|(i, f)| {
-               if f < l {
-                   low_maf.collect(i);
-               }
-           });
+            .into_iter()
+            .enumerate()
+            .for_each(|(i, f)| {
+                if f < l {
+                    low_maf.collect(i);
+                }
+            });
         println!("removing {} alleles with frequency < {}", low_maf.size(), l);
-        filtered_partitions.values_mut().for_each(|v| *v -= &low_maf);
+        filtered_partitions
+            .values_mut()
+            .for_each(|v| *v -= &low_maf);
     };
 
-    bim.set_fileline_partitions(Some(FilelinePartitions::new(filtered_partitions)));
+    bim.set_fileline_partitions(Some(FilelinePartitions::new(
+        filtered_partitions,
+    )));
 
     let pheno_path_to_est = estimate_heritability(
         bed,
@@ -178,19 +201,21 @@ fn main() {
         pheno_path_list.clone(),
         num_random_vecs,
         num_jackknife_partitions,
-    ).unwrap_or_exit(None::<String>);
-    pheno_path_list
-        .iter()
-        .for_each(|path| {
-            println!("heritability estimates for {}:\n{}", path, pheno_path_to_est[path]);
-        })
+    )
+    .unwrap_or_exit(None::<String>);
+    pheno_path_list.iter().for_each(|path| {
+        println!(
+            "heritability estimates for {}:\n{}",
+            path, pheno_path_to_est[path]
+        );
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;
 
-    use analytic::stats::sum_of_squares;
+    use math::stats::sum_of_squares;
     use ndarray::Array;
     use ndarray_rand::RandomExt;
     use rand::distributions::StandardNormal;
@@ -201,16 +226,16 @@ mod tests {
     fn test_trace_estimator() {
         let n = 1000;
         let num_random_vecs = 40;
-        let x = Array::random(
-            (n, n),
-            StandardNormal).mapv(|e| e as i32 as f32);
+        let x = Array::random((n, n), StandardNormal).mapv(|e| e as i32 as f32);
         // want to estimate the trace of x.t().dot(&x)
         let true_trace = sum_of_squares(x.iter());
         println!("true trace: {}", true_trace);
 
-        let rand_mat = generate_plus_minus_one_bernoulli_matrix(n, num_random_vecs);
+        let rand_mat =
+            generate_plus_minus_one_bernoulli_matrix(n, num_random_vecs);
 
-        let trace_est = sum_of_squares(x.dot(&rand_mat).iter()) / num_random_vecs as f64;
+        let trace_est =
+            sum_of_squares(x.dot(&rand_mat).iter()) / num_random_vecs as f64;
         println!("trace_est: {}", trace_est);
     }
 
@@ -218,7 +243,8 @@ mod tests {
     fn test_bernoulli_matrix() {
         let n = 1000;
         let num_random_vecs = 100;
-        let rand_mat = generate_plus_minus_one_bernoulli_matrix(n, num_random_vecs);
+        let rand_mat =
+            generate_plus_minus_one_bernoulli_matrix(n, num_random_vecs);
         assert_eq!((n, num_random_vecs), rand_mat.dim());
         let mut value_set = HashSet::<i32>::new();
         for a in rand_mat.iter() {

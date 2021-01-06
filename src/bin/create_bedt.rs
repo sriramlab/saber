@@ -1,7 +1,9 @@
 use biofile::plink_bed::{PlinkBed, PlinkSnpType};
-use clap::{Arg, clap_app};
-use program_flow::argparse::{extract_optional_str_arg, extract_str_arg};
-use program_flow::OrExit;
+use clap::{clap_app, Arg};
+use program_flow::{
+    argparse::{extract_optional_str_arg, extract_str_arg},
+    OrExit,
+};
 
 use saber::util::get_bed_bim_fam_path;
 
@@ -23,16 +25,25 @@ fn main() {
 
     let out_path = extract_str_arg(&matches, "out_path");
     let bfile = extract_str_arg(&matches, "bfile");
-    let snp_chunk_size = match extract_optional_str_arg(&matches, "snp_chunk_size") {
-        None => 4096,
-        Some(s) => s.parse::<usize>().unwrap_or_exit(Some("failed to parse snp_chunk_size"))
-    };
+    let snp_chunk_size =
+        match extract_optional_str_arg(&matches, "snp_chunk_size") {
+            None => 4096,
+            Some(s) => s
+                .parse::<usize>()
+                .unwrap_or_exit(Some("failed to parse snp_chunk_size")),
+        };
     let (bed_path, bim_path, fam_path) = get_bed_bim_fam_path(&bfile);
     println!("PLINK bed path: {}\nPLINK bim path: {}\nPLINK fam path: {}\nout_path: {}\nsnp_chunk_size: {}",
              bed_path, bim_path, fam_path, out_path, snp_chunk_size);
-    let mut bed = PlinkBed::new(&vec![(bed_path, bim_path, fam_path, PlinkSnpType::Additive)])
-        .unwrap_or_exit(None::<String>);
+    let mut bed = PlinkBed::new(&vec![(
+        bed_path,
+        bim_path,
+        fam_path,
+        PlinkSnpType::Additive,
+    )])
+    .unwrap_or_exit(None::<String>);
 
     println!("\n=> writing the BED transpose to {}", out_path);
-    bed.create_bed_t(0, &out_path, 4096).unwrap_or_exit(Some("failed to create bedt"));
+    bed.create_bed_t(0, &out_path, 4096)
+        .unwrap_or_exit(Some("failed to create bedt"));
 }

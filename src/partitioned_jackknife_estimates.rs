@@ -1,9 +1,9 @@
-use std::collections::HashSet;
-use std::fmt;
+use std::{collections::HashSet, fmt};
 
-use analytic::set::ordered_integer_set::OrderedIntegerSet;
-use analytic::traits::ToIterator;
-use analytic::stats::standard_deviation;
+use math::{
+    set::ordered_integer_set::OrderedIntegerSet, stats::standard_deviation,
+    traits::ToIterator,
+};
 
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct Estimate<T> {
@@ -44,8 +44,10 @@ fn get_jackknife_mean_and_std(
     let n = estimates.len() as f64;
 
     let jackknife_mean = estimates.iter().sum::<f64>() / n;
-    let standard_error = standard_deviation(estimates.iter(), 0) * (n - 1.).sqrt();
-    let bias_corrected_estimate = n * point_estimate_without_jackknife - (n - 1.) * jackknife_mean;
+    let standard_error =
+        standard_deviation(estimates.iter(), 0) * (n - 1.).sqrt();
+    let bias_corrected_estimate =
+        n * point_estimate_without_jackknife - (n - 1.) * jackknife_mean;
 
     Estimate {
         bias_corrected_estimate,
@@ -60,9 +62,15 @@ impl PartitionedJackknifeEstimates {
         point_estimate_without_jackknife: &Vec<f64>,
         jackknife_iteration_estimates: &Vec<Vec<f64>>,
         partition_names: Option<Vec<String>>,
-        subset_sum_indices: Option<Vec<(String, OrderedIntegerSet<usize>)>>)
-        -> Result<PartitionedJackknifeEstimates, String> {
-        if jackknife_iteration_estimates.iter().map(|estimates| estimates.len()).collect::<HashSet<usize>>().len() > 1 {
+        subset_sum_indices: Option<Vec<(String, OrderedIntegerSet<usize>)>>,
+    ) -> Result<PartitionedJackknifeEstimates, String> {
+        if jackknife_iteration_estimates
+            .iter()
+            .map(|estimates| estimates.len())
+            .collect::<HashSet<usize>>()
+            .len()
+            > 1
+        {
             return Err(format!("inconsistent number of partitioned estimates across Jackknife iterations"));
         }
         if jackknife_iteration_estimates.len() == 0 {
@@ -82,12 +90,20 @@ impl PartitionedJackknifeEstimates {
                 ));
             }
         }
-        let mut partition_raw_estimates = vec![vec![0f64; jackknife_iteration_estimates.len()]; num_partitions];
+        let mut partition_raw_estimates =
+            vec![
+                vec![0f64; jackknife_iteration_estimates.len()];
+                num_partitions
+            ];
         for (i, estimates) in jackknife_iteration_estimates.iter().enumerate() {
-            assert_eq!(estimates.len(), num_partitions,
-                       "the number of partitions in the Jackknife iteration {} \
+            assert_eq!(
+                estimates.len(),
+                num_partitions,
+                "the number of partitions in the Jackknife iteration {} \
                        != the number of partitions {} in the point estimate",
-                       estimates.len(), num_partitions);
+                estimates.len(),
+                num_partitions
+            );
             for p in 0..num_partitions {
                 partition_raw_estimates[p][i] = estimates[p];
             }
@@ -109,7 +125,8 @@ impl PartitionedJackknifeEstimates {
             if total_variance_estimates.len() > 1 {
                 Some(get_jackknife_mean_and_std(
                     point_estimate_without_jackknife.iter().sum(),
-                    &total_variance_estimates))
+                    &total_variance_estimates,
+                ))
             } else {
                 None
             }
@@ -117,19 +134,35 @@ impl PartitionedJackknifeEstimates {
 
         let subset_sum_estimates = match subset_sum_indices {
             None => None,
-            Some(indices_list) => {
-                Some(indices_list.iter().map(|(subset_key, subset_indices)| {
-                    (subset_key.to_string(),
-                     get_jackknife_mean_and_std(
-                         subset_indices.to_iter().fold(0f64, |acc, i| acc + point_estimate_without_jackknife[i]),
-                         &jackknife_iteration_estimates
-                             .iter()
-                             .map(|point_estimate| {
-                                 subset_indices.to_iter().fold(0f64, |acc, i| acc + point_estimate[i])
-                             })
-                             .collect::<Vec<f64>>()))
-                }).collect::<Vec<(String, Estimate<f64>)>>())
-            }
+            Some(indices_list) => Some(
+                indices_list
+                    .iter()
+                    .map(|(subset_key, subset_indices)| {
+                        (
+                            subset_key.to_string(),
+                            get_jackknife_mean_and_std(
+                                subset_indices.to_iter().fold(
+                                    0f64,
+                                    |acc, i| {
+                                        acc + point_estimate_without_jackknife
+                                            [i]
+                                    },
+                                ),
+                                &jackknife_iteration_estimates
+                                    .iter()
+                                    .map(|point_estimate| {
+                                        subset_indices
+                                            .to_iter()
+                                            .fold(0f64, |acc, i| {
+                                                acc + point_estimate[i]
+                                            })
+                                    })
+                                    .collect::<Vec<f64>>(),
+                            ),
+                        )
+                    })
+                    .collect::<Vec<(String, Estimate<f64>)>>(),
+            ),
         };
 
         Ok(PartitionedJackknifeEstimates {
@@ -153,7 +186,11 @@ const NUM_DISPLAY_DECIMALS: usize = 5;
 impl<T: fmt::Display> fmt::Display for Estimate<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let indent = f.width().unwrap_or(0);
-        let fill = if indent > 0 { f.fill().to_string() } else { "".to_string() };
+        let fill = if indent > 0 {
+            f.fill().to_string()
+        } else {
+            "".to_string()
+        };
         write!(
             f,
             "{:indent$}point_estimate_without_jackknife: {:.*} (use this as the estimate)\n\
@@ -174,22 +211,47 @@ impl fmt::Display for PartitionedJackknifeEstimates {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let indent: usize = 4;
         if let Some(partition_names) = &self.partition_names {
-            for (name, estimate) in partition_names.iter().zip(self.partition_estimates.iter()) {
-                writeln!(f, "\npartition named {}\n{:indent$}", name, estimate, indent = indent)?;
+            for (name, estimate) in
+                partition_names.iter().zip(self.partition_estimates.iter())
+            {
+                writeln!(
+                    f,
+                    "\npartition named {}\n{:indent$}",
+                    name,
+                    estimate,
+                    indent = indent
+                )?;
             }
         } else {
             for (i, estimate) in self.partition_estimates.iter().enumerate() {
-                writeln!(f, "\npartition {}\n{:indent$}", i, estimate, indent = indent)?;
+                writeln!(
+                    f,
+                    "\npartition {}\n{:indent$}",
+                    i,
+                    estimate,
+                    indent = indent
+                )?;
             }
         }
 
         if let Some(subset_sum_estimates) = &self.subset_sum_estimates {
             for (key, estimate) in subset_sum_estimates.iter() {
-                writeln!(f, "\nestimate for subset {}\n{:indent$}", key, estimate, indent = indent)?;
+                writeln!(
+                    f,
+                    "\nestimate for subset {}\n{:indent$}",
+                    key,
+                    estimate,
+                    indent = indent
+                )?;
             }
         }
         if let Some(sum_estimate) = self.sum_estimate {
-            writeln!(f, "\ntotal estimate\n{:indent$}", sum_estimate, indent = indent)?;
+            writeln!(
+                f,
+                "\ntotal estimate\n{:indent$}",
+                sum_estimate,
+                indent = indent
+            )?;
         }
         Ok(())
     }

@@ -6,9 +6,19 @@ use rand::distributions::WeightedIndex;
 /// `zero_prob` is the probability of an element being 0
 /// `one_prob` is the probability of an element being 1
 /// `1 - zero_prob - one_prob` is the probability of an element being 1
-pub fn generate_g_matrix(num_people: usize, num_snps: usize, zero_prob: f64, two_prob: f64) -> Result<Array<u8, Ix2>, String> {
+pub fn generate_g_matrix(
+    num_people: usize,
+    num_snps: usize,
+    zero_prob: f64,
+    two_prob: f64,
+) -> Result<Array<u8, Ix2>, String> {
     if zero_prob < 0. || two_prob < 0. || zero_prob + two_prob > 1. {
-        return Err(format!("invalid probabilities {} {} {}", zero_prob, 1. - zero_prob - two_prob, two_prob));
+        return Err(format!(
+            "invalid probabilities {} {} {}",
+            zero_prob,
+            1. - zero_prob - two_prob,
+            two_prob
+        ));
     }
     let weights = [zero_prob, 1. - zero_prob - two_prob, two_prob];
     let dist = WeightedIndex::new(&weights).unwrap();
@@ -16,8 +26,9 @@ pub fn generate_g_matrix(num_people: usize, num_snps: usize, zero_prob: f64, two
 }
 
 /// `geno_arr`: each row is an individual consisting of M snps
-/// the returned array will have the same number of rows corresponding to the same indidivuals
-/// but each row will consist of M*(M-1)/2 snps formed by g_i * g_j for all i < j
+/// the returned array will have the same number of rows corresponding to the
+/// same indidivuals but each row will consist of M*(M-1)/2 snps formed by g_i *
+/// g_j for all i < j
 pub fn get_gxg_arr(geno_arr: &Array<f32, Ix2>) -> Array<f32, Ix2> {
     let (num_rows, num_cols) = geno_arr.dim();
     let num_cols_gxg = num_cols * (num_cols - 1) / 2;
@@ -35,5 +46,3 @@ pub fn get_gxg_arr(geno_arr: &Array<f32, Ix2>) -> Array<f32, Ix2> {
     }
     gxg
 }
-
-

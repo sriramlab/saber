@@ -1,15 +1,18 @@
-use std::fs::OpenOptions;
-use std::io::{BufWriter, Write};
+use std::{
+    fs::OpenOptions,
+    io::{BufWriter, Write},
+};
 
-use clap::{Arg, clap_app};
+use clap::{clap_app, Arg};
 use ndarray_linalg::Solve;
 use program_flow::argparse::{extract_optional_str_vec_arg, extract_str_arg};
 
 use program_flow::OrExit;
 use saber::util::{
-    get_plink_covariate_arr, get_plink_pheno_data, get_plink_pheno_data_replace_missing_with_mean,
+    get_plink_covariate_arr, get_plink_pheno_data,
+    get_plink_pheno_data_replace_missing_with_mean,
+    matrix_util::normalize_vector_inplace,
 };
-use saber::util::matrix_util::normalize_vector_inplace;
 
 fn main() {
     let mut app = clap_app!(regress_out_covariates =>
@@ -33,8 +36,10 @@ fn main() {
     let out_path = extract_str_arg(&matches, "out_path");
     let missing_rep = extract_optional_str_vec_arg(&matches, "missing_rep");
 
-    println!("phenotype filepath: {}\ncovariate filepath: {}\noutput filepath: {}",
-             pheno_path, covariate_path, out_path);
+    println!(
+        "phenotype filepath: {}\ncovariate filepath: {}\noutput filepath: {}",
+        pheno_path, covariate_path, out_path
+    );
 
     println!("\n=> generating the covariate array");
     let cov_arr = get_plink_covariate_arr(&covariate_path)
@@ -42,16 +47,15 @@ fn main() {
     println!("covariate_arr.dim: {:?}", cov_arr.dim());
 
     println!("\n=> generating the phenotype array");
-    let (header, fid_vec, iid_vec, mut pheno_arr) =
-        match missing_rep {
-            None => get_plink_pheno_data(&pheno_path)
-                .unwrap_or_exit(Some("failed to get the phenotype array")),
-            Some(r) => {
-                println!("\nmissing phenotype representation: {:?}", r);
-                get_plink_pheno_data_replace_missing_with_mean(&pheno_path, &r)
-                    .unwrap_or_exit(Some("failed to get the phenotype array"))
-            }
-        };
+    let (header, fid_vec, iid_vec, mut pheno_arr) = match missing_rep {
+        None => get_plink_pheno_data(&pheno_path)
+            .unwrap_or_exit(Some("failed to get the phenotype array")),
+        Some(r) => {
+            println!("\nmissing phenotype representation: {:?}", r);
+            get_plink_pheno_data_replace_missing_with_mean(&pheno_path, &r)
+                .unwrap_or_exit(Some("failed to get the phenotype array"))
+        }
+    };
     println!("pheno_arr.dim: {:?}", pheno_arr.dim());
 
     println!("\n=> normalizing the phenotypes");
@@ -59,18 +63,23 @@ fn main() {
 
     println!("\n=> calculating the residual phenotype array");
     let ay = cov_arr.t().dot(&pheno_arr);
-    let projection_coefficient = (cov_arr.t().dot(&cov_arr)).solve_into(ay).unwrap();
+    let projection_coefficient =
+        (cov_arr.t().dot(&cov_arr)).solve_into(ay).unwrap();
     let projection = cov_arr.dot(&projection_coefficient);
     let residual = pheno_arr - projection;
 
     println!("\n=> writing the residual phenotypes to {}", out_path);
-    let f = OpenOptions::new().truncate(true).create(true).write(true).open(out_path.as_str())
-                              .unwrap_or_exit(Some(format!("failed to create file {}", out_path)));
+    let f = OpenOptions::new()
+        .truncate(true)
+        .create(true)
+        .write(true)
+        .open(out_path.as_str())
+        .unwrap_or_exit(Some(format!("failed to create file {}", out_path)));
     let mut buf = BufWriter::new(f);
     buf.write_fmt(format_args!("{}\n", header))
-       .unwrap_or_exit(Some("failed to write to the output file"));
+        .unwrap_or_exit(Some("failed to write to the output file"));
     for (i, val) in residual.iter().enumerate() {
         buf.write_fmt(format_args!("{} {} {}\n", fid_vec[i], iid_vec[i], val))
-           .unwrap_or_exit(Some("failed to write to the output file"));
+            .unwrap_or_exit(Some("failed to write to the output file"));
     }
 }

@@ -1,13 +1,20 @@
-use biofile::plink_bed::{PlinkBed, PlinkSnpType};
-use biofile::plink_bim::PlinkBim;
-use clap::{Arg, clap_app};
-use program_flow::argparse::{
-    extract_numeric_arg, extract_optional_str_arg, extract_str_arg, extract_str_vec_arg,
+use biofile::{
+    plink_bed::{PlinkBed, PlinkSnpType},
+    plink_bim::PlinkBim,
 };
-use program_flow::OrExit;
+use clap::{clap_app, Arg};
+use program_flow::{
+    argparse::{
+        extract_numeric_arg, extract_optional_str_arg, extract_str_arg,
+        extract_str_vec_arg,
+    },
+    OrExit,
+};
 
-use saber::heritability_estimator::estimate_g_gxg_heritability;
-use saber::util::get_bed_bim_fam_path;
+use saber::{
+    heritability_estimator::estimate_g_gxg_heritability,
+    util::get_bed_bim_fam_path,
+};
 
 fn main() {
     let mut app = clap_app!(estimate_g_gxg_heritability =>
@@ -88,18 +95,22 @@ fn main() {
         );
     let matches = app.get_matches();
 
-    let plink_filename_prefix = extract_str_arg(&matches, "plink_filename_prefix");
-    let le_snps_filename_prefix = extract_str_arg(&matches, "le_snps_filename_prefix");
+    let plink_filename_prefix =
+        extract_str_arg(&matches, "plink_filename_prefix");
+    let le_snps_filename_prefix =
+        extract_str_arg(&matches, "le_snps_filename_prefix");
     let pheno_path_vec = extract_str_vec_arg(&matches, "pheno_path")
         .unwrap_or_exit(None::<String>);
-    let num_jackknife_partitions = extract_numeric_arg::<usize>(
-        &matches, "num_jackknife_partitions",
-    ).unwrap_or_exit(Some(format!("failed to extract num_jackknife_partitions")));
+    let num_jackknife_partitions =
+        extract_numeric_arg::<usize>(&matches, "num_jackknife_partitions")
+            .unwrap_or_exit(Some(format!(
+                "failed to extract num_jackknife_partitions"
+            )));
 
-    let (bed_path, bim_path, fam_path) = get_bed_bim_fam_path(&plink_filename_prefix);
-    let (le_snps_bed_path, le_snps_bim_path, le_snps_fam_path) = get_bed_bim_fam_path(
-        &le_snps_filename_prefix
-    );
+    let (bed_path, bim_path, fam_path) =
+        get_bed_bim_fam_path(&plink_filename_prefix);
+    let (le_snps_bed_path, le_snps_bim_path, le_snps_fam_path) =
+        get_bed_bim_fam_path(&le_snps_filename_prefix);
 
     let num_random_vecs = extract_str_arg(&matches, "num_random_vecs")
         .parse::<usize>()
@@ -107,24 +118,22 @@ fn main() {
     let num_rand_vecs_gxg = extract_str_arg(&matches, "num_rand_vecs_gxg")
         .parse::<usize>()
         .unwrap_or_exit(Some("failed to parse num_rand_vecs_gxg"));
-    let g_partition_filepath = extract_optional_str_arg(&matches, "partition_file");
-    let gxg_partition_filepath = extract_optional_str_arg(&matches, "gxg_partition_file");
+    let g_partition_filepath =
+        extract_optional_str_arg(&matches, "partition_file");
+    let gxg_partition_filepath =
+        extract_optional_str_arg(&matches, "gxg_partition_file");
 
     println!(
         "PLINK bed path: {}\n\
         PLINK bim path: {}\n\
         PLINK fam path: {}",
-        bed_path,
-        bim_path,
-        fam_path
+        bed_path, bim_path, fam_path
     );
     println!(
         "LE SNPs bed path: {}\n\
         LE SNPs bim path: {}\n\
         LE SNPs fam path: {}",
-        le_snps_bed_path,
-        le_snps_bim_path,
-        le_snps_fam_path
+        le_snps_bed_path, le_snps_bim_path, le_snps_fam_path
     );
     println!("phenotype paths:");
     for (i, path) in pheno_path_vec.iter().enumerate() {
@@ -140,8 +149,13 @@ fn main() {
     );
 
     println!("\n=> generating the phenotype array and the genotype matrix");
-    let geno_bed = PlinkBed::new(&vec![(bed_path, bim_path.clone(), fam_path, PlinkSnpType::Additive)])
-        .unwrap_or_exit(None::<String>);
+    let geno_bed = PlinkBed::new(&vec![(
+        bed_path,
+        bim_path.clone(),
+        fam_path,
+        PlinkSnpType::Additive,
+    )])
+    .unwrap_or_exit(None::<String>);
     let geno_bim = match &g_partition_filepath {
         Some(p) => PlinkBim::new_with_partition_file(vec![bim_path.clone()], p)
             .unwrap_or_exit(Some(format!(
@@ -152,9 +166,13 @@ fn main() {
             .unwrap_or_exit(Some(format!("failed to create PlinkBim from {}", &bim_path))),
     };
 
-    let le_snps_bed = PlinkBed::new(
-        &vec![(le_snps_bed_path, le_snps_bim_path.clone(), le_snps_fam_path, PlinkSnpType::Additive)]
-    ).unwrap_or_exit(None::<String>);
+    let le_snps_bed = PlinkBed::new(&vec![(
+        le_snps_bed_path,
+        le_snps_bim_path.clone(),
+        le_snps_fam_path,
+        PlinkSnpType::Additive,
+    )])
+    .unwrap_or_exit(None::<String>);
     let le_snps_bim = match &gxg_partition_filepath {
         Some(p) => PlinkBim::new_with_partition_file(vec![le_snps_bim_path.clone()], p)
             .unwrap_or_exit(Some(format!(
@@ -181,7 +199,10 @@ fn main() {
             for (pheno_index, pheno_path) in pheno_path_vec.iter().enumerate() {
                 println!(
                     "\n=> [{}/{}] phenotype {} heritability estimate: {}",
-                    pheno_index + 1, pheno_path_vec.len(), pheno_path, est[pheno_path]
+                    pheno_index + 1,
+                    pheno_path_vec.len(),
+                    pheno_path,
+                    est[pheno_path]
                 );
             }
         }

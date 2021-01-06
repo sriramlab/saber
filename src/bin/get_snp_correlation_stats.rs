@@ -1,16 +1,16 @@
-use std::fs::OpenOptions;
-use std::io::{BufWriter, Write};
+use std::{
+    fs::OpenOptions,
+    io::{BufWriter, Write},
+};
 
-use analytic::stats::n_choose_2;
 use biofile::plink_bed::{PlinkBed, PlinkSnpType};
 use clap::clap_app;
-use ndarray::{Axis, s};
+use math::stats::n_choose_2;
+use ndarray::{s, Axis};
 use ndarray_parallel::prelude::*;
-use program_flow::argparse::extract_str_arg;
-use program_flow::OrExit;
+use program_flow::{argparse::extract_str_arg, OrExit};
 
-use saber::util::get_bed_bim_fam_path;
-use saber::util::matrix_util::get_correlation;
+use saber::util::{get_bed_bim_fam_path, matrix_util::get_correlation};
 
 fn main() {
     let matches = clap_app!(get_snp_correlation_stats =>
@@ -39,16 +39,29 @@ fn main() {
     println!("PLINK bed path: {}\nPLINK bim path: {}\nPLINK fam path: {}\nout_path: {}",
              bed_path, bim_path, fam_path, out_path);
 
-    let bed = PlinkBed::new(&vec![(bed_path, bim_path, fam_path, PlinkSnpType::Additive)])
-        .unwrap_or_exit(None::<String>);
+    let bed = PlinkBed::new(&vec![(
+        bed_path,
+        bim_path,
+        fam_path,
+        PlinkSnpType::Additive,
+    )])
+    .unwrap_or_exit(None::<String>);
 
-    let geno_arr = bed.get_genotype_matrix(None)
-                      .unwrap_or_exit(Some("failed to get the genotype matrix"));
+    let geno_arr = bed
+        .get_genotype_matrix(None)
+        .unwrap_or_exit(Some("failed to get the genotype matrix"));
     let (_num_people, num_snps) = geno_arr.dim();
 
     let mut buf = BufWriter::new(
-        OpenOptions::new().truncate(true).create(true).write(true).open(&out_path)
-                          .unwrap_or_exit(Some(format!("failed to create file {}", out_path)))
+        OpenOptions::new()
+            .truncate(true)
+            .create(true)
+            .write(true)
+            .open(&out_path)
+            .unwrap_or_exit(Some(format!(
+                "failed to create file {}",
+                out_path
+            ))),
     );
 
     let num_pairs = n_choose_2(num_snps) as isize;
@@ -58,7 +71,7 @@ fn main() {
 
     for i in 0..num_snps - 1 {
         let snp_i = geno_arr.slice(s![.., i]);
-        let rest = geno_arr.slice(s![.., i+1..]);
+        let rest = geno_arr.slice(s![.., i + 1..]);
 
         let mut cor_vec = Vec::new();
         rest.axis_iter(Axis(1))
@@ -72,14 +85,21 @@ fn main() {
             None => {
                 for (j, val) in cor_vec.into_iter().enumerate() {
                     buf.write_fmt(format_args!("[{}] [{}] {:.5}\n", i, j, val))
-                       .unwrap_or_exit(Some("failed to write to the output file"));
+                        .unwrap_or_exit(Some(
+                            "failed to write to the output file",
+                        ));
                 }
             }
             Some(t) => {
                 for (j, val) in cor_vec.into_iter().enumerate() {
                     if val >= t {
-                        buf.write_fmt(format_args!("[{}] [{}] {:.5}\n", i, j, val))
-                           .unwrap_or_exit(Some("failed to write to the output file"));
+                        buf.write_fmt(format_args!(
+                            "[{}] [{}] {:.5}\n",
+                            i, j, val
+                        ))
+                        .unwrap_or_exit(Some(
+                            "failed to write to the output file",
+                        ));
                     }
                 }
             }

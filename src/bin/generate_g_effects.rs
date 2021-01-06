@@ -1,19 +1,30 @@
-use std::collections::HashMap;
-use std::fs::OpenOptions;
-use std::io::{BufRead, BufReader};
-use std::path::Path;
-
-use analytic::stats::percentile_by;
-use analytic::traits::HasDuplicate;
-use clap::{clap_app, Arg};
-use program_flow::argparse::{
-    extract_boolean_flag, extract_numeric_arg, extract_optional_numeric_arg,
-    extract_optional_str_arg, extract_optional_str_vec_arg, extract_str_arg, extract_str_vec_arg
+use std::{
+    collections::HashMap,
+    fs::OpenOptions,
+    io::{BufRead, BufReader},
+    path::Path,
 };
-use program_flow::OrExit;
 
-use saber::simulation::sim_pheno::{generate_g_contribution_from_bed_bim, write_effects_to_file};
-use saber::util::{get_bed_bim_from_prefix_and_partition, get_fid_iid_list, get_file_line_tokens};
+use clap::{clap_app, Arg};
+use math::{stats::percentile_by, traits::HasDuplicate};
+use program_flow::{
+    argparse::{
+        extract_boolean_flag, extract_numeric_arg,
+        extract_optional_numeric_arg, extract_optional_str_arg,
+        extract_optional_str_vec_arg, extract_str_arg, extract_str_vec_arg,
+    },
+    OrExit,
+};
+
+use saber::{
+    simulation::sim_pheno::{
+        generate_g_contribution_from_bed_bim, write_effects_to_file,
+    },
+    util::{
+        get_bed_bim_from_prefix_and_partition, get_fid_iid_list,
+        get_file_line_tokens,
+    },
+};
 
 fn main() {
     let mut app = clap_app!(generate_g_effects =>
@@ -111,11 +122,14 @@ fn main() {
         );
     let matches = app.get_matches();
 
-    let plink_filename_prefixes = extract_str_vec_arg(&matches, "plink_filename_prefix")
-        .unwrap_or_exit(Some("failed to parse the bfile list".to_string()));
+    let plink_filename_prefixes =
+        extract_str_vec_arg(&matches, "plink_filename_prefix")
+            .unwrap_or_exit(Some("failed to parse the bfile list".to_string()));
 
-    let plink_dominance_prefixes = extract_optional_str_vec_arg(&matches, "plink_dominance_prefix");
-    let partition_filepath = extract_optional_str_arg(&matches, "partition_filepath");
+    let plink_dominance_prefixes =
+        extract_optional_str_vec_arg(&matches, "plink_dominance_prefix");
+    let partition_filepath =
+        extract_optional_str_arg(&matches, "partition_filepath");
     let partition_variance_filepaths: Vec<(String, usize)> =
         extract_optional_str_vec_arg(&matches, "partition_variance_file")
             .unwrap_or(Vec::<String>::new())
@@ -127,8 +141,9 @@ fn main() {
         extract_optional_str_arg(&matches, "partition_variance_paths_file");
 
     let fill_noise = extract_boolean_flag(&matches, "fill_noise");
-    let binary_ratio = extract_optional_numeric_arg::<f64>(&matches, "binary_ratio")
-        .unwrap_or_exit(None::<String>);
+    let binary_ratio =
+        extract_optional_numeric_arg::<f64>(&matches, "binary_ratio")
+            .unwrap_or_exit(None::<String>);
 
     let out_dir = extract_str_arg(&matches, "out_dir");
     let chunk_size = extract_numeric_arg::<usize>(&matches, "chunk_size")
@@ -148,27 +163,31 @@ fn main() {
         out_dir,
         binary_ratio
     );
-    let partition_variance_filepaths_and_reps = match partition_variance_paths_file {
-        None => partition_variance_filepaths,
-        Some(partition_variance_paths_file) => {
-            let mut paths: Vec<(String, usize)> =
-                get_file_line_tokens(&partition_variance_paths_file, 2)
-                    .unwrap_or_exit(Some(format!(
-                        "failed to read the lines from {}",
-                        partition_variance_paths_file
-                    )))
-                    .into_iter()
-                    .map(|toks| {
-                        let reps = toks[1]
-                            .parse::<usize>()
-                            .unwrap_or_exit(Some(format!("failed to parse {} as usize", toks[1])));
-                        (toks.into_iter().nth(0).unwrap(), reps)
-                    })
-                    .collect();
-            paths.extend(partition_variance_filepaths.into_iter());
-            paths
-        }
-    };
+    let partition_variance_filepaths_and_reps =
+        match partition_variance_paths_file {
+            None => partition_variance_filepaths,
+            Some(partition_variance_paths_file) => {
+                let mut paths: Vec<(String, usize)> =
+                    get_file_line_tokens(&partition_variance_paths_file, 2)
+                        .unwrap_or_exit(Some(format!(
+                            "failed to read the lines from {}",
+                            partition_variance_paths_file
+                        )))
+                        .into_iter()
+                        .map(|toks| {
+                            let reps = toks[1].parse::<usize>().unwrap_or_exit(
+                                Some(format!(
+                                    "failed to parse {} as usize",
+                                    toks[1]
+                                )),
+                            );
+                            (toks.into_iter().nth(0).unwrap(), reps)
+                        })
+                        .collect();
+                paths.extend(partition_variance_filepaths.into_iter());
+                paths
+            }
+        };
     let num_paths = partition_variance_filepaths_and_reps.len();
     if num_paths == 0 {
         eprintln!("No partition_variance_file provided. Please provide them through -f or -v");
@@ -226,7 +245,10 @@ fn main() {
         if r < 0. || r > 1. {
             eprintln!(
                 "{}",
-                format!("binary ratio has to be between 0 and 1, received {}", r)
+                format!(
+                    "binary ratio has to be between 0 and 1, received {}",
+                    r
+                )
             );
             std::process::exit(1);
         }
@@ -235,27 +257,31 @@ fn main() {
     let (bed, bim) = get_bed_bim_from_prefix_and_partition(
         &plink_filename_prefixes,
         &plink_dominance_prefixes,
-        &partition_filepath
+        &partition_filepath,
     )
     .unwrap_or_exit(None::<String>);
 
     type PartitionKey = String;
     type VarianceValue = f64;
-    let partition_to_variances = partition_variance_filepaths_and_reps.iter().fold(
-        HashMap::<PartitionKey, Vec<VarianceValue>>::new(),
-        |mut acc_map, (path, reps)| {
-            let partition_to_variances = get_partition_to_variance(path)
-                .unwrap_or_exit(Some(format!("failed to get partition_to_variance_map")));
-            for (partition_name, variance) in partition_to_variances.iter() {
-                let mut vars = vec![*variance; *reps];
+    let partition_to_variances =
+        partition_variance_filepaths_and_reps.iter().fold(
+            HashMap::<PartitionKey, Vec<VarianceValue>>::new(),
+            |mut acc_map, (path, reps)| {
+                let partition_to_variances = get_partition_to_variance(path)
+                    .unwrap_or_exit(Some(format!(
+                        "failed to get partition_to_variance_map"
+                    )));
+                for (partition_name, variance) in partition_to_variances.iter()
+                {
+                    let mut vars = vec![*variance; *reps];
+                    acc_map
+                        .entry(partition_name.to_string())
+                        .or_insert(Vec::new())
+                        .append(&mut vars);
+                }
                 acc_map
-                    .entry(partition_name.to_string())
-                    .or_insert(Vec::new())
-                    .append(&mut vars);
-            }
-            acc_map
-        }
-    );
+            },
+        );
 
     println!("\n=> generating G effects");
     let effects = generate_g_contribution_from_bed_bim(
@@ -263,11 +289,12 @@ fn main() {
         &bim,
         &partition_to_variances,
         fill_noise,
-        chunk_size
+        chunk_size,
     )
     .unwrap_or_exit(None::<String>);
-    let fid_iid_list = get_fid_iid_list(&format!("{}.fam", plink_filename_prefixes[0]))
-        .unwrap_or_exit(None::<String>);
+    let fid_iid_list =
+        get_fid_iid_list(&format!("{}.fam", plink_filename_prefixes[0]))
+            .unwrap_or_exit(None::<String>);
 
     assert_eq!(effects.dim().1, num_out_paths);
     for (i, y) in effects.gencolumns().into_iter().enumerate() {
@@ -291,15 +318,16 @@ fn main() {
         };
         let path = &out_paths[i];
         println!("=> writing the effects due to {}", path);
-        write_effects_to_file(&pheno_output, &fid_iid_list, path).unwrap_or_exit(Some(format!(
-            "failed to write the simulated effects to file: {}",
-            path
-        )));
+        write_effects_to_file(&pheno_output, &fid_iid_list, path)
+            .unwrap_or_exit(Some(format!(
+                "failed to write the simulated effects to file: {}",
+                path
+            )));
     }
 }
 
 fn get_partition_to_variance(
-    partition_variance_filepath: &str
+    partition_variance_filepath: &str,
 ) -> Result<HashMap<String, f64>, String> {
     let buf = match OpenOptions::new()
         .read(true)
@@ -311,7 +339,7 @@ fn get_partition_to_variance(
                 partition_variance_filepath, why
             ));
         }
-        Ok(f) => BufReader::new(f)
+        Ok(f) => BufReader::new(f),
     };
     Ok(buf
         .lines()
@@ -336,8 +364,10 @@ fn get_partition_to_variance(
 
 #[cfg(test)]
 mod tests {
-    use std::fs::OpenOptions;
-    use std::io::{BufWriter, Write};
+    use std::{
+        fs::OpenOptions,
+        io::{BufWriter, Write},
+    };
 
     use tempfile::NamedTempFile;
 
@@ -345,7 +375,8 @@ mod tests {
 
     #[test]
     fn test_get_partition_to_variance() {
-        let partition_to_var_path = NamedTempFile::new().unwrap().into_temp_path();
+        let partition_to_var_path =
+            NamedTempFile::new().unwrap().into_temp_path();
         {
             let mut buf = BufWriter::new(
                 OpenOptions::new()
@@ -353,7 +384,7 @@ mod tests {
                     .truncate(true)
                     .create(true)
                     .open(partition_to_var_path.to_str().unwrap())
-                    .unwrap()
+                    .unwrap(),
             );
             buf.write_fmt(format_args!(
                 "{} {}\n\
@@ -365,7 +396,8 @@ mod tests {
             .unwrap();
         }
         let partition_to_var =
-            get_partition_to_variance(partition_to_var_path.to_str().unwrap()).unwrap();
+            get_partition_to_variance(partition_to_var_path.to_str().unwrap())
+                .unwrap();
         assert_eq!(partition_to_var["p1"], 0.02);
         assert_eq!(partition_to_var["p2"], 0.);
         assert_eq!(partition_to_var["p3"], 0.425);
